@@ -1,0 +1,48 @@
+{
+  "name": "literary-templates",
+  "version": "1.0.0",
+  "description": "Организованная система шаблонов для литературного творчества с иерархическим меню для Obsidian",
+  "main": "main.js",
+  "scripts": {
+    "build": "php build.php",
+    "dev": "php build.php && echo 'Сборка завершена'",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "literary",
+    "templates",
+    "worldbuilding",
+    "writing",
+    "rpg",
+    "fantasy"
+  ],
+  "author": "Captain Ogneryar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/captain-ogneryar/literary-templates.git"
+  },
+  "bugs": {
+    "url": "https://github.com/captain-ogneryar/literary-templates/issues"
+  },
+  "homepage": "https://github.com/captain-ogneryar/literary-templates#readme",
+  "devDependencies": {
+    "eslint": "^9.33.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "obsidian": {
+    "id": "literary-templates",
+    "name": "Literary Templates",
+    "version": "1.0.0",
+    "minAppVersion": "0.15.0",
+    "description": "Организованная система шаблонов для литературного творчества с иерархическим меню",
+    "author": "Captain Ogneryar",
+    "authorUrl": "https://github.com/captain-ogneryar",
+    "isDesktopOnly": false
+  }
+}

@@ -1,0 +1,49 @@
+name: Build Plugin
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: mbstring, xml, ctype, iconv
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build plugin
+      run: php build.php
+      
+    - name: Check build output
+      run: |
+        if [ -f "main.bundle.js" ]; then
+          echo "✅ Сборка успешна"
+          ls -la main.bundle.js
+        else
+          echo "❌ Ошибка сборки"
+          exit 1
+        fi
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: literary-templates-plugin
+        path: main.bundle.js
+        retention-days: 30

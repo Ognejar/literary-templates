@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+*.bundle.js
+main.bundle.js
+dist/
+build/
+
+# Obsidian specific
+.obsidian/
+*.log
+log.md
+
+# IDE and editor files
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Large media files (if not needed in repo)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.wav
+*.mp3
+*.mp4
+
+# Workspace files
+*.code-workspace

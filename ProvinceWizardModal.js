@@ -1,0 +1,675 @@
+/**
+ * @file       ProvinceWizardModal.js
+ * @description Модальное окно мастера для создания новой провинции.
+ * @author     Cursor
+ * @version    1.0.0
+ * @license    MIT
+ * @dependencies obsidian, ../utils/modals
+ * @created    2024-07-29
+ * @updated    2024-07-29
+ * @docs       /docs/project.md
+ */
+
+// Modal, Setting, Notice передаются через конструктор
+
+class ProvinceWizardModal extends Modal {
+    constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
+        super(app);
+        this.Modal = ModalClass;
+        this.Setting = SettingClass;
+        this.Notice = NoticeClass;
+        this.projectRoot = projectRoot;
+        this.onFinish = onFinish;
+        this.step = 0;
+        this.data = {
+            provinceName: '',
+            description: '',
+            climate: '',
+            population: '',
+            economy: '',
+            culture: [],
+            state: '',
+            historicalPeriod: '',
+            dominantFaction: '',
+            minorFactions: [],
+            cities: [],
+            villages: [],
+            deadZones: [],
+            ports: [],
+            castles: []
+        };
+    }
+
+    async onOpen() {
+        // Добавляем общие стили для модального окна
+        this.modalEl.style.cssText = `
+            max-width: 900px !important;
+            width: 900px !important;
+        `;
+        this.contentEl.style.cssText = `
+            padding: 20px;
+            max-width: 900px !important;
+            max-height: 80vh;
+            overflow-y: auto;
+        `;
+        
+        this.contentEl.empty();
+        this.titleEl.setText('Создание новой провинции');
+        await this.loadConfig();
+        await this.render();
+    }
+
+    async loadConfig() {
+        try {
+            // Инициализируем config объект
+            this.config = {
+                locationTypes: [],
+                climates: [],
+                factions: [],
+                historicalPeriods: [],
+                states: []
+            };
+
+            const projectRoot = this.projectRoot; // Используем переданный projectRoot
+            if (!projectRoot) {
+                new this.Notice('Проект не найден. Установите активный проект.');
+                this.close();
+                return;
+            }
+            this.settingsFilePath = `${projectRoot}/Настройки_мира.md`;
+            const settingsFile = this.app.vault.getAbstractFileByPath(this.settingsFilePath);
+            if (settingsFile instanceof TFile) {
+                const content = await this.app.vault.read(settingsFile);
+                const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
+                if (configMatch && configMatch[1]) {
+                    const parsedConfig = JSON.parse(configMatch[1]);
+                    this.config.locationTypes = parsedConfig.locations?.locationTypes || [];
+                    this.config.climates = parsedConfig.locations?.climates || [];
+                    this.config.factions = parsedConfig.locations?.factions || [];
+                    this.config.historicalPeriods = parsedConfig.historicalPeriods || [];
+                    this.config.states = parsedConfig.states || [];
+                }
+            }
+            // Инициализируем this.data.historicalPeriod, this.data.climate и this.data.dominantFaction здесь, после загрузки конфига
+            this.data.historicalPeriod = this.data.historicalPeriod || this.config.historicalPeriods[0] || 'Средневековье';
+            this.data.climate = this.data.climate || this.config.climates[0] || 'Умеренный';
+            this.data.dominantFaction = this.data.dominantFaction || this.config.factions[0] || 'Королевская власть';
+
+            console.log('DEBUG: ProvinceWizardModal - Config loaded. this.config.historicalPeriods:', this.config.historicalPeriods, 'climates:', this.config.climates, 'factions:', this.config.factions, 'states:', this.config.states);
+            console.log('DEBUG: ProvinceWizardModal - Data initialized. historicalPeriod:', this.data.historicalPeriod, 'climate:', this.data.climate, 'dominantFaction:', this.data.dominantFaction);
+        } catch (e) {
+            new this.Notice('Ошибка загрузки конфигурации: ' + e.message);
+            console.error('Ошибка загрузки конфигурации:', e);
+            this.close();
+        }
+    }
+
+    async createStateFile(stateName) {
+        try {
+            // Создаем папку Государства, если её нет
+            const statesFolderPath = `${this.projectRoot}/Государства`;
+            let statesFolder = this.app.vault.getAbstractFileByPath(statesFolderPath);
+            if (!statesFolder) {
+                await this.app.vault.createFolder(statesFolderPath);
+                statesFolder = this.app.vault.getAbstractFileByPath(statesFolderPath);
+            }
+
+            // Создаем или обновляем индексный файл
+            const indexPath = `${statesFolderPath}/Index.md`;
+            let indexFile = this.app.vault.getAbstractFileByPath(indexPath);
+            if (!indexFile) {
+                await this.app.vault.create(indexPath, `# Индекс государств\n\n- [[${stateName}]]\n`);
+            } else {
+                const content = await this.app.vault.read(indexFile);
+                if (!content.includes(`[[${stateName}]]`)) {
+                    await this.app.vault.modify(indexFile, content + `- [[${stateName}]]\n`);
+                }
+            }
+
+            // Создаем файл государства
+            const stateFilePath = `${statesFolderPath}/${stateName}.md`;
+            let stateFile = this.app.vault.getAbstractFileByPath(stateFilePath);
+            
+            // Проверяем, не создался ли файл без расширения
+            if (!stateFile) {
+                const stateFileWithoutExt = this.app.vault.getAbstractFileByPath(`${statesFolderPath}/${stateName}`);
+                if (stateFileWithoutExt) {
+                    // Если файл создался без расширения, переименовываем его
+                    await this.app.vault.rename(stateFileWithoutExt, `${stateName}.md`);
+                    stateFile = this.app.vault.getAbstractFileByPath(stateFilePath);
+                }
+            }
+            
+            if (!stateFile) {
+                const stateContent = `---
+created: "${new Date().toISOString().split('T')[0]}"
+name: "${stateName}"
+aliases: ["${stateName}"]
+type: "Государство"
+tags: [place, государство]
+---
+
+# ${stateName}
+
+## Описание
+[Здесь должно быть описание государства]
+
+## Провинции
+[Список провинций государства]
+
+## Столица
+[Название столицы]
+
+## Правитель
+[Информация о правителе]
+
+## История
+[История государства]
+
+## Культура
+[Культурные особенности]
+
+## Экономика
+[Экономическое описание]
+
+## Вооруженные силы
+[Информация о вооруженных силах]
+`;
+                await this.app.vault.create(stateFilePath, stateContent);
+                console.log('DEBUG: ProvinceWizardModal - State file created:', stateFilePath);
+                return true;
+            }
+        } catch (e) {
+            console.error('Ошибка создания файла государства:', e);
+            return false;
+        }
+        return false;
+    }
+
+    async saveConfig() {
+        try {
+            const settingsFile = this.app.vault.getAbstractFileByPath(this.settingsFilePath);
+            if (settingsFile instanceof TFile) {
+                const content = await this.app.vault.read(settingsFile);
+                const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
+                if (configMatch && configMatch[1]) {
+                    const parsedConfig = JSON.parse(configMatch[1]);
+                    // Обновляем только states, сохраняя остальные настройки
+                    parsedConfig.states = this.config.states;
+                    
+                    // Заменяем JSON блок в файле
+                    const newContent = content.replace(
+                        /```json\n[\s\S]*?\n```/,
+                        '```json\n' + JSON.stringify(parsedConfig, null, 2) + '\n```'
+                    );
+                    
+                    await this.app.vault.modify(settingsFile, newContent);
+                    console.log('DEBUG: ProvinceWizardModal - Config saved with new states:', this.config.states);
+                }
+            }
+        } catch (e) {
+            console.error('Ошибка сохранения конфигурации:', e);
+        }
+    }
+
+    async render() {
+        this.contentEl.empty();
+        const { contentEl } = this;
+        let navButtons = '';
+
+        switch (this.step) {
+            case 0:
+                this.titleEl.setText('Создание новой провинции - Шаг 1/12: Государство');
+                await this.renderStateSelect(contentEl);
+                navButtons = '<button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 1:
+                this.titleEl.setText('Создание новой провинции - Шаг 2/12: Название');
+                this.renderProvinceName(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 2:
+                this.titleEl.setText('Создание новой провинции - Шаг 3/12: Климат, Исторический период, Доминирующая фракция');
+                this.renderClimateHistoricalPeriodDominantFaction(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 3:
+                this.titleEl.setText('Создание новой провинции - Шаг 4/12: Второстепенные фракции');
+                this.renderMinorFactions(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 4:
+                this.titleEl.setText('Создание новой провинции - Шаг 5/12: Население');
+                this.renderPopulation(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 5:
+                this.titleEl.setText('Создание новой провинции - Шаг 6/12: Экономика');
+                this.renderEconomy(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 6:
+                this.titleEl.setText('Создание новой провинции - Шаг 7/12: Описание');
+                this.renderDescription(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 7:
+                this.titleEl.setText('Создание новой провинции - Шаг 8/12: Города');
+                this.renderRelatedEntities(contentEl, 'cities', 'город');
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 8:
+                this.titleEl.setText('Создание новой провинции - Шаг 9/12: Деревни');
+                this.renderRelatedEntities(contentEl, 'villages', 'деревню');
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 9:
+                this.titleEl.setText('Создание новой провинции - Шаг 10/12: Мертвые зоны');
+                this.renderRelatedEntities(contentEl, 'deadZones', 'мертвую зону');
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 10:
+                this.titleEl.setText('Создание новой провинции - Шаг 11/12: Порты и замки');
+                this.renderPortsAndCastles(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 11:
+                this.titleEl.setText('Создание новой провинции - Шаг 12/12: Предпросмотр');
+                this.renderPreview(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
+                break;
+            default:
+                break;
+        }
+
+        this.renderNav(contentEl, navButtons);
+    }
+
+    async loadStatesFromFolder() {
+        try {
+            const statesFolder = this.app.vault.getAbstractFileByPath(`${this.projectRoot}/Государства`);
+            if (statesFolder && statesFolder.children) {
+                const stateFiles = statesFolder.children.filter(file => 
+                    file instanceof TFile && 
+                    (file.extension === 'md' || file.extension === '') && 
+                    file.name !== 'Index.md'
+                );
+                return stateFiles.map(file => file.basename);
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки государств из папки:', e);
+        }
+        return [];
+    }
+
+    async renderStateSelect(contentEl) {
+        // Загружаем государства из папки и конфига
+        const folderStates = await this.loadStatesFromFolder();
+        const configStates = this.config.states || [];
+        const allStates = [...new Set([...folderStates, ...configStates])];
+        
+        if (allStates.length === 0) {
+            new this.Setting(contentEl)
+                .setName('Государство')
+                .setDesc('⚠️ Не найдено ни одного государства. Введите название нового государства и нажмите Enter или перейдите к следующему полю - будет создан файл государства в папке "Государства".')
+                .addText(text => {
+                    text.setPlaceholder('Введите название государства')
+                        .setValue(this.data.state)
+                        .onChange(value => {
+                            this.data.state = value;
+                        });
+                    
+                    // Добавляем обработчик потери фокуса для создания файла
+                    text.inputEl.addEventListener('blur', async () => {
+                        const stateName = this.data.state.trim();
+                        if (stateName && !this.config.states.includes(stateName)) {
+                            this.config.states.push(stateName);
+                            const created = await this.createStateFile(stateName);
+                            if (created) {
+                                new this.Notice(`✅ Государство "${stateName}" создано и добавлено в список`);
+                            } else {
+                                new this.Notice(`⚠️ Государство "${stateName}" добавлено в список, но файл не создан`);
+                            }
+                        }
+                    });
+
+                    // Добавляем обработчик нажатия Enter для создания файла
+                    text.inputEl.addEventListener('keydown', async (event) => {
+                        if (event.key === 'Enter') {
+                            const stateName = this.data.state.trim();
+                            if (stateName && !this.config.states.includes(stateName)) {
+                                this.config.states.push(stateName);
+                                const created = await this.createStateFile(stateName);
+                                if (created) {
+                                    new this.Notice(`✅ Государство "${stateName}" создано и добавлено в список`);
+                                } else {
+                                    new this.Notice(`⚠️ Государство "${stateName}" добавлено в список, но файл не создан`);
+                                }
+                            }
+                            // Переходим к следующему шагу
+                            if (this.validateCurrentStep()) {
+                                this.step++;
+                                await this.render();
+                            }
+                        }
+                    });
+                    text.inputEl.style.width = '100%';
+                    text.inputEl.style.fontSize = '16px';
+                    text.inputEl.style.padding = '8px';
+                });
+        } else {
+                         new this.Setting(contentEl)
+                 .setName('Государство')
+                 .setDesc(allStates.length === 1 ? 
+                     `✅ Автоматически выбрано единственное государство: ${allStates[0]}` : 
+                     'Выберите государство, к которому принадлежит провинция')
+                                 .addDropdown(dropdown => {
+                     allStates.forEach(state => dropdown.addOption(state, state));
+                     // Автоматически выбираем первый вариант, если он один
+                     const selectedState = this.data.state || allStates[0];
+                     dropdown.setValue(selectedState);
+                     this.data.state = selectedState; // Устанавливаем значение в data
+                     dropdown.onChange(value => this.data.state = value);
+                     dropdown.selectEl.style.minWidth = '280px';
+                     dropdown.selectEl.style.fontSize = '14px';
+                     dropdown.selectEl.style.padding = '6px';
+                 });
+        }
+    }
+
+    renderProvinceName(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Название провинции')
+            .addText(text => {
+                text.setPlaceholder('Название провинции')
+                    .setValue(this.data.provinceName)
+                    .onChange(value => {
+                        this.data.provinceName = value;
+                    });
+                // Увеличиваем размер поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderClimateHistoricalPeriodDominantFaction(contentEl) {
+        const fallbackClimates = ['Тропический', 'Умеренный', 'Холодный', 'Пустынный', 'Горный', 'Прибрежный', 'Субтропический'];
+        const fallbackPeriods = ['Древность', 'Средневековье', 'Ренессанс', 'Новое время', 'Современность', 'Футуристическое'];
+        const fallbackFactions = ['Королевская власть', 'Церковь', 'Торговые гильдии', 'Военные ордена', 'Магические школы', 'Криминальные синдикаты', 'Племенные союзы', 'Демократические советы'];
+
+        const climates = this.config.climates.length > 0 ? this.config.climates : fallbackClimates;
+        const periods = this.config.historicalPeriods.length > 0 ? this.config.historicalPeriods : fallbackPeriods;
+        const factions = this.config.factions.length > 0 ? this.config.factions : fallbackFactions;
+
+        new this.Setting(contentEl)
+            .setName('Климат')
+            .addDropdown(dropdown => {
+                climates.forEach(climate => dropdown.addOption(climate, climate));
+                dropdown.setValue(this.data.climate || climates[0]);
+                dropdown.onChange(value => this.data.climate = value);
+                // Увеличиваем размер выпадающего списка
+                dropdown.selectEl.style.minWidth = '280px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+
+        new this.Setting(contentEl)
+            .setName('Исторический период')
+            .setDesc('Выберите исторический период, в котором происходит действие. Это поможет определить архитектуру, технологии и социальную структуру.')
+            .addDropdown(dropdown => {
+                periods.forEach(period => dropdown.addOption(period, period));
+                dropdown.setValue(this.data.historicalPeriod || periods[0]);
+                dropdown.onChange(value => this.data.historicalPeriod = value);
+                // Увеличиваем размер выпадающего списка
+                dropdown.selectEl.style.minWidth = '280px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+
+        new this.Setting(contentEl)
+            .setName('Доминирующая фракция')
+            .addDropdown(dropdown => {
+                factions.forEach(faction => dropdown.addOption(faction, faction));
+                dropdown.setValue(this.data.dominantFaction || factions[0]);
+                dropdown.onChange(value => this.data.dominantFaction = value);
+                // Увеличиваем размер выпадающего списка
+                dropdown.selectEl.style.minWidth = '280px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+    }
+
+    renderMinorFactions(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Второстепенные фракции (каждая с новой строки, опционально)')
+            .addTextArea(text => {
+                text.setPlaceholder('Список второстепенных фракций')
+                    .setValue(this.data.minorFactions.join('\n'))
+                    .onChange(value => {
+                        this.data.minorFactions = value.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderPopulation(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Население (опционально)')
+            .addText(text => {
+                text.setPlaceholder('Численность населения')
+                    .setValue(this.data.population)
+                    .onChange(value => {
+                        this.data.population = value;
+                    });
+                // Увеличиваем размер поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderEconomy(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Экономика (опционально)')
+            .addTextArea(text => {
+                text.setPlaceholder('Описание экономики провинции')
+                    .setValue(this.data.economy)
+                    .onChange(value => {
+                        this.data.economy = value;
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderDescription(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Описание')
+            .addTextArea(text => {
+                text.setPlaceholder('Подробное описание провинции')
+                    .setValue(this.data.description)
+                    .onChange(value => {
+                        this.data.description = value;
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '140px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderRelatedEntities(contentEl, fieldName, placeholderText) {
+        new this.Setting(contentEl)
+            .setName(`Связанные ${placeholderText} (каждый с новой строки, опционально)`)
+            .addTextArea(text => {
+                text.setPlaceholder(`Список ${placeholderText} в провинции`)
+                    .setValue(this.data[fieldName].join('\n'))
+                    .onChange(value => {
+                        this.data[fieldName] = value.split('\n').map(e => e.trim()).filter(e => e.length > 0);
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderPortsAndCastles(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Порты (каждый с новой строки, опционально)')
+            .addTextArea(text => {
+                text.setPlaceholder('Список портов в провинции')
+                    .setValue(this.data.ports.join('\n'))
+                    .onChange(value => {
+                        this.data.ports = value.split('\n').map(e => e.trim()).filter(e => e.length > 0);
+                    });
+            });
+
+        new this.Setting(contentEl)
+            .setName('Замки/крепости (каждый с новой строки, опционально)')
+            .addTextArea(text => {
+                text.setPlaceholder('Список замков/крепостей в провинции')
+                    .setValue(this.data.castles.join('\n'))
+                    .onChange(value => {
+                        this.data.castles = value.split('\n').map(e => e.trim()).filter(e => e.length > 0);
+                    });
+            });
+    }
+
+    renderPreview(contentEl) {
+        const previewEl = contentEl.createEl('div', { cls: 'preview-section' });
+        previewEl.createEl('h3', { text: 'Предпросмотр:' });
+        previewEl.createEl('p', { text: `**Название:** ${this.data.provinceName}` });
+        previewEl.createEl('p', { text: `**Государство:** ${this.data.state}` });
+        previewEl.createEl('p', { text: `**Климат:** ${this.data.climate}` });
+        previewEl.createEl('p', { text: `**Исторический период:** ${this.data.historicalPeriod}` });
+        previewEl.createEl('p', { text: `**Доминирующая фракция:** ${this.data.dominantFaction}` });
+        if (this.data.minorFactions.length) {
+            previewEl.createEl('p', { text: `**Второстепенные фракции:** ${this.data.minorFactions.join(', ')}` });
+        }
+        if (this.data.population) {
+            previewEl.createEl('p', { text: `**Население:** ${this.data.population}` });
+        }
+        if (this.data.economy) {
+            previewEl.createEl('p', { text: `**Экономика:** ${this.data.economy.substring(0, 100)}...` });
+        }
+        if (this.data.description) {
+            previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
+        }
+        if (this.data.cities.length) {
+            previewEl.createEl('p', { text: `**Города:** ${this.data.cities.join(', ')}` });
+        }
+        if (this.data.villages.length) {
+            previewEl.createEl('p', { text: `**Деревни:** ${this.data.villages.join(', ')}` });
+        }
+        if (this.data.deadZones.length) {
+            previewEl.createEl('p', { text: `**Мертвые зоны:** ${this.data.deadZones.join(', ')}` });
+        }
+        if (this.data.ports.length) {
+            previewEl.createEl('p', { text: `**Порты:** ${this.data.ports.join(', ')}` });
+        }
+        if (this.data.castles.length) {
+            previewEl.createEl('p', { text: `**Замки/Крепости:** ${this.data.castles.join(', ')}` });
+        }
+    }
+
+    renderNav(contentEl, buttonsHtml) {
+        const navEl = contentEl.createEl('div', { cls: 'modal-nav' });
+        navEl.innerHTML = buttonsHtml;
+
+        navEl.querySelector('#prev')?.addEventListener('click', async () => {
+            this.step--;
+            await this.render();
+        });
+
+        navEl.querySelector('#next')?.addEventListener('click', async () => {
+            if (this.validateCurrentStep()) {
+                this.step++;
+                await this.render();
+            }
+        });
+
+        navEl.querySelector('.mod-cta:not(#next)')?.addEventListener('click', async () => {
+            if (this.validateCurrentStep()) {
+                // Сохраняем конфигурацию, если были добавлены новые государства
+                await this.saveConfig();
+                this.onFinish(this.data);
+                this.close();
+            }
+        });
+    }
+
+    validateCurrentStep() {
+        switch (this.step) {
+            case 0: // State
+                if (!this.data.state || this.data.state.trim() === '') {
+                    new this.Notice('Пожалуйста, выберите или введите название государства.');
+                    return false;
+                }
+                // Если есть только одно государство, автоматически выбираем его
+                if (this.config.states && this.config.states.length === 1 && !this.data.state) {
+                    this.data.state = this.config.states[0];
+                }
+                break;
+            case 1: // Province Name
+                if (!this.data.provinceName.trim()) {
+                    new this.Notice('Пожалуйста, введите название провинции.');
+                    return false;
+                }
+                break;
+            case 2: // Climate, Historical Period, Dominant Faction
+                if (!this.data.climate || this.data.climate.trim() === '') {
+                    new this.Notice('Пожалуйста, выберите климат.');
+                    return false;
+                }
+                if (!this.data.historicalPeriod || this.data.historicalPeriod.trim() === '') {
+                    new this.Notice('Пожалуйста, выберите исторический период.');
+                    return false;
+                }
+                if (!this.data.dominantFaction || this.data.dominantFaction.trim() === '') {
+                    new this.Notice('Пожалуйста, выберите доминирующую фракцию.');
+                    return false;
+                }
+                break;
+            case 3: // Minor Factions (optional)
+            case 4: // Population (optional)
+            case 5: // Economy (optional)
+                // Nothing to validate, as they are optional
+                break;
+            case 6: // Description
+                if (!this.data.description.trim()) {
+                    new this.Notice('Пожалуйста, введите описание провинции.');
+                    return false;
+                }
+                break;
+            case 7: // Cities (optional)
+            case 8: // Villages (optional)
+            case 9: // Dead Zones (optional)
+            case 10: // Ports and Castles (optional)
+                // Nothing to validate, as they are optional
+                break;
+        }
+        return true;
+    }
+
+    onClose() {
+        let { contentEl } = this;
+        contentEl.empty();
+    }
+}
+
+module.exports = ProvinceWizardModal;
