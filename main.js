@@ -767,11 +767,17 @@ class LiteraryTemplatesPlugin extends Plugin {
             name: 'Вставить сюжетную линию в сцену',
             callback: () => this.insertPlotlineIntoScene(),
         });
-        // this.addCommand({
-        //     id: 'create-new-character',
-        //     name: 'Создать нового персонажа',
-        //     callback: () => this.createCharacter(),
-        // });
+        this.addCommand({
+            id: 'create-new-character',
+            name: 'Создать нового персонажа',
+            callback: async () => {
+                        try {
+            await window.createCharacter(this);
+        } catch (error) {
+            new Notice('Ошибка при создании персонажа: ' + error.message);
+        }
+            },
+        });
         this.addCommand({
             id: 'create-world',
             name: 'Создать новый мир/проект',
@@ -824,11 +830,21 @@ class LiteraryTemplatesPlugin extends Plugin {
         window.createCastle = createCastle;
         window.createPotion = createPotion;
         window.createSpell = createSpell;
+        try {
+            window.createArtifact = require('./creators/createArtifact.js').createArtifact;
+        } catch {
+            window.createArtifact = createArtifact;
+        }
         // Явно подтягиваем из модуля, чтобы исключить случаи, когда символ выкинут сборщиком
         try {
             window.createAlchemyRecipe = require('./creators/createAlchemyRecipe.js').createAlchemyRecipe;
         } catch {
             window.createAlchemyRecipe = createAlchemyRecipe;
+        }
+        try {
+            window.createCharacter = require('./creators/createCharacter.js').createCharacter;
+        } catch (e) {
+            window.createCharacter = createCharacter;
         }
         window.createState = createState;
         window.createProvince = createProvince;
@@ -1318,7 +1334,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                         if (target instanceof TFile) startPath = target.parent.path;
                         else if (target instanceof TFolder) startPath = target.path;
                         else if (target && target.path) startPath = target.path;
-                        createArtifact(this, startPath);
+                        window.createArtifact(this, startPath);
                     });
                 });
             });
@@ -1328,7 +1344,13 @@ class LiteraryTemplatesPlugin extends Plugin {
                 subItem.setTitle('👤 Персонажи').setIcon('user');
                 const characterSubMenu = subItem.setSubmenu();
                 characterSubMenu.addItem((charItem) => {
-                    charItem.setTitle('Создать персонажа').setIcon('user').setDisabled(true);
+                    charItem.setTitle('Создать персонажа').setIcon('user').onClick(() => {
+                        let startPath = '';
+                        if (target instanceof TFile) startPath = target.parent.path;
+                        else if (target instanceof TFolder) startPath = target.path;
+                        else if (target && target.path) startPath = target.path;
+                        window.createCharacter(this, startPath);
+                    });
                 });
             });
             

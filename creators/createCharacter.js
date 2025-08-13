@@ -1,6 +1,6 @@
 /**
- * @file       createPeople.js
- * @description Создание народа (people/nation) в папке проекта `Народы`
+ * @file       createCharacter.js
+ * @description Создание персонажа (character) в папке проекта `Персонажи`
  * @author     AI Assistant
  * @version    1.0.0
  * @license    MIT
@@ -10,11 +10,11 @@
  * @docs       docs/Карточка функционала.md
  */
 
-const { PeopleWizardModal } = require('../PeopleWizardModal.js');
+const { CharacterWizardModal } = require('../CharacterWizardModal.js');
 
-async function createPeople(plugin, startPath = '') {
+async function createCharacter(plugin, startPath = '') {
     try {
-        await plugin.logDebug('=== createPeople вызвана ===');
+        await plugin.logDebug('=== createCharacter вызвана ===');
         // Определяем корень проекта
         let projectRoot = '';
         if (startPath) {
@@ -32,16 +32,14 @@ async function createPeople(plugin, startPath = '') {
             projectRoot = roots[0];
         }
 
-        const modal = new PeopleWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectRoot, () => {
-            plugin.logDebug('Народ создан');
+        const modal = new CharacterWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectRoot, () => {
+            plugin.logDebug('Персонаж создан');
         });
         modal.open();
     } catch (error) {
-        new Notice('Ошибка при создании народа: ' + error.message);
-        try { await plugin.logDebug('createPeople error: ' + error.message); } catch {}
+        new Notice('Ошибка при создании персонажа: ' + error.message);
+        try { await plugin.logDebug('createCharacter error: ' + error.message); } catch {}
     }
 }
 
-module.exports = { createPeople };
-
-
+module.exports = { createCharacter };

@@ -8,11 +8,7 @@ $files = [
     'projectRoot.js',      // Затем утилиты
     'src/settingsService.js', // Сервис настроек и тэговых картинок
     // Визарды (включая алхимию)
-    'HtmlWizardModal.js',
     'AlchemyRecipeWizardModal.js',
-    'ArtifactWizardModal.js',
-    'PeopleWizardModal.js',
-    'CharacterWizardModal.js',
     'ProjectSelectorModal.js',  // Новые селекторы
     'ChapterSelectorModal.js',
     'WorldSettingsModal.js',    // Редактор настроек мира
@@ -45,9 +41,7 @@ $files = [
     'creators/createFarm.js',
     'creators/createPotion.js',
     'creators/createSpell.js',
-    'creators/createArtifact.js',
     'creators/createPeople.js',
-    'creators/createCharacter.js',
     'creators/createAlchemyRecipe.js',
     'creators/createState.js',
     'creators/createProvince.js',
@@ -96,60 +90,58 @@ $main = preg_replace('/async function createWorld\(app, plugin, startPath = \'\'
 $main = preg_replace('/async function createVillage\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count15);
 $main = preg_replace('/async function createDeadZone\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count16);
 $main = preg_replace('/async function createScene\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count17);
-$main = preg_replace('/async function createDeadZone\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count18);
-$main = preg_replace('/async function createChapter\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count19);
-$main = preg_replace('/async function createCity\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count20);
-$main = preg_replace('/async function createLocation\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count21);
+$main = preg_replace('/async function createChapter\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count18);
+$main = preg_replace('/async function createCity\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count19);
+$main = preg_replace('/async function createLocation\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count20);
 
 // Удаляем module.exports из modals.js (не нужен для плагина)
 $main = preg_replace('/module\\.exports = \\{ PromptModal, SuggesterModal \\};\\s*\\n/', '', $main, -1, $count11);
 
 // Удаляем дублированные module.exports в конце файла
-$main = preg_replace('/module\\.exports = \\{[^}]*\\};\\s*\\n?/m', '', $main, -1, $count22);
+$main = preg_replace('/module\\.exports = LiteraryTemplatesPlugin;\\s*\\n\\s*module\\.exports = LiteraryTemplatesPlugin;\\s*$/', 'module.exports = LiteraryTemplatesPlugin;', $main, -1, $count9);
 
-// Вставляем единый импорт Obsidian API, чтобы были определены Plugin/Modal/Setting/MarkdownView
-$obsidianImport = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView } = require('obsidian');\n\n";
-$main = $obsidianImport . $main;
+// Добавляем правильный экспорт для плагина Obsidian в конец файла (если его нет)
+if (strpos($main, 'module.exports = LiteraryTemplatesPlugin;') === false) {
+    $main .= "\n\nmodule.exports = LiteraryTemplatesPlugin;";
+}
 
-// Удаляем пустые строки в начале и конце
-$main = trim($main);
+// Добавляем один импорт obsidian в начало
+$main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting } = require('obsidian');\n\n" . $main;
 
-// Сохраняем очищенную версию
 file_put_contents('main.bundle.js', $main);
 
-echo "Очистка завершена:\n";
-echo "Удалено импортов obsidian: $count1 + $count2\n";
-echo "Удалено импортов модулей: $count4\n";
-echo "Удалено старых функций create*: " . ($count14 + $count15 + $count16 + $count17 + $count18 + $count19 + $count20 + $count21) . "\n";
-echo "Удалено module.exports: $count11 + $count22\n";
-
-// Копируем в папку плагина
-$pluginDir = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/';
-if (is_dir($pluginDir)) {
-    copy('main.bundle.js', $pluginDir . 'main.js');
-    echo "Скопировано в папку плагина: $pluginDir\n";
+$bundleSize = filesize('main.bundle.js');
+echo "Размер main.bundle.js: $bundleSize байт\n";
+if ($bundleSize > $totalSize) {
+    echo "ВНИМАНИЕ: Итоговый файл main.bundle.js больше суммы исходных файлов на " . ($bundleSize - $totalSize) . " байт!\n";
 } else {
-    echo "Папка плагина не найдена: $pluginDir\n";
+    echo "main.bundle.js меньше или равен сумме исходных файлов.\n";
 }
 
-// --- Дополнительная диагностика сборки ---
-$bundleSize = @filesize('main.bundle.js');
-if ($bundleSize !== false) {
-    echo "Размер main.bundle.js: $bundleSize байт\n";
-    if ($bundleSize > $totalSize) {
-        echo "ВНИМАНИЕ: Итоговый файл main.bundle.js больше суммы исходных файлов на " . ($bundleSize - $totalSize) . " байт!\n";
-    } else {
-        echo "main.bundle.js меньше или равен сумме исходных файлов.\n";
-    }
-}
+echo "Удалено $count1 лишних импортов obsidian\n";
+echo "Удалено $count2 лишних импортов obsidian (повторно)\n";
+echo "Удалено $count4 импортов модулей\n";
+echo "Функции findProjectRoot, getAllProjectRoots, fillTemplate, generateFromTemplate, ensureEntityInfrastructure оставлены в main.js\n";
+echo "Удалено $count11 module.exports из modals.js\n";
+echo "Удалено $count12 неправильных require импортов из creators\n";
+echo "Удалено $count13 неправильных require импортов (общий)\n";
+echo "Удалено $count14 старых функций createWorld\n";
+echo "Удалено $count15 старых функций createVillage\n";
+echo "Удалено $count16 старых функций createDeadZone\n";
+echo "Удалено $count17 старых функций createScene\n";
+echo "Удалено $count18 старых функций createChapter\n";
+echo "Удалено $count19 старых функций createCity\n";
+echo "Удалено $count20 старых функций createLocation\n";
+echo "Удалено $count9 дублированных module.exports\n";
+echo "Проверен экспорт для плагина\n";
 
-// Лёгкий анализ дублирующихся сигнатур (function/class)
+// --- АНАЛИЗ ДУБЛИКАТОВ ---
 function analyzeDuplicates($filename) {
-    if (!is_file($filename)) return;
     $code = file_get_contents($filename);
     $lines = explode("\n", $code);
     $signatures = [];
     foreach ($lines as $line) {
+        // Ищем function, class, const/let/var <name> = (function|async function|class)
         if (preg_match('/^\s*function\s+([a-zA-Z0-9_]+)/', $line, $m)) {
             $signatures[] = 'function ' . $m[1];
         } elseif (preg_match('/^\s*class\s+([a-zA-Z0-9_]+)/', $line, $m)) {
@@ -177,23 +169,25 @@ function analyzeDuplicates($filename) {
 }
 analyzeDuplicates('main.bundle.js');
 
+// Копируем результат в папку плагина Obsidian
+$target = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/main.js';
+if (copy('main.bundle.js', $target)) {
+    echo "main.bundle.js скопирован в $target\n";
+} else {
+    echo "Ошибка копирования main.bundle.js в $target\n";
+}
+
 // --- КОПИРОВАНИЕ ШАБЛОНОВ ---
 function copyDir($src, $dst) {
     if (!is_dir($src)) return false;
-    if (!is_dir($dst)) @mkdir($dst, 0777, true);
+    if (!is_dir($dst)) mkdir($dst, 0777, true);
     $dir = opendir($src);
-    if ($dir === false) return false;
-    while (false !== ($file = readdir($dir))) {
-        if ($file === '.' || $file === '..') continue;
-        $srcPath = $src . '/' . $file;
-        $dstPath = $dst . '/' . $file;
-        if (is_dir($srcPath)) {
-            if (!copyDir($srcPath, $dstPath)) {
-                echo "Не удалось скопировать папку: $srcPath -> $dstPath\n";
-            }
-        } else {
-            if (!@copy($srcPath, $dstPath)) {
-                echo "Не удалось скопировать файл: $srcPath -> $dstPath\n";
+    while(false !== ($file = readdir($dir))) {
+        if (($file != '.') && ($file != '..')) {
+            if (is_dir($src . '/' . $file)) {
+                copyDir($src . '/' . $file, $dst . '/' . $file);
+            } else {
+                copy($src . '/' . $file, $dst . '/' . $file);
             }
         }
     }
@@ -202,30 +196,33 @@ function copyDir($src, $dst) {
 }
 
 $srcTemplates = __DIR__ . '/templates';
-$dstTemplates = $pluginDir . 'templates';
+$dstTemplates = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates';
 if (copyDir($srcTemplates, $dstTemplates)) {
     echo "Шаблоны скопированы в $dstTemplates\n";
 } else {
     echo "Ошибка копирования шаблонов в $dstTemplates\n";
 }
 
-// Отдельно убедимся, что папка sections существует и актуальна
+// Копируем секции шаблонов
 $srcSections = __DIR__ . '/templates/sections';
-$dstSections = $pluginDir . 'templates/sections';
+$dstSections = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates/sections';
+
+// Диагностика исходной папки
 if (!is_dir($srcSections)) {
     echo "Исходная папка секций не найдена: $srcSections\n";
 } else {
+    echo "Исходная папка секций найдена: $srcSections\n";
+    // Автоматически создаём целевую папку, если её нет
     if (!is_dir($dstSections)) {
-        if (@mkdir($dstSections, 0777, true)) {
+        if (mkdir($dstSections, 0777, true)) {
             echo "Целевая папка секций создана: $dstSections\n";
         } else {
             echo "Не удалось создать целевую папку секций: $dstSections\n";
         }
     }
-    if (copyDir($srcSections, $dstSections)) {
-        echo "Секции шаблонов скопированы в $dstSections\n";
-    } else {
-        echo "Ошибка копирования секций шаблонов в $dstSections\n";
-    }
 }
-?>
+if (copyDir($srcSections, $dstSections)) {
+    echo "Секции шаблонов скопированы в $dstSections\n";
+} else {
+    echo "Ошибка копирования секций шаблонов в $dstSections\n";
+}

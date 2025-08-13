@@ -10,9 +10,11 @@
  * @docs       /docs/project.md
  */
 
-class AlchemyRecipeWizardModal extends Modal {
+const { HtmlWizardModal } = require('./HtmlWizardModal.js');
+
+class AlchemyRecipeWizardModal extends HtmlWizardModal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
-        super(app);
+        super(app, ModalClass, NoticeClass);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.plugin = plugin;
@@ -65,18 +67,10 @@ class AlchemyRecipeWizardModal extends Modal {
     }
 
     async onOpen() {
-        // Добавляем общие стили для модального окна
-        this.modalEl.style.cssText = `
-            max-width: 900px !important;
-            width: 900px !important;
-        `;
-        this.contentEl.style.cssText = `
-            padding: 20px;
-            max-width: 900px !important;
-            max-height: 80vh;
-            overflow-y: auto;
-        `;
-        
+        this.applyBaseStyles();
+        this.modalEl.style.maxWidth = '900px';
+        this.modalEl.style.width = '900px';
+        this.contentEl.classList.add('lt-wizard');
         this.render();
     }
 
@@ -85,31 +79,16 @@ class AlchemyRecipeWizardModal extends Modal {
         
         // Заголовок
         const header = this.contentEl.createEl('h2', { text: 'Создание алхимического рецепта' });
-        header.style.cssText = 'margin-bottom: 20px; color: #var(--text-accent);';
+        header.classList.add('lt-header');
         
         // Прогресс
-        const progress = this.contentEl.createEl('div', { cls: 'progress-bar' });
-        progress.style.cssText = `
-            width: 100%;
-            height: 4px;
-            background: #var(--background-secondary);
-            border-radius: 2px;
-            margin-bottom: 20px;
-        `;
-        const progressFill = progress.createEl('div');
-        progressFill.style.cssText = `
-            width: ${((this.step + 1) / this.steps.length) * 100}%;
-            height: 100%;
-            background: #var(--text-accent);
-            border-radius: 2px;
-            transition: width 0.3s ease;
-        `;
+        const progress = this.contentEl.createEl('div', { cls: 'lt-progress' });
+        const progressFill = progress.createEl('div', { cls: 'lt-progress__fill' });
+        progressFill.style.width = `${((this.step + 1) / this.steps.length) * 100}%`;
         
         // Шаг
-        const stepInfo = this.contentEl.createEl('div', { 
-            text: `Шаг ${this.step + 1} из ${this.steps.length}` 
-        });
-        stepInfo.style.cssText = 'margin-bottom: 20px; color: #var(--text-muted); font-size: 14px;';
+        const stepInfo = this.contentEl.createEl('div', { text: `Шаг ${this.step + 1} из ${this.steps.length}` });
+        stepInfo.classList.add('lt-subtle');
         
         // Контент шага
         this.steps[this.step]();
@@ -554,44 +533,20 @@ class AlchemyRecipeWizardModal extends Modal {
     }
 
     renderNavigation() {
-        const navContainer = this.contentEl.createEl('div');
-        navContainer.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #var(--background-modifier-border);
-        `;
+        const navContainer = this.contentEl.createEl('div', { cls: 'lt-nav' });
         
         // Кнопка "Назад"
         if (this.step > 0) {
-            const backBtn = navContainer.createEl('button', { text: '← Назад' });
-            backBtn.style.cssText = `
-                padding: 8px 16px;
-                background: #var(--background-secondary);
-                border: 1px solid #var(--background-modifier-border);
-                border-radius: 4px;
-                cursor: pointer;
-            `;
+            const backBtn = this.createButton('secondary', '← Назад');
             backBtn.onclick = () => {
                 this.step--;
                 this.render();
             };
+            navContainer.appendChild(backBtn);
         }
         
         // Кнопка "Далее" или "Готово"
-        const nextBtn = navContainer.createEl('button', { 
-            text: this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →' 
-        });
-        nextBtn.style.cssText = `
-            padding: 8px 16px;
-            background: #var(--text-accent);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-left: auto;
-        `;
+        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
         nextBtn.onclick = () => {
             if (this.validateCurrentStep()) {
                 if (this.step === this.steps.length - 1) {
@@ -602,6 +557,7 @@ class AlchemyRecipeWizardModal extends Modal {
                 }
             }
         };
+        navContainer.appendChild(nextBtn);
     }
 
     validateCurrentStep() {

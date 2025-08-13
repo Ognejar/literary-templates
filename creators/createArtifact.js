@@ -56,9 +56,10 @@ async function createArtifact(plugin, startPath = '') {
         // 2. Открыть модальное окно мастера
         const modal = new ArtifactWizardModal(
             plugin.app,
-            plugin.Modal,
-            plugin.Setting,
-            plugin.Notice,
+            Modal,
+            Setting,
+            Notice,
+            plugin,
             project,
             () => {
                 plugin.logDebug('Артефакт создан успешно');

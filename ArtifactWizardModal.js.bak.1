@@ -10,11 +10,9 @@
  * @docs       /docs/project.md
  */
 
-const { HtmlWizardModal } = require('./HtmlWizardModal.js');
-
-class ArtifactWizardModal extends HtmlWizardModal {
+class ArtifactWizardModal extends Modal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
-        super(app, ModalClass, NoticeClass);
+        super(app);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.plugin = plugin;
@@ -65,10 +63,18 @@ class ArtifactWizardModal extends HtmlWizardModal {
     }
 
     async onOpen() {
-        this.applyBaseStyles();
-        this.modalEl.style.maxWidth = '900px';
-        this.modalEl.style.width = '900px';
-        this.contentEl.classList.add('lt-wizard');
+        // Добавляем общие стили для модального окна
+        this.modalEl.style.cssText = `
+            max-width: 900px !important;
+            width: 900px !important;
+        `;
+        this.contentEl.style.cssText = `
+            padding: 20px;
+            max-width: 900px !important;
+            max-height: 80vh;
+            overflow-y: auto;
+        `;
+        
         this.render();
     }
 
@@ -77,16 +83,31 @@ class ArtifactWizardModal extends HtmlWizardModal {
         
         // Заголовок
         const header = this.contentEl.createEl('h2', { text: 'Создание артефакта' });
-        header.classList.add('lt-header');
+        header.style.cssText = 'margin-bottom: 20px; color: #var(--text-accent);';
         
         // Прогресс
-        const progress = this.contentEl.createEl('div', { cls: 'lt-progress' });
-        const progressFill = progress.createEl('div', { cls: 'lt-progress__fill' });
-        progressFill.style.width = `${((this.step + 1) / this.steps.length) * 100}%`;
+        const progress = this.contentEl.createEl('div', { cls: 'progress-bar' });
+        progress.style.cssText = `
+            width: 100%;
+            height: 4px;
+            background: #var(--background-secondary);
+            border-radius: 2px;
+            margin-bottom: 20px;
+        `;
+        const progressFill = progress.createEl('div');
+        progressFill.style.cssText = `
+            width: ${((this.step + 1) / this.steps.length) * 100}%;
+            height: 100%;
+            background: #var(--text-accent);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        `;
         
         // Шаг
-        const stepInfo = this.contentEl.createEl('div', { text: `Шаг ${this.step + 1} из ${this.steps.length}` });
-        stepInfo.classList.add('lt-subtle');
+        const stepInfo = this.contentEl.createEl('div', { 
+            text: `Шаг ${this.step + 1} из ${this.steps.length}` 
+        });
+        stepInfo.style.cssText = 'margin-bottom: 20px; color: #var(--text-muted); font-size: 14px;';
         
         // Контент шага
         this.steps[this.step]();
@@ -355,20 +376,44 @@ class ArtifactWizardModal extends HtmlWizardModal {
     }
 
     renderNavigation() {
-        const navContainer = this.contentEl.createEl('div', { cls: 'lt-nav' });
+        const navContainer = this.contentEl.createEl('div');
+        navContainer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #var(--background-modifier-border);
+        `;
         
         // Кнопка "Назад"
         if (this.step > 0) {
-            const backBtn = this.createButton('secondary', '← Назад');
+            const backBtn = navContainer.createEl('button', { text: '← Назад' });
+            backBtn.style.cssText = `
+                padding: 8px 16px;
+                background: #var(--background-secondary);
+                border: 1px solid #var(--background-modifier-border);
+                border-radius: 4px;
+                cursor: pointer;
+            `;
             backBtn.onclick = () => {
                 this.step--;
                 this.render();
             };
-            navContainer.appendChild(backBtn);
         }
         
         // Кнопка "Далее" или "Создать"
-        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
+        const nextBtn = navContainer.createEl('button', { 
+            text: this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →' 
+        });
+        nextBtn.style.cssText = `
+            padding: 8px 16px;
+            background: #var(--text-accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: auto;
+        `;
         nextBtn.onclick = () => {
             if (this.validateCurrentStep()) {
                 if (this.step === this.steps.length - 1) {
@@ -379,7 +424,6 @@ class ArtifactWizardModal extends HtmlWizardModal {
                 }
             }
         };
-        navContainer.appendChild(nextBtn);
     }
 
     validateCurrentStep() {
@@ -400,8 +444,15 @@ class ArtifactWizardModal extends HtmlWizardModal {
                     return false;
                 }
                 break;
-            case 2: // Владение — значения можно не вводить
-                // Ничего не валидируем: по умолчанию будет "Не известно"
+            case 2: // Владение
+                if (!this.data.owner.trim()) {
+                    new this.Notice('Укажите владельца артефакта');
+                    return false;
+                }
+                if (!this.data.location.trim()) {
+                    new this.Notice('Укажите местонахождение артефакта');
+                    return false;
+                }
                 break;
         }
         return true;
@@ -424,12 +475,8 @@ class ArtifactWizardModal extends HtmlWizardModal {
                     }
                 }
             } catch {}
-            const ownerText = this.data.owner && this.data.owner.trim()
-                ? `**Владелец:** [[${this.data.owner.trim()}]]`
-                : `**Владелец:** Не известно`;
-            const locationText = this.data.location && this.data.location.trim()
-                ? `**Местонахождение:** [[${this.data.location.trim()}]]`
-                : `**Местонахождение:** Не известно`;
+            const ownerText = this.data.owner ? `**Владелец:** [[${this.data.owner}]]` : '';
+            const locationText = this.data.location ? `**Местонахождение:** [[${this.data.location}]]` : '';
             const featuresContent = this.data.features ? this.data.features.split(',').map(f => `- ${f.trim()}`).join('\n') : '';
             
             // Данные для шаблона
