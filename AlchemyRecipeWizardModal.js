@@ -11,10 +11,11 @@
  */
 
 class AlchemyRecipeWizardModal extends Modal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, projectPath, onFinish) {
+    constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
         super(app);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
+        this.plugin = plugin;
         this.projectPath = projectPath;
         this.onFinish = onFinish;
         this.data = {
@@ -193,16 +194,6 @@ class AlchemyRecipeWizardModal extends Modal {
 
     renderIngredients() {
         const container = this.contentEl.createEl('div');
-        
-        // Ингредиенты (основные)
-        new Setting(container)
-            .setName('Основные ингредиенты')
-            .setDesc('Список основных ингредиентов')
-            .addTextArea(text => text
-                .setPlaceholder('Перечислите основные ингредиенты через запятую...')
-                .setValue(this.data.ingredients)
-                .onChange(value => this.data.ingredients = value)
-            );
         
         // Детальные ингредиенты
         const ingredientsTitle = container.createEl('h3', { text: 'Детальная информация об ингредиентах' });
@@ -384,16 +375,6 @@ class AlchemyRecipeWizardModal extends Modal {
 
     renderEffects() {
         const container = this.contentEl.createEl('div');
-        
-        // Основные эффекты
-        new Setting(container)
-            .setName('Основные эффекты')
-            .setDesc('Описание основных эффектов рецепта')
-            .addTextArea(text => text
-                .setPlaceholder('Опишите основные эффекты, которые производит рецепт...')
-                .setValue(this.data.effects)
-                .onChange(value => this.data.effects = value)
-            );
         
         // Детальные эффекты
         const effectsTitle = container.createEl('h3', { text: 'Детальная информация об эффектах' });
@@ -598,9 +579,9 @@ class AlchemyRecipeWizardModal extends Modal {
             };
         }
         
-        // Кнопка "Далее" или "Создать"
+        // Кнопка "Далее" или "Готово"
         const nextBtn = navContainer.createEl('button', { 
-            text: this.step === this.steps.length - 1 ? 'Создать рецепт' : 'Далее →' 
+            text: this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →' 
         });
         nextBtn.style.cssText = `
             padding: 8px 16px;
@@ -646,10 +627,6 @@ class AlchemyRecipeWizardModal extends Modal {
                 }
                 break;
             case 2: // Ингредиенты
-                if (!this.data.ingredients.trim()) {
-                    new this.Notice('Укажите основные ингредиенты');
-                    return false;
-                }
                 // Проверяем, что есть хотя бы один ингредиент с названием
                 if (!this.ingredientsList || this.ingredientsList.length === 0 || !this.ingredientsList.some(ing => ing.name && ing.name.trim())) {
                     new this.Notice('Добавьте хотя бы один ингредиент с названием');
@@ -669,100 +646,131 @@ class AlchemyRecipeWizardModal extends Modal {
     async createRecipe() {
         try {
             // Подготовка данных
-            const date = window.moment().format('YYYY-MM-DD');
-            const categoryLower = this.data.category ? this.data.category.toLowerCase() : '';
-            
+            const date = (window.moment ? window.moment() : { format: () => new Date().toISOString().slice(0, 10) }).format('YYYY-MM-DD');
+            const rawCategory = String(this.data.category || '').trim();
+            const category = rawCategory === 'manual' ? '' : rawCategory;
+            const categoryLower = category ? category.toLowerCase() : '';
+
             // Формирование списка ингредиентов
             const ingredientsList = [];
             if (this.ingredientsList && this.ingredientsList.length > 0) {
-                this.ingredientsList.forEach(ingredient => {
-                    if (ingredient.name && ingredient.name.trim()) {
-                        const ingredientText = `- **${ingredient.name}**: ${ingredient.amount || 'Не указано'}${ingredient.source ? ` (${ingredient.source})` : ''}${ingredient.notes ? ` - ${ingredient.notes}` : ''}`;
+                this.ingredientsList.forEach((ingredient) => {
+                    const name = String(ingredient.name || '').trim();
+                    if (name) {
+                        const amount = String(ingredient.amount || '').trim();
+                        const source = String(ingredient.source || '').trim();
+                        const notes = String(ingredient.notes || '').trim();
+                        const ingredientText = `- **${name}**: ${amount || 'Не указано'}${source ? ` (${source})` : ''}${notes ? ` - ${notes}` : ''}`;
                         ingredientsList.push(ingredientText);
                     }
                 });
             }
             const ingredientsContent = ingredientsList.join('\n');
-            
-            // Формирование списка эффектов
+
+            // Формирование списка эффектов (детально)
             const effectsList = [];
-            if (this.data.effect1Name) {
-                effectsList.push(`- **${this.data.effect1Name}**: ${this.data.effect1Duration || 'Не указано'} - ${this.data.effect1Description || 'Не указано'}`);
-            }
-            if (this.data.effect2Name) {
-                effectsList.push(`- **${this.data.effect2Name}**: ${this.data.effect2Duration || 'Не указано'} - ${this.data.effect2Description || 'Не указано'}`);
-            }
+            const pushEffect = (name, duration, desc) => {
+                const effName = String(name || '').trim();
+                if (!effName || effName === 'manual') return;
+                const effDuration = String(duration || '').trim();
+                const effDesc = String(desc || '').trim();
+                effectsList.push(`- **${effName}**: ${effDuration || 'Не указано'} - ${effDesc || 'Не указано'}`);
+            };
+            pushEffect(this.data.effect1Name, this.data.effect1Duration, this.data.effect1Description);
+            pushEffect(this.data.effect2Name, this.data.effect2Duration, this.data.effect2Description);
             const effectsContent = effectsList.join('\n');
-            
+
             // Формирование списка ограничений
             const limitationsList = [];
-            if (this.data.limitation1) {
-                limitationsList.push(`- **${this.data.limitation1}**: Риск: ${this.data.risk1 || 'Не указан'}. Меры предосторожности: ${this.data.precaution1 || 'Не указаны'}`);
-            }
-            if (this.data.limitation2) {
-                limitationsList.push(`- **${this.data.limitation2}**: Риск: ${this.data.risk2 || 'Не указан'}. Меры предосторожности: ${this.data.precaution2 || 'Не указаны'}`);
-            }
+            const pushLimitation = (lim, risk, precaution) => {
+                const l = String(lim || '').trim();
+                if (!l || l === 'manual') return;
+                const r = String(risk || '').trim();
+                const p = String(precaution || '').trim();
+                limitationsList.push(`- **${l}**: Риск: ${r || 'Не указан'}. Меры предосторожности: ${p || 'Не указаны'}`);
+            };
+            pushLimitation(this.data.limitation1, this.data.risk1, this.data.precaution1);
+            pushLimitation(this.data.limitation2, this.data.risk2, this.data.precaution2);
             const limitationsContent = limitationsList.join('\n');
-            
-            // Чтение шаблона
-            const templatePath = 'templates/Новый_алхимический_рецепт.md';
-            const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
-            if (!templateFile) {
-                new this.Notice('Шаблон алхимического рецепта не найден!');
-                return;
-            }
-            const templateContent = await this.app.vault.read(templateFile);
-            
-            // Подстановка значений
-            const data = { 
-                name: this.data.name, 
-                category: this.data.category, 
-                description: this.data.description, 
-                difficulty: this.data.difficulty,
-                preparationTime: this.data.preparationTime,
-                ingredients: this.data.ingredients,
-                process: this.data.process,
-                result: this.data.result,
-                effects: this.data.effects,
-                sideEffects: this.data.sideEffects,
-                storage: this.data.storage,
-                notes: this.data.notes,
+
+            // Теги и tagImage
+            const tags = ['alchemy', 'алхимия', 'recipe'].concat(categoryLower ? [categoryLower] : []);
+            let tagImage = '';
+            try {
+                if (window.litSettingsService) {
+                    if (tags.length > 0) {
+                        tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, tags[0]);
+                    }
+                    if (!tagImage) {
+                        tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Алхимия');
+                    }
+                }
+            } catch {}
+
+            // Данные для шаблона
+            const data = {
+                name: String(this.data.name || '').trim(),
+                category,
+                description: String(this.data.description || '').trim(),
+                difficulty: (this.data.difficulty === 'manual') ? '' : String(this.data.difficulty || '').trim(),
+                preparationTime: (this.data.preparationTime === 'manual') ? '' : String(this.data.preparationTime || '').trim(),
+                process: String(this.data.process || '').trim(),
+                result: String(this.data.result || '').trim(),
+                sideEffects: String(this.data.sideEffects || '').trim(),
+                storage: String(this.data.storage || '').trim(),
+                notes: String(this.data.notes || '').trim(),
                 date,
                 categoryLower,
                 ingredientsContent,
                 effectsContent,
-                limitationsContent
+                limitationsContent,
+                tagImage
             };
-            
-            const filled = this.fillTemplate(templateContent, data);
-            
+
+            // Генерация по шаблону с условными блоками и include
+            const content = await window.generateFromTemplate('Новый_алхимический_рецепт', data, this.plugin);
+
             // Создание файла
             const targetFolder = `${this.projectPath}/Магия/Алхимия`;
-            const fileName = this.data.name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            
-            // Создаем папку, если не существует
-            try {
-                await this.app.vault.createFolder(targetFolder);
-            } catch {
-                // Папка уже существует
-            }
-            
+            const fileName = data.name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
+            await window.ensureEntityInfrastructure(targetFolder, fileName, this.app);
             const targetPath = `${targetFolder}/${fileName}.md`;
-            await this.app.vault.create(targetPath, filled);
-            
+            await window.safeCreateFile(targetPath, content, this.app);
+
             // Открытие файла
             const file = this.app.vault.getAbstractFileByPath(targetPath);
             if (file instanceof TFile) {
                 await this.app.workspace.getLeaf().openFile(file);
             }
-            
-            new this.Notice(`Алхимический рецепт "${this.data.name}" создан!`);
+
+            // Автопополнение справочников (категории/эффекты/теги алхимии)
+            try {
+                const base = `${this.projectPath}/Магия/Справочники`;
+                // Категории
+                if (category) {
+                    await updateReference(this.plugin, `${base}/Категории_алхимии.md`, [category]);
+                }
+                // Эффекты
+                const effectNames = effectsList.map((line) => {
+                    const m = line.match(/\*\*(.+?)\*\*/);
+                    return m ? m[1] : '';
+                }).filter(Boolean);
+                if (effectNames.length) {
+                    await updateReference(this.plugin, `${base}/Эффекты_алхимии.md`, effectNames);
+                }
+                // Теги
+                if (tags.length) {
+                    await updateReference(this.plugin, `${base}/Теги_алхимии.md`, tags);
+                }
+            } catch {}
+
+            new this.Notice(`Алхимический рецепт "${data.name}" создан!`);
             this.close();
-            
+
             if (this.onFinish) {
                 this.onFinish();
             }
-            
+
         } catch (error) {
             console.error('Ошибка при создании алхимического рецепта:', error);
             new this.Notice(`Ошибка при создании алхимического рецепта: ${error.message}`);
@@ -780,3 +788,32 @@ class AlchemyRecipeWizardModal extends Modal {
 }
 
 module.exports = { AlchemyRecipeWizardModal };
+
+async function updateReference(plugin, filePath, names) {
+    try {
+        const app = plugin.app;
+        const base = filePath.split('/').slice(0, -1).join('/');
+        const clean = (names || []).map((s) => String(s || '').trim()).filter(Boolean);
+        if (clean.length === 0) return;
+        let current = '';
+        try {
+            const f = app.vault.getAbstractFileByPath(filePath);
+            if (f) current = await app.vault.read(f);
+        } catch {}
+        const existing = new Set(current.split('\n').map((s) => s.trim()).filter(Boolean));
+        let added = false;
+        clean.forEach((n) => {
+            if (!existing.has(n)) { existing.add(n); added = true; }
+        });
+        if (!added) return;
+        const lines = Array.from(existing).sort((a, b) => a.localeCompare(b, 'ru'));
+        if (app.vault.getAbstractFileByPath(filePath)) {
+            await app.vault.adapter.write(filePath, lines.join('\n'));
+        } else {
+            try { await app.vault.createFolder(base); } catch {}
+            await app.vault.create(filePath, lines.join('\n'));
+        }
+    } catch (e) {
+        try { await plugin.logDebug('updateReference (alchemy) error: ' + e.message); } catch {}
+    }
+}

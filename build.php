@@ -1,10 +1,14 @@
 <?php
 // build.php — склеивает все js-файлы в один main.js для Obsidian
+// Гарантируем работу из директории скрипта
+chdir(__DIR__);
 
 $files = [
     'modals.js',           // Сначала вспомогательные модальные окна
     'projectRoot.js',      // Затем утилиты
     'src/settingsService.js', // Сервис настроек и тэговых картинок
+    // Визарды (включая алхимию)
+    'AlchemyRecipeWizardModal.js',
     'ProjectSelectorModal.js',  // Новые селекторы
     'ChapterSelectorModal.js',
     'WorldSettingsModal.js',    // Редактор настроек мира
@@ -37,6 +41,8 @@ $files = [
     'creators/createFarm.js',
     'creators/createPotion.js',
     'creators/createSpell.js',
+    'creators/createPeople.js',
+    'creators/createAlchemyRecipe.js',
     'creators/createState.js',
     'creators/createProvince.js',
     'main.js'              // Главный файл в конце

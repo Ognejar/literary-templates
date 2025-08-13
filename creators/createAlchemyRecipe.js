@@ -56,13 +56,12 @@ async function createAlchemyRecipe(plugin, startPath = '') {
         // 2. Открыть модальное окно мастера
         const modal = new AlchemyRecipeWizardModal(
             plugin.app,
-            plugin.Modal,
-            plugin.Setting,
-            plugin.Notice,
+            Modal,
+            Setting,
+            Notice,
+            plugin,
             project,
-            () => {
-                plugin.logDebug('Алхимический рецепт создан успешно');
-            }
+            () => { plugin.logDebug('Алхимический рецепт создан успешно'); }
         );
         
         modal.open();

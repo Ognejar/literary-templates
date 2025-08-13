@@ -18,6 +18,7 @@ const { createArtifact } = require('./creators/createArtifact.js');
 const { createAlchemyRecipe } = require('./creators/createAlchemyRecipe.js');
 const { createState } = require('./creators/createState.js');
 const { createProvince } = require('./creators/createProvince.js');
+const { createPeople } = require('./creators/createPeople.js');
 const { createMine } = require('./creators/createMine.js');
 const { createFactory } = require('./creators/createFactory.js');
 const { createFarm } = require('./creators/createFarm.js');
@@ -735,6 +736,11 @@ class LiteraryTemplatesPlugin extends Plugin {
             callback: () => createPotion(this, ''),
         });
         this.addCommand({
+            id: 'create-people',
+            name: 'Создать народ (минишаблонизатор)',
+            callback: () => createPeople(this, ''),
+        });
+        this.addCommand({
             id: 'create-new-potion',
             name: 'Создать новое зелье',
             callback: async () => {
@@ -1252,6 +1258,20 @@ class LiteraryTemplatesPlugin extends Plugin {
                             else if (target instanceof TFolder) startPath = target.path;
                             else if (target && target.path) startPath = target.path;
                             createLocation(this, startPath);
+                        });
+                    });
+                });
+                // Народы
+                subMenu.addItem((subItem) => {
+                    subItem.setTitle('👥 Народы').setIcon('users');
+                    const peopleSubMenu = subItem.setSubmenu();
+                    peopleSubMenu.addItem((pItem) => {
+                        pItem.setTitle('Создать народ').setIcon('users').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createPeople(this, startPath);
                         });
                     });
                 });
