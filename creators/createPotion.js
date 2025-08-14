@@ -15,9 +15,10 @@
 /**
  * Создает новое зелье в указанном проекте
  * @param {Object} plugin - Экземпляр плагина
- * @param {string} startPath - Начальный путь для поиска проекта
+ * @param {string} startPath - Начальный путь для поиска проекта (может быть корнем проекта)
+ * @param {Object} [options] - Доп. опции: { targetFile?: TFile, prefillName?: string }
  */
-async function createPotion(plugin, startPath = '') {
+async function createPotion(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createPotion вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -119,15 +120,20 @@ async function createPotion(plugin, startPath = '') {
             // Генерируем контент из шаблона
             const content = await generateFromTemplate('Новое_зелье', data, plugin);
             
-            const fileName = cleanName;
-            const targetFolder = `${project}/Магия/Зелья`;
-            await ensureEntityInfrastructure(targetFolder, fileName, plugin.app);
-            const targetPath = `${targetFolder}/${fileName}.md`;
-            await safeCreateFile(targetPath, content, plugin.app);
-
-            const file = plugin.app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await plugin.app.workspace.getLeaf().openFile(file);
+            // Если передан существующий пустой файл — записываем в него
+            if (options && options.targetFile instanceof TFile) {
+                await plugin.app.vault.modify(options.targetFile, content);
+                await plugin.app.workspace.getLeaf(true).openFile(options.targetFile);
+            } else {
+                const fileName = cleanName;
+                const targetFolder = `${project}/Магия/Зелья`;
+                await ensureEntityInfrastructure(targetFolder, fileName, plugin.app);
+                const targetPath = `${targetFolder}/${fileName}.md`;
+                await safeCreateFile(targetPath, content, plugin.app);
+                const file = plugin.app.vault.getAbstractFileByPath(targetPath);
+                if (file instanceof TFile) {
+                    await plugin.app.workspace.getLeaf(true).openFile(file);
+                }
             }
             // Автодобавление ингредиентов/эффектов/тегов/локаций/инструментов в справочники при необходимости
             try {
@@ -205,7 +211,7 @@ async function createPotion(plugin, startPath = '') {
             }
 
             new Notice(`Создано зелье: ${fileName}`);
-        });
+        }, options);
         modal.open();
     } catch (error) {
         new Notice('Ошибка при создании зелья: ' + error.message);

@@ -12,12 +12,11 @@
 
 // Modal, Setting, Notice передаются через конструктор
 
-class StateWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class StateWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -71,6 +70,7 @@ class StateWizardModal extends Modal {
     }
 
     async onOpen() {
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;

@@ -17,9 +17,10 @@
 /**
  * Создает новое заклинание в указанном проекте
  * @param {Object} plugin - Экземпляр плагина
- * @param {string} startPath - Начальный путь для поиска проекта
+ * @param {string} startPath - Начальный путь для поиска проекта (может быть корнем проекта)
+ * @param {Object} [options] - Доп. опции: { targetFile?: TFile, prefillName?: string }
  */
-async function createSpell(plugin, startPath = '') {
+async function createSpell(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createSpell вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -82,17 +83,21 @@ async function createSpell(plugin, startPath = '') {
             
             // Сохранение файла в папку проекта
             const cleanName = spellData.spellName.trim().replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            const targetFolder = `${project}/Магия/Заклинания`;
-            await ensureEntityInfrastructure(targetFolder, cleanName, plugin.app);
-            const targetPath = `${targetFolder}/${cleanName}.md`;
-            await safeCreateFile(targetPath, markdown, plugin.app);
-            
-            const file = plugin.app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await plugin.app.workspace.getLeaf().openFile(file);
+            if (options && options.targetFile instanceof TFile) {
+                await plugin.app.vault.modify(options.targetFile, markdown);
+                await plugin.app.workspace.getLeaf(true).openFile(options.targetFile);
+            } else {
+                const targetFolder = `${project}/Магия/Заклинания`;
+                await ensureEntityInfrastructure(targetFolder, cleanName, plugin.app);
+                const targetPath = `${targetFolder}/${cleanName}.md`;
+                await safeCreateFile(targetPath, markdown, plugin.app);
+                const file = plugin.app.vault.getAbstractFileByPath(targetPath);
+                if (file instanceof TFile) {
+                    await plugin.app.workspace.getLeaf(true).openFile(file);
+                }
             }
             new Notice(`Создано заклинание: ${cleanName}`);
-        });
+        }, options);
         modal.open();
     } catch (error) {
         new Notice('Ошибка при создании заклинания: ' + error.message);

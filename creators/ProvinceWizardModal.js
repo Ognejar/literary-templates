@@ -12,12 +12,11 @@
 
 // Modal, Setting, Notice передаются через конструктор
 
-class ProvinceWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class ProvinceWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -42,6 +41,7 @@ class ProvinceWizardModal extends Modal {
 
     async onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;

@@ -13,13 +13,14 @@
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
 class ArtifactWizardModal extends HtmlWizardModal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
-        super(app, ModalClass, NoticeClass);
+    constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.plugin = plugin;
         this.projectPath = projectPath;
         this.onFinish = onFinish;
+        this.options = options || {};
         this.data = {
             name: '',
             type: '',
@@ -69,6 +70,10 @@ class ArtifactWizardModal extends HtmlWizardModal {
         this.modalEl.style.maxWidth = '900px';
         this.modalEl.style.width = '900px';
         this.contentEl.classList.add('lt-wizard');
+        // Предзаполнение имени
+        if (this.options && typeof this.options.prefillName === 'string' && this.options.prefillName.trim()) {
+            if (!this.data.name) this.data.name = this.options.prefillName.trim();
+        }
         this.render();
     }
 
@@ -459,24 +464,20 @@ class ArtifactWizardModal extends HtmlWizardModal {
             // Генерация по шаблону из папки плагина с include и условными блоками
             const filled = await window.generateFromTemplate('Новый_артефакт', data, this.plugin);
             
-            // Создание файла
+            // Создание/запись файла
             const targetFolder = `${this.projectPath}/Магия/Артефакты`;
             const fileName = this.data.name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            
-            // Создаем папку, если не существует
-            try {
-                await this.app.vault.createFolder(targetFolder);
-            } catch (e) {
-                // Папка уже существует
-            }
-            
-            const targetPath = `${targetFolder}/${fileName}.md`;
-            await this.app.vault.create(targetPath, filled);
-            
-            // Открытие файла
-            const file = this.app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await this.app.workspace.getLeaf().openFile(file);
+            if (this.options && this.options.targetFile instanceof TFile) {
+                await this.app.vault.modify(this.options.targetFile, filled);
+                await this.app.workspace.getLeaf(true).openFile(this.options.targetFile);
+            } else {
+                try { await this.app.vault.createFolder(targetFolder); } catch {}
+                const targetPath = `${targetFolder}/${fileName}.md`;
+                await this.app.vault.create(targetPath, filled);
+                const file = this.app.vault.getAbstractFileByPath(targetPath);
+                if (file instanceof TFile) {
+                    await this.app.workspace.getLeaf(true).openFile(file);
+                }
             }
             
             new this.Notice(`Артефакт "${this.data.name}" создан!`);

@@ -242,9 +242,8 @@ class CastleWizardModal extends Modal {
         new this.Setting(contentEl)
             .setName('Статус фортификации')
             .addDropdown(dropdown => {
-                this.config.statuses.forEach(status => {
-                    dropdown.addOption(status.value, `${status.icon} ${status.label}`);
-                });
+                this.config.statuses = this.ensureStatuses(this.config.statuses);
+                this.addDropdownOptions(dropdown, this.config.statuses);
                 dropdown.setValue(this.data.status);
                 dropdown.onChange(value => {
                     this.data.status = value;
@@ -456,35 +455,38 @@ class CastleWizardModal extends Modal {
 
     validateCurrentStep() {
         switch (this.step) {
-            case 0: // Castle Name
+            case 0: // Название и тип
                 if (!this.data.castleName.trim()) {
                     new this.Notice('Пожалуйста, введите название замка/крепости.');
                     return false;
                 }
                 break;
-            case 1: // Climate, Dominant Faction
-                if ( (this.config.climates.length > 0 && (!this.data.climate || this.data.climate.trim() === '')) ||
-                     (this.config.factions.length > 0 && (!this.data.dominantFaction || this.data.dominantFaction.trim() === ''))
-                   ) {
+            case 1: // Статус — специфической валидации нет
+                break;
+            case 2: // Климат и фракция
+                if ((this.config.climates.length > 0 && (!this.data.climate || this.data.climate.trim() === '')) ||
+                    (this.config.factions.length > 0 && (!this.data.dominantFaction || this.data.dominantFaction.trim() === '')))
+                {
                     new this.Notice('Пожалуйста, выберите климат и доминирующую фракцию.');
                     return false;
                 }
                 break;
-            case 2: // Province (optional)
+            case 3: // Государство и провинция (государство обязательно)
                 if (!this.data.state || this.data.state.trim() === '') {
                     new this.Notice('Пожалуйста, выберите государство.');
                     return false;
                 }
                 break;
-            case 3: // Description
+            case 4: // Описание
                 if (!this.data.description.trim()) {
                     new this.Notice('Пожалуйста, введите описание замка/крепости.');
                     return false;
                 }
                 break;
-            case 4: // Fortifications (optional)
-            case 5: // Garrison (optional)
-            case 6: // Notable Features (optional)
+            case 5: // Укрепления (опционально)
+            case 6: // Гарнизон (опционально)
+            case 7: // Особенности (опционально)
+            case 8: // Предпросмотр
                 break;
         }
         return true;

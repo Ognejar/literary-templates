@@ -46,6 +46,43 @@ class HtmlWizardModal extends Modal {
         btn.textContent = text;
         return btn;
     }
+
+    renderNavigation() {
+        const nav = this.contentEl.createEl('div', { cls: 'lt-nav' });
+        
+        // Кнопка "Назад"
+        if (this.step > 0) {
+            const backBtn = this.createButton('secondary', '← Назад');
+            backBtn.onclick = () => {
+                this.step--;
+                this.render();
+            };
+            nav.appendChild(backBtn);
+        } else {
+            nav.appendChild(document.createElement('div')); // Пустой элемент для выравнивания
+        }
+        
+        // Кнопка "Далее" или "Завершить"
+        if (this.step < this.steps.length - 1) {
+            const nextBtn = this.createButton('primary', 'Далее →');
+            nextBtn.onclick = () => {
+                this.step++;
+                this.render();
+            };
+            nav.appendChild(nextBtn);
+        } else {
+            const finishBtn = this.createButton('primary', 'Завершить');
+            finishBtn.onclick = () => {
+                this.finish();
+            };
+            nav.appendChild(finishBtn);
+        }
+    }
+
+    finish() {
+        // Базовый метод завершения - переопределяется в наследниках
+        this.close();
+    }
 }
 
 module.exports = { HtmlWizardModal };

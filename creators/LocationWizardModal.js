@@ -13,12 +13,11 @@
 // Modal, Setting, Notice передаются через конструктор
 
 
-class LocationWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class LocationWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -47,6 +46,7 @@ class LocationWizardModal extends Modal {
 
     async onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;
@@ -169,9 +169,8 @@ class LocationWizardModal extends Modal {
         new this.Setting(contentEl)
             .setName('Статус локации')
             .addDropdown(dropdown => {
-                this.config.statuses.forEach(status => {
-                    dropdown.addOption(status.value, `${status.icon} ${status.label}`);
-                });
+                this.config.statuses = this.ensureStatuses(this.config.statuses);
+                this.addDropdownOptions(dropdown, this.config.statuses);
                 dropdown.setValue(this.data.status);
                 dropdown.onChange(value => {
                     this.data.status = value;
@@ -334,29 +333,30 @@ class LocationWizardModal extends Modal {
 
     validateCurrentStep() {
         switch (this.step) {
-            case 0: // Location Name
+            case 0: // Название локации
                 if (!this.data.locationName.trim()) {
                     new this.Notice('Пожалуйста, введите название локации.');
                     return false;
                 }
                 break;
-            case 1: // Type, Climate, Faction
+            case 1: // Статус — специфической валидации нет
+                break;
+            case 2: // Тип, Климат, Фракция
                 if (!this.data.type || !this.data.climate || !this.data.faction) {
                     new this.Notice('Пожалуйста, выберите тип, климат и фракцию.');
                     return false;
                 }
                 break;
-            case 2: // Province (optional)
-                // Nothing to validate, as it's optional
+            case 3: // Провинция (опционально)
+                // Ничего не проверяем — опционально
                 break;
-            case 3: // Description
+            case 4: // Описание
                 if (!this.data.description.trim()) {
                     new this.Notice('Пожалуйста, введите описание локации.');
                     return false;
                 }
                 break;
-            case 4: // Features
-                // Features can be empty
+            case 5: // Особенности (опционально)
                 break;
         }
         return true;

@@ -12,7 +12,7 @@
 
 const { ArtifactWizardModal } = require('../ArtifactWizardModal.js');
 
-async function createArtifact(plugin, startPath = '') {
+async function createArtifact(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createArtifact: начало ===');
         
@@ -63,7 +63,8 @@ async function createArtifact(plugin, startPath = '') {
             project,
             () => {
                 plugin.logDebug('Артефакт создан успешно');
-            }
+            },
+            options
         );
         
         modal.open();

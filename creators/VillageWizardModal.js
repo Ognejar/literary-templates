@@ -11,13 +11,11 @@
  */
 
 const { Modal, Setting } = require('obsidian');
+const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class VillageWizardModal extends Modal {
+class VillageWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, autocompleteData, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.autocompleteData = autocompleteData; // { provincesList }
         this.onFinish = onFinish;
         this.state = {
@@ -48,6 +46,7 @@ class VillageWizardModal extends Modal {
     
     onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;

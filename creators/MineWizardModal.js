@@ -12,12 +12,11 @@
 
 // Modal, Setting, Notice передаются через конструктор
 
-class MineWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class MineWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -52,6 +51,7 @@ class MineWizardModal extends Modal {
 
     async onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;
@@ -457,13 +457,16 @@ if (typeof MineWizardModal !== 'undefined' && typeof MineWizardModal.prototype.r
         new this.Setting(contentEl)
             .setName('Статус шахты')
             .addDropdown(dropdown => {
-                (this.config.statuses || [
+                this.config.statuses = (typeof this.ensureStatuses === 'function') ? this.ensureStatuses(this.config.statuses) : (this.config.statuses || [
                     { value: 'действует', label: 'Действует', icon: '✅' },
                     { value: 'заброшено', label: 'Заброшено', icon: '🏚️' },
                     { value: 'разрушено', label: 'Разрушено', icon: '💥' }
-                ]).forEach(status => {
-                    dropdown.addOption(status.value, `${status.icon} ${status.label}`);
-                });
+                ]);
+                if (typeof this.addDropdownOptions === 'function') {
+                    this.addDropdownOptions(dropdown, this.config.statuses);
+                } else {
+                    this.config.statuses.forEach(status => dropdown.addOption(status.value, `${status.icon} ${status.label}`));
+                }
                 dropdown.setValue(this.data.status || 'действует');
                 dropdown.onChange(value => {
                     this.data.status = value;

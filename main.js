@@ -1,3 +1,14 @@
+/**
+ * @file       main.js
+ * @description Плагин Obsidian "Literary Templates": регистрация команд, контекстного меню и генерация заметок по шаблонам
+ * @author     Captain Ognejar
+ * @version    1.0.0
+ * @license    MIT
+ * @dependencies creators/*, *WizardModal классы, Obsidian API
+ * @created    2025-08-13
+ * @updated    2025-08-13
+ * @docs       1_Plugun_work/docs/
+ */
 // const { writeFileSync } = require('fs'); // Неиспользуется
 // const { join } = require('path'); // Неиспользуется
 const { MarkdownView, TFile, TFolder, Notice } = require('obsidian');
@@ -15,13 +26,17 @@ const { createCastle } = require('./creators/createCastle.js');
 const { createPotion } = require('./creators/createPotion.js');
 const { createSpell } = require('./creators/createSpell.js');
 const { createArtifact } = require('./creators/createArtifact.js');
+
 const { createAlchemyRecipe } = require('./creators/createAlchemyRecipe.js');
 const { createState } = require('./creators/createState.js');
 const { createProvince } = require('./creators/createProvince.js');
 const { createPeople } = require('./creators/createPeople.js');
+
 const { createMine } = require('./creators/createMine.js');
 const { createFactory } = require('./creators/createFactory.js');
 const { createFarm } = require('./creators/createFarm.js');
+const { createCharacter } = require('./creators/createCharacter.js');
+const { createMonster } = require('./creators/createMonster.js');
 
 // Функции для работы с проектами
 
@@ -627,11 +642,15 @@ class LiteraryTemplatesPlugin extends Plugin {
     async onload() {
         // console.log('Literary Templates plugin loading...');
         this.activeProjectRoot = null;
+        this.debugEnabled = false;
         
         this.loadData().then(data => {
             if (data && data.activeProjectRoot) {
                 this.activeProjectRoot = data.activeProjectRoot;
                 // console.log('Загружен активный проект:', this.activeProjectRoot);
+            }
+            if (data && typeof data.debugEnabled === 'boolean') {
+                this.debugEnabled = data.debugEnabled;
             }
         });
 
@@ -695,10 +714,88 @@ class LiteraryTemplatesPlugin extends Plugin {
                 }
             })
         );
+        // Автозапуск мастеров при создании пустых файлов в целевых папках Магии (мягкий режим)
+        this.registerEvent(
+            this.app.vault.on('create', async (abstractFile) => {
+                try {
+                    if (!(abstractFile instanceof TFile)) return;
+                    if (!abstractFile.extension || abstractFile.extension.toLowerCase() !== 'md') return;
+                    const parentPath = abstractFile.parent ? abstractFile.parent.path : '';
+                    if (!parentPath) return;
+                    // Определяем корень проекта
+                    const projectRoot = findProjectRoot(this.app, parentPath);
+                    if (!projectRoot) return;
+                    // Проверяем, что файл пустой
+                    let isEmpty = true;
+                    try {
+                        if (abstractFile.stat && typeof abstractFile.stat.size === 'number') {
+                            isEmpty = abstractFile.stat.size === 0;
+                        } else {
+                            const text = await this.app.vault.read(abstractFile);
+                            isEmpty = !String(text || '').trim();
+                        }
+                    } catch {}
+                    if (!isEmpty) return;
+                    // Относительный путь от projectRoot
+                    const rel = abstractFile.path.startsWith(projectRoot + '/')
+                        ? abstractFile.path.slice(projectRoot.length + 1)
+                        : '';
+                    if (!rel) return;
+                    // Карта целевых папок → тип мастера
+                    const map = [
+                        { prefix: 'Магия/Зелья/', type: 'potion' },
+                        { prefix: 'Магия/Заклинания/', type: 'spell' },
+                        { prefix: 'Магия/Артефакты/', type: 'artifact' },
+                        { prefix: 'Магия/Алхимия/', type: 'alchemy' },
+                    ];
+                    const found = map.find(m => rel.startsWith(m.prefix));
+                    if (!found) return;
+                    const baseName = abstractFile.basename || '';
+                    // Мягкий запуск: спрашиваем подтверждение
+                    const actionMap = {
+                        potion: 'зелья',
+                        spell: 'заклинания',
+                        artifact: 'артефакта',
+                        alchemy: 'алхимического рецепта',
+                    };
+                    const confirm = await this.suggester(
+                        ['yes', 'no'],
+                        ['Запустить мастер', 'Отмена'],
+                        `Обнаружен новый пустой файл ${actionMap[found.type]} «${baseName}». Запустить мастер и заполнить его?`
+                    );
+                    if (confirm !== 'yes') return;
+                    const options = { targetFile: abstractFile, prefillName: baseName };
+                    // Запускаем соответствующий мастер с предзаполнением и записью в уже созданный файл
+                    switch (found.type) {
+                        case 'potion':
+                            await createPotion(this, projectRoot, options);
+                            break;
+                        case 'spell':
+                            await createSpell(this, projectRoot, options);
+                            break;
+                        case 'artifact':
+                            await window.createArtifact(this, projectRoot, options);
+                            break;
+                        case 'alchemy':
+                            await window.createAlchemyRecipe(this, projectRoot, options);
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (e) {
+                    await this.logDebug('create event handler error: ' + (e && e.message ? e.message : String(e)));
+                }
+            })
+        );
         this.addCommand({
             id: 'create-artifact',
             name: 'Создать артефакт (минишаблонизатор)',
             callback: () => createArtifact(this, ''),
+        });
+        this.addCommand({
+            id: 'create-conflict',
+            name: 'Создать конфликт (мастер)',
+            callback: () => createConflictWizard(this, ''),
         });
         this.addCommand({
             id: 'create-chapter',
@@ -741,6 +838,41 @@ class LiteraryTemplatesPlugin extends Plugin {
             callback: () => createPeople(this, ''),
         });
         this.addCommand({
+            id: 'create-religion',
+            name: 'Создать религию (мастер)',
+            callback: () => createReligionWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-cult',
+            name: 'Создать культ (мастер)',
+            callback: () => createCultWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-trade-route',
+            name: 'Создать торговый путь (мастер)',
+            callback: () => createTradeRouteWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-faction',
+            name: 'Создать фракцию (мастер)',
+            callback: () => createFactionWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-quest',
+            name: 'Создать квест (мастер)',
+            callback: () => createQuestWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-event',
+            name: 'Создать событие (мастер)',
+            callback: () => createEventWizard(this, ''),
+        });
+        this.addCommand({
+            id: 'create-organization',
+            name: 'Создать организацию (мастер)',
+            callback: () => createOrganizationWizard(this, ''),
+        });
+        this.addCommand({
             id: 'create-new-potion',
             name: 'Создать новое зелье',
             callback: async () => {
@@ -768,6 +900,25 @@ class LiteraryTemplatesPlugin extends Plugin {
             callback: () => this.insertPlotlineIntoScene(),
         });
         this.addCommand({
+            id: 'toggle-debug-logging',
+            name: 'Переключить отладку (логирование)',
+            callback: async () => {
+                try {
+                    this.debugEnabled = !this.debugEnabled;
+                    const state = this.debugEnabled ? 'включена' : 'выключена';
+                    new Notice(`Отладка ${state}`);
+                    const prev = (await this.loadData()) || {};
+                    await this.saveData({
+                        ...prev,
+                        activeProjectRoot: this.activeProjectRoot || prev.activeProjectRoot || null,
+                        debugEnabled: this.debugEnabled
+                    });
+                } catch (e) {
+                    new Notice('Не удалось переключить отладку: ' + e.message);
+                }
+            },
+        });
+        this.addCommand({
             id: 'create-new-character',
             name: 'Создать нового персонажа',
             callback: async () => {
@@ -777,6 +928,11 @@ class LiteraryTemplatesPlugin extends Plugin {
             new Notice('Ошибка при создании персонажа: ' + error.message);
         }
             },
+        });
+        this.addCommand({
+            id: 'create-monster',
+            name: 'Создать монстра (минишаблонизатор)',
+            callback: () => createMonster(this, ''),
         });
         this.addCommand({
             id: 'create-world',
@@ -830,6 +986,13 @@ class LiteraryTemplatesPlugin extends Plugin {
         window.createCastle = createCastle;
         window.createPotion = createPotion;
         window.createSpell = createSpell;
+        window.createConflict = createConflictWizard;
+        window.createOrganization = createOrganizationWizard;
+        window.createReligion = createReligionWizard;
+        window.createCult = createCultWizard;
+        window.createTradeRoute = createTradeRouteWizard;
+        window.createFaction = createFactionWizard;
+        window.createQuest = createQuestWizard;
         try {
             window.createArtifact = require('./creators/createArtifact.js').createArtifact;
         } catch {
@@ -843,12 +1006,13 @@ class LiteraryTemplatesPlugin extends Plugin {
         }
         try {
             window.createCharacter = require('./creators/createCharacter.js').createCharacter;
-        } catch (e) {
+        } catch {
             window.createCharacter = createCharacter;
         }
         window.createState = createState;
         window.createProvince = createProvince;
         window.createMine = createMine;
+        window.createMonster = createMonster;
         
         // Делаем вспомогательные функции доступными в глобальной области видимости
         window.findProjectRoot = findProjectRoot;
@@ -1031,6 +1195,8 @@ class LiteraryTemplatesPlugin extends Plugin {
 
 
     async logDebug(message) {
+        // Тихий режим: если отладка выключена — выходим
+        if (!this.debugEnabled) return;
         // Дублируем вывод в консоль для удобной отладки
         try {
             const now = window.moment ? window.moment().format('YYYY-MM-DD HH:mm:ss') : new Date().toISOString();
@@ -1100,6 +1266,15 @@ class LiteraryTemplatesPlugin extends Plugin {
                         else if (target instanceof TFolder) startPath = target.path;
                         else if (target && target.path) startPath = target.path;
                         createScene(this, startPath);
+                    });
+                });
+                storySubMenu.addItem((storyItem) => {
+                    storyItem.setTitle('Создать конфликт').setIcon('flame').onClick(() => {
+                        let startPath = '';
+                        if (target instanceof TFile) startPath = target.parent.path;
+                        else if (target instanceof TFolder) startPath = target.path;
+                        else if (target && target.path) startPath = target.path;
+                        createConflictWizard(this, startPath);
                     });
                 });
             });
@@ -1206,56 +1381,14 @@ class LiteraryTemplatesPlugin extends Plugin {
                     });
                 });
                 
-                // Производство
-                locationSubMenu.addItem((locItem) => {
-                    locItem.setTitle('🏭 Производство').setIcon('factory');
-                    const productionSubMenu = locItem.setSubmenu();
-                    
-                    productionSubMenu.addItem((pItem) => {
-                        pItem.setTitle('Создать шахту').setIcon('pickaxe').onClick(() => {
-                            let startPath = '';
-                            if (target instanceof TFile) startPath = target.parent.path;
-                            else if (target instanceof TFolder) startPath = target.path;
-                            else if (target && target.path) startPath = target.path;
-                            createMine(this, startPath);
-                        });
-                    });
-                    
-                    productionSubMenu.addItem((pItem) => {
-                        pItem.setTitle('Создать ферму').setIcon('wheat').onClick(() => {
-                            let startPath = '';
-                            if (target instanceof TFile) startPath = target.parent.path;
-                            else if (target instanceof TFolder) startPath = target.path;
-                            else if (target && target.path) startPath = target.path;
-                            createFarm(this, startPath);
-                        });
-                    });
-                    
-                    productionSubMenu.addItem((pItem) => {
-                        pItem.setTitle('Создать завод').setIcon('factory').onClick(() => {
-                            let startPath = '';
-                            if (target instanceof TFile) startPath = target.parent.path;
-                            else if (target instanceof TFolder) startPath = target.path;
-                            else if (target && target.path) startPath = target.path;
-                            createFactory(this, startPath);
-                        });
-                    });
-                });
+                // Производство было перенесено в раздел «Экономика»
                 
                 // Прочее
                 locationSubMenu.addItem((locItem) => {
                     locItem.setTitle('📍 Прочее').setIcon('map-pin');
                     const otherSubMenu = locItem.setSubmenu();
                     
-                    otherSubMenu.addItem((oItem) => {
-                        oItem.setTitle('Создать порт').setIcon('anchor').onClick(() => {
-                            let startPath = '';
-                            if (target instanceof TFile) startPath = target.parent.path;
-                            else if (target instanceof TFolder) startPath = target.path;
-                            else if (target && target.path) startPath = target.path;
-                            createPort(this, startPath);
-                        });
-                    });
+                    // Порт перенесён в раздел «Экономика → Логистика»
                     
                     otherSubMenu.addItem((oItem) => {
                         oItem.setTitle('Создать мертвую зону').setIcon('skull').onClick(() => {
@@ -1276,6 +1409,15 @@ class LiteraryTemplatesPlugin extends Plugin {
                             createLocation(this, startPath);
                         });
                     });
+                    otherSubMenu.addItem((oItem) => {
+                        oItem.setTitle('Создать монстра').setIcon('skull').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createMonster(this, startPath);
+                        });
+                    });
                 });
                 // Народы
                 subMenu.addItem((subItem) => {
@@ -1290,10 +1432,112 @@ class LiteraryTemplatesPlugin extends Plugin {
                             createPeople(this, startPath);
                         });
                     });
+                    peopleSubMenu.addItem((pItem) => {
+                        pItem.setTitle('Создать организацию').setIcon('users').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createOrganizationWizard(this, startPath);
+                        });
+                    });
+                    peopleSubMenu.addItem((pItem) => {
+                        pItem.setTitle('Создать религию').setIcon('book').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createReligionWizard(this, startPath);
+                        });
+                    });
+                    peopleSubMenu.addItem((pItem) => {
+                        pItem.setTitle('Создать культ (религ.)').setIcon('flame').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createCultWizard(this, startPath);
+                        });
+                    });
+                    peopleSubMenu.addItem((pItem) => {
+                        pItem.setTitle('Создать фракцию').setIcon('flag').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createFactionWizard(this, startPath);
+                        });
+                    });
                 });
             });
             
-            // 3. Магия
+            // 3. Экономика
+            subMenu.addItem((subItem) => {
+                subItem.setTitle('💰 Экономика').setIcon('factory');
+                const ecoSubMenu = subItem.setSubmenu();
+                // Производство
+                ecoSubMenu.addItem((ecoItem) => {
+                    ecoItem.setTitle('🏭 Производство').setIcon('factory');
+                    const prod = ecoItem.setSubmenu();
+                    prod.addItem((pItem) => {
+                        pItem.setTitle('Создать шахту').setIcon('pickaxe').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createMine(this, startPath);
+                        });
+                    });
+                    prod.addItem((pItem) => {
+                        pItem.setTitle('Создать ферму').setIcon('wheat').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createFarm(this, startPath);
+                        });
+                    });
+                    prod.addItem((pItem) => {
+                        pItem.setTitle('Создать завод').setIcon('factory').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createFactory(this, startPath);
+                        });
+                    });
+                });
+                // Торговля
+                ecoSubMenu.addItem((ecoItem) => {
+                    ecoItem.setTitle('🧾 Торговля').setIcon('map');
+                    const trade = ecoItem.setSubmenu();
+                    trade.addItem((tItem) => {
+                        tItem.setTitle('Создать торговый путь').setIcon('map').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createTradeRouteWizard(this, startPath);
+                        });
+                    });
+                });
+                // Логистика
+                ecoSubMenu.addItem((ecoItem) => {
+                    ecoItem.setTitle('🚚 Логистика').setIcon('map-pin');
+                    const logi = ecoItem.setSubmenu();
+                    logi.addItem((lItem) => {
+                        lItem.setTitle('Создать порт').setIcon('anchor').onClick(() => {
+                            let startPath = '';
+                            if (target instanceof TFile) startPath = target.parent.path;
+                            else if (target instanceof TFolder) startPath = target.path;
+                            else if (target && target.path) startPath = target.path;
+                            createPort(this, startPath);
+                        });
+                    });
+                });
+            });
+
+            // 4. Магия
             subMenu.addItem((subItem) => {
                 subItem.setTitle('✨ Магия').setIcon('sparkles');
                 const magicSubMenu = subItem.setSubmenu();
@@ -1339,7 +1583,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                 });
             });
             
-            // 4. Персонажи
+            // 5. Персонажи
             subMenu.addItem((subItem) => {
                 subItem.setTitle('👤 Персонажи').setIcon('user');
                 const characterSubMenu = subItem.setSubmenu();
@@ -1354,12 +1598,27 @@ class LiteraryTemplatesPlugin extends Plugin {
                 });
             });
             
-            // 5. События
+            // 6. События
             subMenu.addItem((subItem) => {
                 subItem.setTitle('📅 События').setIcon('calendar');
                 const eventSubMenu = subItem.setSubmenu();
                 eventSubMenu.addItem((eventItem) => {
-                    eventItem.setTitle('Создать событие').setIcon('calendar').setDisabled(true);
+                    eventItem.setTitle('Создать квест').setIcon('target').onClick(() => {
+                        let startPath = '';
+                        if (target instanceof TFile) startPath = target.parent.path;
+                        else if (target instanceof TFolder) startPath = target.path;
+                        else if (target && target.path) startPath = target.path;
+                        createQuestWizard(this, startPath);
+                    });
+                });
+                eventSubMenu.addItem((eventItem) => {
+                    eventItem.setTitle('Создать событие').setIcon('calendar').onClick(() => {
+                        let startPath = '';
+                        if (target instanceof TFile) startPath = target.parent.path;
+                        else if (target instanceof TFolder) startPath = target.path;
+                        else if (target && target.path) startPath = target.path;
+                        createEventWizard(this, startPath);
+                    });
                 });
             });
             
@@ -1524,4 +1783,55 @@ class LiteraryTemplatesPlugin extends Plugin {
     }
 }
 
+// Функции-обёртки для новых визардов
+async function createConflictWizard(plugin, projectPath, options = {}) {
+    const { ConflictWizardModal } = require('./creators/ConflictWizardModal.js');
+    const modal = new ConflictWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createOrganizationWizard(plugin, projectPath, options = {}) {
+    const { OrganizationWizardModal } = require('./creators/OrganizationWizardModal.js');
+    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createReligionWizard(plugin, projectPath, options = {}) {
+    const { ReligionWizardModal } = require('./creators/ReligionWizardModal.js');
+    const modal = new ReligionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createCultWizard(plugin, projectPath, options = {}) {
+    const { CultWizardModal } = require('./creators/CultWizardModal.js');
+    const modal = new CultWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createTradeRouteWizard(plugin, projectPath, options = {}) {
+    const { TradeRouteWizardModal } = require('./creators/TradeRouteWizardModal.js');
+    const modal = new TradeRouteWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createFactionWizard(plugin, projectPath, options = {}) {
+    const { FactionWizardModal } = require('./creators/FactionWizardModal.js');
+    const modal = new FactionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createQuestWizard(plugin, projectPath, options = {}) {
+    const { QuestWizardModal } = require('./creators/QuestWizardModal.js');
+    const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createEventWizard(plugin, projectPath, options = {}) {
+    const { EventWizardModal } = require('./creators/EventWizardModal.js');
+    const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
 module.exports = LiteraryTemplatesPlugin; 
+
+

@@ -35,12 +35,11 @@ function normalizeToArray(value) {
     return [];
 }
 
-class CityWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class CityWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -94,6 +93,7 @@ class CityWizardModal extends Modal {
 
     async onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;
@@ -113,13 +113,21 @@ class CityWizardModal extends Modal {
 
         async loadConfig() {
         try {
-            // Инициализируем config объект
+            // Инициализируем config объект, сохраняя statuses
+            const defaultStatuses = (this.config && Array.isArray(this.config.statuses) && this.config.statuses.length > 0)
+                ? this.config.statuses
+                : [
+                    { value: 'действует', label: 'Действует', icon: '✅' },
+                    { value: 'заброшено', label: 'Заброшено', icon: '🏚️' },
+                    { value: 'разрушено', label: 'Разрушено', icon: '💥' }
+                ];
             this.config = {
                 locationTypes: [],
                 climates: [],
                 factions: [],
                 provinces: [],
-                countries: []
+                countries: [],
+                statuses: defaultStatuses
             };
 
             const projectRoot = this.projectRoot; // Используем переданный projectRoot
@@ -265,9 +273,8 @@ class CityWizardModal extends Modal {
         new this.Setting(contentEl)
             .setName('Статус города')
             .addDropdown(dropdown => {
-                this.config.statuses.forEach(status => {
-                    dropdown.addOption(status.value, `${status.icon} ${status.label}`);
-                });
+                this.config.statuses = this.ensureStatuses(this.config.statuses);
+                this.addDropdownOptions(dropdown, this.config.statuses);
                 dropdown.setValue(this.data.status);
                 dropdown.onChange(value => {
                     this.data.status = value;
@@ -594,19 +601,21 @@ class CityWizardModal extends Modal {
 
     validateCurrentStep() {
         switch (this.step) {
-            case 0: // City Name
+            case 0: // Название города
                 if (!this.data.cityName.trim()) {
                     new this.Notice('Пожалуйста, введите название города.');
                     return false;
                 }
                 break;
-            case 1: // Climate and Faction
+            case 1: // Статус — специфической валидации нет
+                break;
+            case 2: // Климат и фракция
                 if (!this.data.climate || this.data.climate.trim() === '' || !this.data.dominantFaction || this.data.dominantFaction.trim() === '') {
                     new this.Notice('Пожалуйста, выберите климат и доминирующую фракцию.');
                     return false;
                 }
                 break;
-            case 2: // Province (optional)
+            case 3: // Юрисдикция (провинция/государство)
                 if ((this.data.jurisdictionMode || 'province') === 'province') {
                     if (!this.data.province || this.data.province.trim() === '') {
                         new this.Notice('Пожалуйста, выберите провинцию или смените режим на "Без провинции (только государство)".');
@@ -620,18 +629,18 @@ class CityWizardModal extends Modal {
                     }
                 }
                 break;
-            case 3: // Description
+            case 4: // Описание
                 break;
-            case 4: // Main Industries
+            case 5: // Основные отрасли
                 // Industries can be empty
                 break;
-            case 5: // Districts
+            case 6: // Районы
                 // Districts can be empty
                 break;
-            case 6: // Unique Features
+            case 7: // Уникальные особенности
                 // Unique Features can be empty
                 break;
-            case 7: // Features
+            case 8: // Предпросмотр
                 // Features can be empty
                 break;
         }

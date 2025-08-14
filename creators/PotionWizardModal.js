@@ -11,12 +11,13 @@
  */
 
 class PotionWizardModal extends Modal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, projectPath, onFinish) {
+    constructor(app, ModalClass, SettingClass, NoticeClass, projectPath, onFinish, options = {}) {
         super(app);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.projectPath = projectPath;
         this.onFinish = onFinish;
+        this.options = options || {};
         this.data = {
             potionName: '',
             description: '',
@@ -75,6 +76,10 @@ class PotionWizardModal extends Modal {
             overflow-y: auto;
         `;
         
+        // Предзаполнение имени из options.prefillName
+        if (this.options && typeof this.options.prefillName === 'string' && this.options.prefillName.trim()) {
+            if (!this.data.potionName) this.data.potionName = this.options.prefillName.trim();
+        }
         this.render();
     }
 

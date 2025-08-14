@@ -13,13 +13,14 @@
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
 class AlchemyRecipeWizardModal extends HtmlWizardModal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
-        super(app, ModalClass, NoticeClass);
+    constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.plugin = plugin;
         this.projectPath = projectPath;
         this.onFinish = onFinish;
+        this.options = options || {};
         this.data = {
             name: '',
             category: '',
@@ -71,6 +72,9 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
         this.modalEl.style.maxWidth = '900px';
         this.modalEl.style.width = '900px';
         this.contentEl.classList.add('lt-wizard');
+        if (this.options && typeof this.options.prefillName === 'string' && this.options.prefillName.trim()) {
+            if (!this.data.name) this.data.name = this.options.prefillName.trim();
+        }
         this.render();
     }
 
@@ -686,17 +690,20 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
             // Генерация по шаблону с условными блоками и include
             const content = await window.generateFromTemplate('Новый_алхимический_рецепт', data, this.plugin);
 
-            // Создание файла
+            // Создание/запись файла
             const targetFolder = `${this.projectPath}/Магия/Алхимия`;
             const fileName = data.name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            await window.ensureEntityInfrastructure(targetFolder, fileName, this.app);
-            const targetPath = `${targetFolder}/${fileName}.md`;
-            await window.safeCreateFile(targetPath, content, this.app);
-
-            // Открытие файла
-            const file = this.app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await this.app.workspace.getLeaf().openFile(file);
+            if (this.options && this.options.targetFile instanceof TFile) {
+                await this.app.vault.modify(this.options.targetFile, content);
+                await this.app.workspace.getLeaf(true).openFile(this.options.targetFile);
+            } else {
+                await window.ensureEntityInfrastructure(targetFolder, fileName, this.app);
+                const targetPath = `${targetFolder}/${fileName}.md`;
+                await window.safeCreateFile(targetPath, content, this.app);
+                const file = this.app.vault.getAbstractFileByPath(targetPath);
+                if (file instanceof TFile) {
+                    await this.app.workspace.getLeaf(true).openFile(file);
+                }
             }
 
             // Автопополнение справочников (категории/эффекты/теги алхимии)

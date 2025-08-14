@@ -1,6 +1,6 @@
 /**
- * @file       FarmWizardModal.js
- * @description Модальное окно мастера для создания новой фермы.
+ * @file       FactoryWizardModal.js
+ * @description Модальное окно мастера для создания нового завода.
  * @author     AI Assistant
  * @version    1.0.0
  * @license    MIT
@@ -12,29 +12,28 @@
 
 // Modal, Setting, Notice передаются через конструктор
 
-class FarmWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+class FactoryWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
-            farmName: '',
+            factoryName: '',
             description: '',
             climate: '',
             dominantFaction: '',
-            farmType: '',
+            factoryType: '',
             province: '',
             state: '',
-            fields: '',
             status: 'действует', // действует, заброшено, разрушено
             statusReason: '', // причина заброшенности/разрушения
+            workshops: '',
             products: [],
-            livestock: [],
-            methods: [],
+            materials: [],
+            technologies: [],
             features: [],
         };
         this.config = {
@@ -42,15 +41,15 @@ class FarmWizardModal extends Modal {
             factions: [],
             provinces: [],
             states: [],
-            farmTypes: [
-                'Зерновая ферма',
-                'Животноводческая ферма',
-                'Виноградник',
-                'Рыбная ферма',
-                'Лесное хозяйство',
-                'Смешанное хозяйство',
-                'Садовая ферма',
-                'Овощная ферма',
+            factoryTypes: [
+                'Металлургический завод',
+                'Оружейный завод',
+                'Текстильная фабрика',
+                'Судостроительная верфь',
+                'Алхимическая лаборатория',
+                'Кузнечная мастерская',
+                'Стекольный завод',
+                'Керамическая мастерская',
                 'Другое'
             ],
             statuses: [
@@ -63,6 +62,7 @@ class FarmWizardModal extends Modal {
 
     async onOpen() {
         // Добавляем общие стили для модального окна
+        this.applyBaseUI();
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;
@@ -75,7 +75,7 @@ class FarmWizardModal extends Modal {
         `;
         
         this.contentEl.empty();
-        this.titleEl.setText('Создание новой фермы');
+        this.titleEl.setText('Создание нового завода');
         await this.loadConfig();
         this.render();
     }
@@ -127,10 +127,10 @@ class FarmWizardModal extends Modal {
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
             this.data.dominantFaction = this.data.dominantFaction || (this.config.factions[0] || '');
-            this.data.farmType = this.data.farmType || (this.config.farmTypes[0] || '');
+            this.data.factoryType = this.data.factoryType || (this.config.factoryTypes[0] || '');
 
-            console.log('DEBUG: FarmWizardModal - Config loaded. climates:', this.config.climates, 'factions:', this.config.factions);
-            console.log('DEBUG: FarmWizardModal - Data initialized. climate:', this.data.climate, 'dominantFaction:', this.data.dominantFaction);
+            console.log('DEBUG: FactoryWizardModal - Config loaded. climates:', this.config.climates, 'factions:', this.config.factions);
+            console.log('DEBUG: FactoryWizardModal - Data initialized. climate:', this.data.climate, 'dominantFaction:', this.data.dominantFaction);
         } catch (e) {
             new this.Notice('Ошибка загрузки конфигурации: ' + e.message);
             console.error('Ошибка загрузки конфигурации:', e);
@@ -145,47 +145,47 @@ class FarmWizardModal extends Modal {
 
         switch (this.step) {
             case 0:
-                this.titleEl.setText('Создание новой фермы - Шаг 1/8: Название');
-                this.renderFarmName(contentEl);
+                this.titleEl.setText('Создание нового завода - Шаг 1/9: Название');
+                this.renderFactoryName(contentEl);
                 navButtons = '<button class="mod-cta" id="next">Далее</button>';
                 break;
             case 1:
-                this.titleEl.setText('Создание новой фермы - Шаг 2/8: Климат и фракция');
-                this.renderClimateFaction(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 2:
-                this.titleEl.setText('Создание новой фермы - Шаг 3/8: Государство и провинция');
-                this.renderStateProvince(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 3:
-                this.titleEl.setText('Создание новой фермы - Шаг 4/8: Описание');
-                this.renderDescription(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 4:
-                this.titleEl.setText('Создание новой фермы - Шаг 5/8: Тип фермы и количество полей');
-                this.renderFarmTypeFields(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 5:
-                this.titleEl.setText('Создание новой фермы - Шаг 6/8: Статус фермы');
+                this.titleEl.setText('Создание нового завода - Шаг 2/9: Статус завода');
                 this.renderStatus(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
+            case 2:
+                this.titleEl.setText('Создание нового завода - Шаг 3/9: Климат и фракция');
+                this.renderClimateFaction(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 3:
+                this.titleEl.setText('Создание нового завода - Шаг 4/9: Государство и провинция');
+                this.renderStateProvince(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 4:
+                this.titleEl.setText('Создание нового завода - Шаг 5/9: Описание');
+                this.renderDescription(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 5:
+                this.titleEl.setText('Создание нового завода - Шаг 6/9: Тип завода и количество цехов');
+                this.renderFactoryTypeWorkshops(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
             case 6:
-                this.titleEl.setText('Создание новой фермы - Шаг 7/8: Продукция, животноводство и методы');
-                this.renderProductsLivestockMethods(contentEl);
+                this.titleEl.setText('Создание нового завода - Шаг 7/9: Продукция, сырье и технологии');
+                this.renderProductsMaterialsTechnologies(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 7:
-                this.titleEl.setText('Создание новой фермы - Шаг 8/8: Особенности');
+                this.titleEl.setText('Создание нового завода - Шаг 8/9: Особенности');
                 this.renderFeatures(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 8:
-                this.titleEl.setText('Создание новой фермы - Шаг 9/9: Предпросмотр');
+                this.titleEl.setText('Создание нового завода - Шаг 9/9: Предпросмотр');
                 this.renderPreview(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
                 break;
@@ -196,19 +196,56 @@ class FarmWizardModal extends Modal {
         this.renderNav(contentEl, navButtons);
     }
 
-    renderFarmName(contentEl) {
+    renderFactoryName(contentEl) {
         new this.Setting(contentEl)
-            .setName('Название фермы')
+            .setName('Название завода')
             .addText(text => {
-                text.setPlaceholder('Название фермы')
-                    .setValue(this.data.farmName)
+                text.setPlaceholder('Название завода')
+                    .setValue(this.data.factoryName)
                     .onChange(value => {
-                        this.data.farmName = value;
+                        this.data.factoryName = value;
                     });
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.fontSize = '16px';
                 text.inputEl.style.padding = '8px';
             });
+    }
+
+    renderStatus(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Статус завода')
+            .addDropdown(dropdown => {
+                this.config.statuses = this.ensureStatuses(this.config.statuses);
+                this.addDropdownOptions(dropdown, this.config.statuses);
+                dropdown.setValue(this.data.status);
+                dropdown.onChange(value => {
+                    this.data.status = value;
+                    const reasonSetting = contentEl.querySelector('.status-reason-setting');
+                    if (reasonSetting) {
+                        reasonSetting.style.display = value === 'действует' ? 'none' : 'block';
+                    }
+                });
+                dropdown.selectEl.style.minWidth = '320px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+
+        const reasonSetting = new this.Setting(contentEl)
+            .setName('Причина')
+            .addText(text => {
+                text.setPlaceholder('Например: Истощение ресурсов, война, катастрофа')
+                    .setValue(this.data.statusReason)
+                    .onChange(value => {
+                        this.data.statusReason = value;
+                    });
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
+            });
+        reasonSetting.settingEl.addClass('status-reason-setting');
+        if (this.data.status === 'действует') {
+            reasonSetting.settingEl.style.display = 'none';
+        }
     }
 
     renderClimateFaction(contentEl) {
@@ -265,7 +302,7 @@ class FarmWizardModal extends Modal {
         new this.Setting(contentEl)
             .setName('Описание')
             .addTextArea(text => {
-                text.setPlaceholder('Подробное описание фермы')
+                text.setPlaceholder('Подробное описание завода')
                     .setValue(this.data.description)
                     .onChange(value => {
                         this.data.description = value;
@@ -278,25 +315,25 @@ class FarmWizardModal extends Modal {
             });
     }
 
-    renderFarmTypeFields(contentEl) {
+    renderFactoryTypeWorkshops(contentEl) {
         new this.Setting(contentEl)
-            .setName('Тип фермы')
+            .setName('Тип завода')
             .addDropdown(dropdown => {
-                this.config.farmTypes.forEach(type => dropdown.addOption(type, type));
-                dropdown.setValue(this.data.farmType || this.config.farmTypes[0]);
-                dropdown.onChange(value => this.data.farmType = value);
+                this.config.factoryTypes.forEach(type => dropdown.addOption(type, type));
+                dropdown.setValue(this.data.factoryType || this.config.factoryTypes[0]);
+                dropdown.onChange(value => this.data.factoryType = value);
                 dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
                 dropdown.selectEl.style.padding = '6px';
             });
 
         new this.Setting(contentEl)
-            .setName('Количество полей')
+            .setName('Количество цехов')
             .addText(text => {
-                text.setPlaceholder('Например: 10')
-                    .setValue(this.data.fields)
+                text.setPlaceholder('Например: 5')
+                    .setValue(this.data.workshops)
                     .onChange(value => {
-                        this.data.fields = value;
+                        this.data.workshops = value;
                     });
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.fontSize = '16px';
@@ -304,54 +341,11 @@ class FarmWizardModal extends Modal {
             });
     }
 
-    renderStatus(contentEl) {
-        new this.Setting(contentEl)
-            .setName('Статус фермы')
-            .addDropdown(dropdown => {
-                this.config.statuses.forEach(status => {
-                    dropdown.addOption(status.value, `${status.icon} ${status.label}`);
-                });
-                dropdown.setValue(this.data.status);
-                dropdown.onChange(value => {
-                    this.data.status = value;
-                    // Скрываем/показываем поле причины в зависимости от статуса
-                    const reasonSetting = contentEl.querySelector('.status-reason-setting');
-                    if (reasonSetting) {
-                        reasonSetting.style.display = value === 'действует' ? 'none' : 'block';
-                    }
-                });
-                dropdown.selectEl.style.minWidth = '320px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
-            });
-
-        const reasonSetting = new this.Setting(contentEl)
-            .setName('Причина')
-            .addText(text => {
-                text.setPlaceholder('Например: Истощение ресурсов, война, катастрофа')
-                    .setValue(this.data.statusReason)
-                    .onChange(value => {
-                        this.data.statusReason = value;
-                    });
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.fontSize = '16px';
-                text.inputEl.style.padding = '8px';
-            });
-        
-        // Добавляем класс для управления видимостью
-        reasonSetting.settingEl.addClass('status-reason-setting');
-        
-        // Скрываем поле причины, если статус "действует"
-        if (this.data.status === 'действует') {
-            reasonSetting.settingEl.style.display = 'none';
-        }
-    }
-
-    renderProductsLivestockMethods(contentEl) {
+    renderProductsMaterialsTechnologies(contentEl) {
         new this.Setting(contentEl)
             .setName('Основная продукция (через запятую)')
             .addTextArea(text => {
-                text.setPlaceholder('Например: Пшеница, ячмень, овес')
+                text.setPlaceholder('Например: Мечи, щиты, доспехи')
                     .setValue(this.data.products.join(', '))
                     .onChange(value => {
                         this.data.products = value.split(',').map(s => s.trim()).filter(Boolean);
@@ -364,12 +358,12 @@ class FarmWizardModal extends Modal {
             });
 
         new this.Setting(contentEl)
-            .setName('Животноводство (через запятую)')
+            .setName('Сырье и материалы (через запятую)')
             .addTextArea(text => {
-                text.setPlaceholder('Например: Коровы, овцы, куры')
-                    .setValue(this.data.livestock.join(', '))
+                text.setPlaceholder('Например: Железная руда, уголь, дерево')
+                    .setValue(this.data.materials.join(', '))
                     .onChange(value => {
-                        this.data.livestock = value.split(',').map(s => s.trim()).filter(Boolean);
+                        this.data.materials = value.split(',').map(s => s.trim()).filter(Boolean);
                     });
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
@@ -379,12 +373,12 @@ class FarmWizardModal extends Modal {
             });
 
         new this.Setting(contentEl)
-            .setName('Методы ведения хозяйства (через запятую)')
+            .setName('Технологии (через запятую)')
             .addTextArea(text => {
-                text.setPlaceholder('Например: Трехпольная система, орошение, севооборот')
-                    .setValue(this.data.methods.join(', '))
+                text.setPlaceholder('Например: Кузнечное дело, литье, ковка')
+                    .setValue(this.data.technologies.join(', '))
                     .onChange(value => {
-                        this.data.methods = value.split(',').map(s => s.trim()).filter(Boolean);
+                        this.data.technologies = value.split(',').map(s => s.trim()).filter(Boolean);
                     });
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
@@ -410,7 +404,15 @@ class FarmWizardModal extends Modal {
     renderPreview(contentEl) {
         const previewEl = contentEl.createEl('div', { cls: 'preview-section' });
         previewEl.createEl('h3', { text: 'Предпросмотр:' });
-        previewEl.createEl('p', { text: `**Название:** ${this.data.farmName}` });
+        previewEl.createEl('p', { text: `**Название:** ${this.data.factoryName}` });
+        
+        // Статус и причина
+        const statusLabel = this.config.statuses.find(s => s.value === this.data.status)?.label || this.data.status;
+        previewEl.createEl('p', { text: `**Статус:** ${statusLabel}` });
+        if (this.data.status !== 'действует' && this.data.statusReason) {
+            previewEl.createEl('p', { text: `**Причина:** ${this.data.statusReason}` });
+        }
+        
         previewEl.createEl('p', { text: `**Климат:** ${this.data.climate}` });
         previewEl.createEl('p', { text: `**Доминирующая фракция:** ${this.data.dominantFaction}` });
         if (this.data.state) {
@@ -420,24 +422,15 @@ class FarmWizardModal extends Modal {
             previewEl.createEl('p', { text: `**Провинция:** ${this.data.province}` });
         }
         previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
-        previewEl.createEl('p', { text: `**Тип фермы:** ${this.data.farmType}` });
-        previewEl.createEl('p', { text: `**Количество полей:** ${this.data.fields}` });
         
-        // Показываем статус и причину
-        const statusLabel = this.config.statuses.find(s => s.value === this.data.status)?.label || this.data.status;
-        previewEl.createEl('p', { text: `**Статус:** ${statusLabel}` });
-        
-        if (this.data.status !== 'действует' && this.data.statusReason) {
-            previewEl.createEl('p', { text: `**Причина:** ${this.data.statusReason}` });
-        }
-        
-        // Показываем производственные характеристики только для действующих ферм
+        // Показываем производственные данные только для действующих заводов
         if (this.data.status === 'действует') {
+            previewEl.createEl('p', { text: `**Тип завода:** ${this.data.factoryType}` });
+            previewEl.createEl('p', { text: `**Количество цехов:** ${this.data.workshops}` });
             previewEl.createEl('p', { text: `**Основная продукция:** ${this.data.products.join(', ')}` });
-            previewEl.createEl('p', { text: `**Животноводство:** ${this.data.livestock.join(', ')}` });
-            previewEl.createEl('p', { text: `**Методы ведения хозяйства:** ${this.data.methods.join(', ')}` });
+            previewEl.createEl('p', { text: `**Сырье и материалы:** ${this.data.materials.join(', ')}` });
+            previewEl.createEl('p', { text: `**Технологии:** ${this.data.technologies.join(', ')}` });
         }
-        
         previewEl.createEl('p', { text: `**Особенности:** ${this.data.features.join(', ')}` });
     }
 
@@ -467,51 +460,51 @@ class FarmWizardModal extends Modal {
 
     validateCurrentStep() {
         switch (this.step) {
-            case 0: // Farm Name
-                if (!this.data.farmName.trim()) {
-                    new this.Notice('Пожалуйста, введите название фермы.');
+            case 0: // Factory Name
+                if (!this.data.factoryName.trim()) {
+                    new this.Notice('Пожалуйста, введите название завода.');
                     return false;
                 }
                 break;
-            case 1: // Climate and Faction
+            case 1: // Status
+                if (!this.data.status) {
+                    new this.Notice('Пожалуйста, выберите статус завода.');
+                    return false;
+                }
+                if (this.data.status !== 'действует' && !this.data.statusReason.trim()) {
+                    new this.Notice('Пожалуйста, укажите причину для недействующего статуса.');
+                    return false;
+                }
+                break;
+            case 2: // Climate and Faction
                 if (!this.data.climate || !this.data.dominantFaction) {
                     new this.Notice('Пожалуйста, выберите климат и доминирующую фракцию.');
                     return false;
                 }
                 break;
-            case 2: // State and Province
+            case 3: // State and Province
                 if (!this.data.state) {
                     new this.Notice('Пожалуйста, выберите государство.');
                     return false;
                 }
                 break;
-            case 3: // Description
+            case 4: // Description
                 if (!this.data.description.trim()) {
-                    new this.Notice('Пожалуйста, введите описание фермы.');
+                    new this.Notice('Пожалуйста, введите описание завода.');
                     return false;
                 }
                 break;
-            case 4: // Farm Type and Fields
-                if (!this.data.farmType.trim()) {
-                    new this.Notice('Пожалуйста, укажите тип фермы.');
+            case 5: // Factory Type and Workshops
+                if (!this.data.factoryType.trim()) {
+                    new this.Notice('Пожалуйста, укажите тип завода.');
                     return false;
                 }
-                if (!this.data.fields.trim() || isNaN(Number(this.data.fields))) {
-                    new this.Notice('Пожалуйста, укажите количество полей (числом).');
-                    return false;
-                }
-                break;
-            case 5: // Status
-                if (!this.data.status) {
-                    new this.Notice('Пожалуйста, выберите статус фермы.');
-                    return false;
-                }
-                if (this.data.status !== 'действует' && !this.data.statusReason.trim()) {
-                    new this.Notice('Пожалуйста, укажите причину заброшенности/разрушения.');
+                if (!this.data.workshops.trim() || isNaN(Number(this.data.workshops))) {
+                    new this.Notice('Пожалуйста, укажите количество цехов (числом).');
                     return false;
                 }
                 break;
-            case 6: // Products, Livestock and Methods (optional)
+            case 6: // Products, Materials and Technologies (optional)
                 // Nothing to validate, as they are optional
                 break;
             case 7: // Features (optional)
@@ -527,4 +520,4 @@ class FarmWizardModal extends Modal {
     }
 }
 
-module.exports = FarmWizardModal;
+module.exports = FactoryWizardModal;

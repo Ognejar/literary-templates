@@ -14,12 +14,13 @@
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
 class SpellWizardModal extends HtmlWizardModal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, projectPath, onFinish) {
-        super(app, ModalClass, NoticeClass);
+    constructor(app, ModalClass, SettingClass, NoticeClass, projectPath, onFinish, options = {}) {
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
         this.Notice = NoticeClass;
         this.projectPath = projectPath;
         this.onFinish = onFinish;
+        this.options = options || {};
         this.data = {
             spellName: '',
             description: '',
@@ -59,6 +60,10 @@ class SpellWizardModal extends HtmlWizardModal {
         this.modalEl.style.maxWidth = '900px';
         this.modalEl.style.width = '900px';
         this.contentEl.classList.add('lt-wizard');
+        // Предзаполнение имени из options.prefillName
+        if (this.options && typeof this.options.prefillName === 'string' && this.options.prefillName.trim()) {
+            if (!this.data.spellName) this.data.spellName = this.options.prefillName.trim();
+        }
         this.render();
     }
 

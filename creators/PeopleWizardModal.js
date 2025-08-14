@@ -14,7 +14,7 @@ const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
 class PeopleWizardModal extends HtmlWizardModal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
-        super(app, ModalClass, NoticeClass);
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
         this.plugin = plugin;
         this.projectPath = projectPath;

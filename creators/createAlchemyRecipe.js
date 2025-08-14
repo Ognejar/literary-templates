@@ -12,7 +12,7 @@
 
 const { AlchemyRecipeWizardModal } = require('../AlchemyRecipeWizardModal.js');
 
-async function createAlchemyRecipe(plugin, startPath = '') {
+async function createAlchemyRecipe(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createAlchemyRecipe: начало ===');
         
@@ -61,7 +61,8 @@ async function createAlchemyRecipe(plugin, startPath = '') {
             Notice,
             plugin,
             project,
-            () => { plugin.logDebug('Алхимический рецепт создан успешно'); }
+            () => { plugin.logDebug('Алхимический рецепт создан успешно'); },
+            options
         );
         
         modal.open();
