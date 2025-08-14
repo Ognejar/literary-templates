@@ -10,7 +10,7 @@
  * @docs       docs/project.md
  */
 
-const { TFolder } = require('obsidian');
+const { TFolder, TFile } = require('obsidian');
 
 /**
  * Создание мира (проекта)
@@ -205,7 +205,7 @@ async function createWorld(plugin, startPath = '') {
             if (readmeContent) {
                 const filledReadme = plugin.applyTemplate(readmeContent, templateData);
                 const readmePath = `${tagImagesPath}/README.md`;
-                await safeCreateFile(readmePath, filledReadme, plugin.app);
+                await window.safeCreateFile(readmePath, filledReadme, plugin.app);
                 await plugin.logDebug(`Создан README для теговых картинок: ${readmePath}`);
             } else {
                 await plugin.logDebug(`Шаблон README_Теговые_картинки не найден`);
@@ -238,7 +238,7 @@ async function createWorld(plugin, startPath = '') {
 
         const settingsJsonPath = `${projectPath}/Настройки_мира.json`;
         try {
-            await safeCreateFile(settingsJsonPath, JSON.stringify(worldSettings, null, 2), plugin.app);
+            await window.safeCreateFile(settingsJsonPath, JSON.stringify(worldSettings, null, 2), plugin.app);
             await plugin.logDebug(`Создан JSON настроек: ${settingsJsonPath}`);
         } catch (e) {
             await plugin.logDebug(`Не удалось создать JSON настроек: ${e.message}`);
@@ -260,7 +260,7 @@ async function createWorld(plugin, startPath = '') {
                 if (templateContent) {
                     const filledContent = plugin.applyTemplate(templateContent, templateData);
                     const filePath = `${projectPath}/${fileInfo.filename}`;
-                    await safeCreateFile(filePath, filledContent, plugin.app);
+                    await window.safeCreateFile(filePath, filledContent, plugin.app);
                     await plugin.logDebug(`Создан файл: ${filePath}`);
                 }
             } catch (e) {
@@ -274,7 +274,7 @@ async function createWorld(plugin, startPath = '') {
             if (settingsContent) {
                 const filledSettings = plugin.applyTemplate(settingsContent, worldSettings);
                 const settingsPath = `${projectPath}/Настройки_мира.md`;
-                await safeCreateFile(settingsPath, filledSettings, plugin.app); // Перезаписать
+                await window.safeCreateFile(settingsPath, filledSettings, plugin.app); // Перезаписать
                 await plugin.logDebug(`Обновлен файл настроек: ${settingsPath}`);
             }
         } catch (e) {
@@ -292,14 +292,125 @@ async function createWorld(plugin, startPath = '') {
                 };
                 const filledPlot = plugin.applyTemplate(plotContent, plotData);
                 const plotPath = `${projectPath}/Сюжетные_линии.md`;
-                await safeCreateFile(plotPath, filledPlot, plugin.app); // Перезаписать
+                await window.safeCreateFile(plotPath, filledPlot, plugin.app); // Перезаписать
                 await plugin.logDebug(`Обновлен файл сюжетных линий: ${plotPath}`);
             }
         } catch (e) {
             await plugin.logDebug(`Ошибка обновления сюжетных линий: ${e.message}`);
         }
 
-        // 15. Открытие основного файла проекта
+        // 15. Создание справочника писателя
+        try {
+            await plugin.logDebug('Создание справочника писателя...');
+            const справочникPath = `${projectPath}/Справочник`;
+            
+            // Создаем папку Справочник
+            await plugin.app.vault.createFolder(справочникPath);
+            await plugin.logDebug(`Создана папка: ${справочникPath}`);
+            
+            // Список файлов справочника для копирования
+            const справочникFiles = [
+                'Справочник_писателя.md',
+                'README_справочника.md',
+                'Сюжет_и_персонажи.md',
+                'Мир_и_экология.md',
+                'Культура_и_религия.md',
+                'Геополитика_и_экономика.md',
+                'Технологии_и_инфраструктура.md',
+                'Социальное_и_психологическое.md',
+                'История_и_хронология.md',
+                'Лингвистика.md'
+            ];
+            
+            // Копируем файлы справочника
+            for (const filename of справочникFiles) {
+                try {
+                    const templateContent = await plugin.readTemplateFile(`Справочник/${filename}`);
+                    if (templateContent) {
+                        // Настраиваем справочник под конкретный мир
+                        const справочникData = {
+                            ...templateData,
+                            projectName: projectName,
+                            worldType: worldType,
+                            genre: genre
+                        };
+                        
+                        const filledContent = plugin.applyTemplate(templateContent, справочникData);
+                        const filePath = `${справочникPath}/${filename}`;
+                        await window.safeCreateFile(filePath, filledContent, plugin.app);
+                        await plugin.logDebug(`Создан файл справочника: ${filePath}`);
+                    }
+                } catch (e) {
+                    await plugin.logDebug(`Ошибка создания файла справочника ${filename}: ${e.message}`);
+                }
+            }
+            
+            // Создаем папку Руководства
+            const руководстваPath = `${справочникPath}/Руководства`;
+            await plugin.app.vault.createFolder(руководстваPath);
+            
+            // Копируем README_руководств.md
+            try {
+                const руководстваContent = await plugin.readTemplateFile('Справочник/Руководства/README_руководств.md');
+                if (руководстваContent) {
+                    const filledContent = plugin.applyTemplate(руководстваContent, templateData);
+                    const filePath = `${руководстваPath}/README_руководств.md`;
+                    await window.safeCreateFile(filePath, filledContent, plugin.app);
+                    await plugin.logDebug(`Создан файл руководств: ${filePath}`);
+                }
+            } catch (e) {
+                await plugin.logDebug(`Ошибка создания файла руководств: ${e.message}`);
+            }
+            
+            await plugin.logDebug('Справочник писателя создан успешно');
+            
+        } catch (e) {
+            await plugin.logDebug(`Ошибка создания справочника: ${e.message}`);
+        }
+
+        // 16. Добавляем ссылку на справочник в главный файл проекта
+        try {
+            await plugin.logDebug('Добавление ссылки на справочник в главный файл...');
+            const mainFilePath = `${projectPath}/${projectName}.md`;
+            const mainFile = plugin.app.vault.getAbstractFileByPath(mainFilePath);
+            
+            if (mainFile instanceof TFile) {
+                let content = await plugin.app.vault.read(mainFile);
+                
+                // Проверяем, есть ли уже ссылка на справочник
+                if (!content.includes('Справочник писателя')) {
+                    const справочникLink = `\n\n> [!tip] Методички\n> - [[Справочник/Справочник_писателя|Справочник писателя]]\n`;
+                    content = content + справочникLink;
+                    
+                    await plugin.logDebug(`Добавлена ссылка на справочник в главный файл: ${mainFilePath}`);
+                } else {
+                    await plugin.logDebug(`Ссылка на справочник уже есть в главном файле`);
+                }
+
+                // Добавляем секцию задач проекта (Dataview)
+                if (!content.includes('## Задачи проекта')) {
+                    const dvBlock = [
+                        '',
+                        '## Задачи проекта',
+                        '',
+                        '```dataview',
+                        'TASK',
+                        `WHERE !completed AND contains(file.path, "${projectPath}/")`,
+                        'SORT file.ctime desc',
+                        '```',
+                        ''
+                    ].join('\n');
+                    content += dvBlock;
+                    await plugin.logDebug('Добавлен блок Dataview задач в главный файл проекта');
+                }
+
+                await plugin.app.vault.modify(mainFile, content);
+            }
+        } catch (e) {
+            await plugin.logDebug(`Ошибка добавления ссылки на справочник: ${e.message}`);
+        }
+
+        // 17. Открытие основного файла проекта
         try {
             const mainFile = plugin.app.vault.getAbstractFileByPath(`${projectPath}/${projectName}.md`);
             if (mainFile) {

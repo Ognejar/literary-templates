@@ -37,6 +37,7 @@ const { createFactory } = require('./creators/createFactory.js');
 const { createFarm } = require('./creators/createFarm.js');
 const { createCharacter } = require('./creators/createCharacter.js');
 const { createMonster } = require('./creators/createMonster.js');
+const { createTask } = require('./creators/createTask.js');
 
 // Функции для работы с проектами
 
@@ -868,6 +869,11 @@ class LiteraryTemplatesPlugin extends Plugin {
             callback: () => createEventWizard(this, ''),
         });
         this.addCommand({
+            id: 'create-task',
+            name: 'Создать задачу (мастер)',
+            callback: () => createTask(this, ''),
+        });
+        this.addCommand({
             id: 'create-organization',
             name: 'Создать организацию (мастер)',
             callback: () => createOrganizationWizard(this, ''),
@@ -898,6 +904,71 @@ class LiteraryTemplatesPlugin extends Plugin {
             id: 'insert-plotline-into-scene',
             name: 'Вставить сюжетную линию в сцену',
             callback: () => this.insertPlotlineIntoScene(),
+        });
+        this.addCommand({
+            id: 'open-writer-handbook',
+            name: 'Справочник писателя (создать/открыть)',
+            callback: async () => {
+                try {
+                    await this.openWriterHandbook();
+                } catch (e) {
+                    new Notice('Ошибка открытия справочника: ' + e.message);
+                }
+            },
+        });
+        this.addCommand({
+            id: 'add-project-tasks-block',
+            name: 'Проект: добавить виджет задач (Dataview) на главную',
+            callback: async () => {
+                try {
+                    const activeFile = this.app.workspace.getActiveFile();
+                    const startPath = activeFile ? activeFile.parent.path : '';
+                    const projectRoot = startPath ? findProjectRoot(this.app, startPath) : null;
+                    if (!projectRoot) { new Notice('Проект не найден'); return; }
+                    const mainPath = `${projectRoot}/${projectRoot.split('/').pop()}.md`;
+                    const file = this.app.vault.getAbstractFileByPath(mainPath);
+                    if (!(file instanceof TFile)) { new Notice('Главный файл проекта не найден'); return; }
+                    let content = await this.app.vault.read(file);
+                    if (content.includes('## Задачи проекта')) { new Notice('Виджет задач уже добавлен'); return; }
+                    const dvBlock = [
+                        '',
+                        '## Задачи проекта',
+                        '',
+                        '```dataview',
+                        'TASK',
+                        `WHERE !completed AND contains(file.path, "${projectRoot}/")`,
+                        'SORT file.ctime desc',
+                        '```',
+                        ''
+                    ].join('\n');
+                    await this.app.vault.modify(file, content + dvBlock);
+                    new Notice('Виджет задач добавлен');
+                } catch (e) {
+                    new Notice('Ошибка добавления виджета задач: ' + e.message);
+                }
+            },
+        });
+        this.addCommand({
+            id: 'set-writer-handbook-status',
+            name: 'Справочник: установить статус (planned/started/writing/done/abandoned)',
+            callback: async () => {
+                try {
+                    await this.setWriterHandbookStatus();
+                } catch (e) {
+                    new Notice('Ошибка смены статуса: ' + e.message);
+                }
+            },
+        });
+        this.addCommand({
+            id: 'open-writer-handbook',
+            name: 'Справочник писателя (создать/открыть)',
+            callback: async () => {
+                try {
+                    await this.openWriterHandbook();
+                } catch (e) {
+                    new Notice('Ошибка открытия справочника: ' + e.message);
+                }
+            },
         });
         this.addCommand({
             id: 'toggle-debug-logging',
@@ -1013,6 +1084,7 @@ class LiteraryTemplatesPlugin extends Plugin {
         window.createProvince = createProvince;
         window.createMine = createMine;
         window.createMonster = createMonster;
+        window.createTask = createTask;
         
         // Делаем вспомогательные функции доступными в глобальной области видимости
         window.findProjectRoot = findProjectRoot;
@@ -1229,6 +1301,107 @@ class LiteraryTemplatesPlugin extends Plugin {
 
 
 
+
+    async openWriterHandbook() {
+        try {
+            const activeFile = this.app.workspace.getActiveFile();
+            const parentPath = activeFile && activeFile.parent ? activeFile.parent.path : '';
+            let projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
+            if (!projectRoot) {
+                const roots = await getAllProjectRoots(this.app);
+                if (!roots || roots.length === 0) {
+                    new Notice('Проект не найден: отсутствует "Настройки_мира.md"');
+                    return;
+                }
+                projectRoot = roots[0];
+            }
+            const dir = `${projectRoot}/Справочник`;
+            await ensureEntityInfrastructure(dir, 'index', this.app);
+            const pages = [
+                ['Справочник_писателя.md', 'Справочник писателя'],
+                ['Сюжет_и_персонажи.md', 'Сюжет и персонажи'],
+                ['Мир_и_экология.md', 'Мир и экология'],
+                ['Культура_и_религия.md', 'Культура и религия'],
+                ['Геополитика_и_экономика.md', 'Геополитика и экономика'],
+                ['Технологии_и_инфраструктура.md', 'Технологии и инфраструктура'],
+                ['Социальное_и_психологическое.md', 'Социальное и психологическое'],
+            ];
+            const fm = (title) => `---\n` +
+                `type: Справочник\n` +
+                `status: planned\n` +
+                `name: "${title}"\n` +
+                `---\n`;
+            const hub = fm('Справочник писателя') +
+`# Справочник писателя
+
+> [!tip] Навигация
+> - [[Справочник/Сюжет_и_персонажи|Сюжет и персонажи]]
+> - [[Справочник/Мир_и_экология|Мир и экология]]
+> - [[Справочник/Культура_и_религия|Культура и религия]]
+> - [[Справочник/Геополитика_и_экономика|Геополитика и экономика]]
+> - [[Справочник/Технологии_и_инфраструктура|Технологии и инфраструктура]]
+> - [[Справочник/Социальное_и_психологическое|Социальное и психологическое]]
+
+## Статусы
+planned | started | writing | done | abandoned
+
+## Вкладки
+- [[Справочник/Сюжет_и_персонажи]]
+- [[Справочник/Мир_и_экология]]
+- [[Справочник/Культура_и_религия]]
+- [[Справочник/Геополитика_и_экономика]]
+- [[Справочник/Технологии_и_инфраструктура]]
+- [[Справочник/Социальное_и_психологическое]]
+`;
+            const page = (title) => fm(title) + `\n# ${title}\n\n> Статус: {{status}}\n\n`;
+            for (const [fileName, title] of pages) {
+                const full = `${dir}/${fileName}`;
+                const exists = this.app.vault.getAbstractFileByPath(full);
+                const content = fileName === 'Справочник_писателя.md' ? hub : page(title);
+                if (exists instanceof TFile) {
+                    const text = await this.app.vault.read(exists);
+                    if (!String(text || '').trim()) await this.app.vault.modify(exists, content);
+                } else {
+                    await safeCreateFile(full, content, this.app);
+                }
+            }
+            const hubPath = `${dir}/Справочник_писателя.md`;
+            const file = this.app.vault.getAbstractFileByPath(hubPath);
+            if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
+            new Notice('Справочник писателя готов');
+        } catch (error) {
+            new Notice('Ошибка справочника: ' + error.message);
+        }
+    }
+
+    async setWriterHandbookStatus() {
+        const editorFile = this.app.workspace.getActiveFile();
+        if (!(editorFile instanceof TFile)) {
+            new Notice('Нет активного файла');
+            return;
+        }
+        const path = editorFile.path || '';
+        if (!/\/Справочник\//.test(path)) {
+            new Notice('Команда работает для файлов в папке "Справочник"');
+            return;
+        }
+        const items = ['planned', 'started', 'writing', 'done', 'abandoned'];
+        const display = ['planned', 'started', 'writing', 'done', 'abandoned'];
+        const chosen = await this.suggester(items, display, 'Выберите статус');
+        if (!chosen) return;
+        const content = await this.app.vault.read(editorFile);
+        // Заменяем/добавляем status в frontmatter
+        let newContent = content;
+        const fmRegex = /^---[\s\S]*?---/;
+        const hasFm = fmRegex.test(content);
+        if (hasFm) {
+            newContent = content.replace(/^(---[\s\S]*?\n)(status:\s*.*\n)?/m, `$1status: ${chosen}\n`);
+        } else {
+            newContent = `---\nstatus: ${chosen}\n---\n\n` + content;
+        }
+        await this.app.vault.modify(editorFile, newContent);
+        new Notice(`Статус: ${chosen}`);
+    }
 
     registerCommands() {
         this.addCommand({

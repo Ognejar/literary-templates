@@ -21,6 +21,10 @@ class CharacterWizardModal extends EntityWizardBase {
         this.projectPath = projectPath;
         this.onFinish = onFinish;
         this.options = options || {};
+        
+        // Добавляем CSS стили для textarea
+        this.addStyles();
+        
         this.data = {
             name: '',
             age: '',
@@ -64,6 +68,27 @@ class CharacterWizardModal extends EntityWizardBase {
         };
     }
 
+    addStyles() {
+        if (!this.app.workspace.containerEl.ownerDocument.getElementById('lt-character-styles')) {
+            const style = this.app.workspace.containerEl.ownerDocument.createElement('style');
+            style.id = 'lt-character-styles';
+            style.textContent = `
+                .lt-textarea {
+                    min-height: 120px !important;
+                    width: 100% !important;
+                    resize: vertical !important;
+                    font-family: inherit !important;
+                    line-height: 1.4 !important;
+                }
+                .lt-textarea:focus {
+                    border-color: var(--interactive-accent) !important;
+                    box-shadow: 0 0 0 2px var(--interactive-accent-hover) !important;
+                }
+            `;
+            this.app.workspace.containerEl.ownerDocument.head.appendChild(style);
+        }
+    }
+
     async onOpen() {
         this.applyBaseUI();
         this.modalEl.style.maxWidth = '1000px';
@@ -82,35 +107,30 @@ class CharacterWizardModal extends EntityWizardBase {
             }
 
             // Загружаем расы и профессии из настроек мира
-            if (window.litSettingsService) {
-                this.config.races = await window.litSettingsService.getRaces(this.app, this.projectPath) || [];
-                this.config.professions = await window.litSettingsService.getProfessions(this.app, this.projectPath) || [];
-            } else {
-                // Fallback к старому методу
-                const settingsFile = this.app.vault.getAbstractFileByPath(`${this.projectPath}/Настройки_мира.md`);
-                if (settingsFile instanceof TFile) {
-                    const content = await this.app.vault.read(settingsFile);
-                    const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
-                    if (configMatch && configMatch[1]) {
-                        const parsedConfig = JSON.parse(configMatch[1]);
-                        this.config.races = parsedConfig.races || [];
-                        this.config.professions = parsedConfig.professions || [];
-                    }
+            const settingsFile = this.app.vault.getAbstractFileByPath(`${this.projectPath}/Настройки_мира.md`);
+            if (settingsFile instanceof TFile) {
+                const content = await this.app.vault.read(settingsFile);
+                const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
+                if (configMatch && configMatch[1]) {
+                    const parsedConfig = JSON.parse(configMatch[1]);
+                    this.config.races = parsedConfig.races || [];
+                    this.config.professions = parsedConfig.professions || [];
                 }
             }
-
-            // Если расы не найдены, добавляем стандартные
-            if (this.config.races.length === 0) {
-                this.config.races = ['Человек', 'Эльф', 'Гном', 'Орк', 'Полурослик', 'Драконорожденный'];
+            
+            // Если расы и профессии не найдены, используем значения по умолчанию
+            if (!this.config.races || this.config.races.length === 0) {
+                this.config.races = ['Люди', 'Эльфы', 'Гномы', 'Орки', 'Хоббиты'];
             }
-
-            // Если профессии не найдены, добавляем стандартные
-            if (this.config.professions.length === 0) {
-                this.config.professions = ['Воин', 'Маг', 'Жрец', 'Разбойник', 'Торговец', 'Ремесленник', 'Крестьянин', 'Дворянин'];
+            if (!this.config.professions || this.config.professions.length === 0) {
+                this.config.professions = ['Воин', 'Маг', 'Торговец', 'Крестьянин', 'Ремесленник', 'Священник'];
             }
-        } catch (e) {
-            new this.Notice('Ошибка загрузки конфигурации: ' + e.message);
-            console.error('Ошибка загрузки конфигурации:', e);
+            
+        } catch (error) {
+            console.error('Ошибка загрузки конфигурации:', error);
+            // Используем значения по умолчанию при ошибке
+            this.config.races = ['Люди', 'Эльфы', 'Гномы', 'Орки', 'Хоббиты'];
+            this.config.professions = ['Воин', 'Маг', 'Торговец', 'Крестьянин', 'Ремесленник', 'Священник'];
         }
     }
 
@@ -184,7 +204,12 @@ class CharacterWizardModal extends EntityWizardBase {
         
         new Setting(this.contentEl)
             .setName('Описание внешности (детально)')
-            .addTextArea(t => t.setValue(this.data.appearance).onChange(v => this.data.appearance = v));
+            .addTextArea(t => {
+                t.setValue(this.data.appearance).onChange(v => this.data.appearance = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
     }
 
     renderPersonality() {
@@ -193,11 +218,21 @@ class CharacterWizardModal extends EntityWizardBase {
         
         new Setting(this.contentEl)
             .setName('Черты характера (через запятую)')
-            .addTextArea(t => t.setValue(this.data.personality).onChange(v => this.data.personality = v));
+            .addTextArea(t => {
+                t.setValue(this.data.personality).onChange(v => this.data.personality = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Мотивация и цели')
-            .addTextArea(t => t.setValue(this.data.motivation).onChange(v => this.data.motivation = v));
+            .addTextArea(t => {
+                t.setValue(this.data.motivation).onChange(v => this.data.motivation = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
     }
 
     renderBackground() {
@@ -206,11 +241,12 @@ class CharacterWizardModal extends EntityWizardBase {
         
         new Setting(this.contentEl)
             .setName('Происхождение и прошлое')
-            .addTextArea(t => t.setValue(this.data.background).onChange(v => this.data.background = v));
-        
-        new Setting(this.contentEl)
-            .setName('История развития персонажа')
-            .addTextArea(t => t.setValue(this.data.development).onChange(v => this.data.development = v));
+            .addTextArea(t => {
+                t.setValue(this.data.background).onChange(v => this.data.background = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
     }
 
     renderAbilities() {
@@ -219,15 +255,30 @@ class CharacterWizardModal extends EntityWizardBase {
         
         new Setting(this.contentEl)
             .setName('Способности и навыки (через запятую)')
-            .addTextArea(t => t.setValue(this.data.abilities).onChange(v => this.data.abilities = v));
+            .addTextArea(t => {
+                t.setValue(this.data.abilities).onChange(v => this.data.abilities = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Слабости и недостатки (через запятую)')
-            .addTextArea(t => t.setValue(this.data.weaknesses).onChange(v => this.data.weaknesses = v));
+            .addTextArea(t => {
+                t.setValue(this.data.weaknesses).onChange(v => this.data.weaknesses = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Снаряжение и имущество (через запятую)')
-            .addTextArea(t => t.setValue(this.data.equipment).onChange(v => this.data.equipment = v));
+            .addTextArea(t => {
+                t.setValue(this.data.equipment).onChange(v => this.data.equipment = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
     }
 
     renderRelations() {
@@ -236,31 +287,66 @@ class CharacterWizardModal extends EntityWizardBase {
         
         new Setting(this.contentEl)
             .setName('Отношения с другими персонажами')
-            .addTextArea(t => t.setValue(this.data.relationships).onChange(v => this.data.relationships = v));
+            .addTextArea(t => {
+                t.setValue(this.data.relationships).onChange(v => this.data.relationships = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Связанные локации (через запятую)')
-            .addText(t => t.setValue(this.data.locations).onChange(v => this.data.locations = v));
+            .addTextArea(t => {
+                t.setValue(this.data.locations).onChange(v => this.data.locations = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Связанные организации (через запятую)')
-            .addText(t => t.setValue(this.data.organizations).onChange(v => this.data.organizations = v));
+            .addTextArea(t => {
+                t.setValue(this.data.organizations).onChange(v => this.data.organizations = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Связанные события (через запятую)')
-            .addText(t => t.setValue(this.data.events).onChange(v => this.data.events = v));
+            .addTextArea(t => {
+                t.setValue(this.data.events).onChange(v => this.data.events = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Связанные артефакты (через запятую)')
-            .addText(t => t.setValue(this.data.artifacts).onChange(v => this.data.artifacts = v));
+            .addTextArea(t => {
+                t.setValue(this.data.artifacts).onChange(v => this.data.artifacts = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Другие важные персонажи (через запятую)')
-            .addText(t => t.setValue(this.data.otherCharacters).onChange(v => this.data.otherCharacters = v));
+            .addTextArea(t => {
+                t.setValue(this.data.otherCharacters).onChange(v => this.data.otherCharacters = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
         
         new Setting(this.contentEl)
             .setName('Теги (через запятую)')
-            .addText(t => t.setValue(this.data.tags).onChange(v => this.data.tags = v));
+            .addTextArea(t => {
+                t.setValue(this.data.tags).onChange(v => this.data.tags = v);
+                t.inputEl.style.minHeight = '120px';
+                t.inputEl.style.width = '100%';
+                t.inputEl.classList.add('lt-textarea');
+            });
     }
 
     renderPreview() {
@@ -323,6 +409,7 @@ class CharacterWizardModal extends EntityWizardBase {
         const data = {
             name,
             date,
+            created: date,
             age: clean(this.data.age),
             gender: this.data.gender,
             race: this.data.race,
@@ -350,6 +437,70 @@ class CharacterWizardModal extends EntityWizardBase {
         try {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Персонаж') || '';
+            }
+        } catch {}
+
+        // Обработка профессий: если нет в настройках, создаём справочник
+        try {
+            if (data.profession && data.profession.trim()) {
+                const справочникPath = `${this.projectPath}/Справочник`;
+                const профессииPath = `${справочникPath}/Профессии.md`;
+                
+                // Создаём папку Справочник если её нет
+                if (!this.app.vault.getAbstractFileByPath(справочникPath)) {
+                    await this.app.vault.createFolder(справочникPath);
+                }
+                
+                // Создаём или обновляем файл Профессии
+                let профессииContent = '';
+                const existingFile = this.app.vault.getAbstractFileByPath(профессииPath);
+                if (existingFile instanceof TFile) {
+                    профессииContent = await this.app.vault.read(existingFile);
+                }
+                
+                // Добавляем новую профессию если её нет
+                const newProfession = data.profession.trim();
+                if (!профессииContent.includes(newProfession)) {
+                    if (!профессииContent.includes('# Профессии')) {
+                        профессииContent = `# Профессии\n\n## Список профессий\n\n`;
+                    }
+                    if (!профессииContent.includes(`- ${newProfession}`)) {
+                        профессииContent += `- ${newProfession}\n`;
+                    }
+                    
+                    // Сохраняем обновлённый файл
+                    if (existingFile instanceof TFile) {
+                        await this.app.vault.modify(existingFile, профессииContent);
+                    } else {
+                        await window.safeCreateFile(профессииPath, профессииContent, this.app);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Ошибка обработки профессий:', e);
+        }
+        
+        // Fallback: обеспечиваем наличие стандартного изображения "Персонаж.jpg" в проекте
+        try {
+            if (!data.tagImage) {
+                const tagFolder = `${this.projectPath}/Теговые_картинки`;
+                const relImage = 'Теговые_картинки/Персонаж.jpg';
+                const fullImage = `${this.projectPath}/Персонаж.jpg`; // not used, keep vault-style path below
+                const existingFolder = this.app.vault.getAbstractFileByPath(tagFolder);
+                if (!existingFolder) {
+                    try { await this.app.vault.createFolder(tagFolder); } catch {}
+                }
+                const targetPath = `${tagFolder}/Персонаж.jpg`;
+                if (!this.app.vault.getAbstractFileByPath(targetPath)) {
+                    const pluginImage = '.obsidian/plugins/literary-templates/templates/Теговые_картинки/Персонаж.jpg';
+                    try {
+                        const bytes = await this.app.vault.adapter.readBinary(pluginImage);
+                        await this.app.vault.adapter.writeBinary(targetPath, bytes);
+                    } catch {}
+                }
+                if (this.app.vault.getAbstractFileByPath(targetPath)) {
+                    data.tagImage = relImage;
+                }
             }
         } catch {}
         
