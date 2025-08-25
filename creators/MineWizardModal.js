@@ -14,7 +14,7 @@
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class MineWizardModal extends EntityWizardBase {
+var MineWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
@@ -105,13 +105,7 @@ class MineWizardModal extends EntityWizardBase {
             }
 
             // Загружаем государства
-            const statesFolder = `${this.projectRoot}/Государства`;
-            const statesFolderObj = this.app.vault.getAbstractFileByPath(statesFolder);
-            if (statesFolderObj && statesFolderObj.children) {
-                this.config.states = statesFolderObj.children
-                    .filter(f => f instanceof TFile && f.extension === 'md')
-                    .map(f => f.basename);
-            }
+            this.config.states = this.loadFilesFromFolder(`${this.projectRoot}/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
@@ -494,4 +488,4 @@ if (typeof MineWizardModal !== 'undefined' && typeof MineWizardModal.prototype.r
     };
 }
 
-module.exports = MineWizardModal;
+module.exports = { MineWizardModal };

@@ -12,7 +12,7 @@
 
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
-class ConflictWizardModal extends HtmlWizardModal {
+var ConflictWizardModal = class extends HtmlWizardModal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;

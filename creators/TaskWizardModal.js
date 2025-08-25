@@ -12,7 +12,7 @@
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class TaskWizardModal extends EntityWizardBase {
+var TaskWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
@@ -324,4 +324,4 @@ class TaskWizardModal extends EntityWizardBase {
     }
 }
 
-module.exports = TaskWizardModal;
+module.exports = { TaskWizardModal };

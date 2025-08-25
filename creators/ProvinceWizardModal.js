@@ -14,7 +14,7 @@
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class ProvinceWizardModal extends EntityWizardBase {
+var ProvinceWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
@@ -287,19 +287,11 @@ tags: [place, государство]
 
     async loadStatesFromFolder() {
         try {
-            const statesFolder = this.app.vault.getAbstractFileByPath(`${this.projectRoot}/Государства`);
-            if (statesFolder && statesFolder.children) {
-                const stateFiles = statesFolder.children.filter(file => 
-                    file instanceof TFile && 
-                    (file.extension === 'md' || file.extension === '') && 
-                    file.name !== 'Index.md'
-                );
-                return stateFiles.map(file => file.basename);
-            }
+            return this.loadFilesFromFolder(`${this.projectRoot}/Государства`, 'Государства');
         } catch (e) {
             console.error('Ошибка загрузки государств из папки:', e);
+            return [];
         }
-        return [];
     }
 
     async renderStateSelect(contentEl) {
@@ -672,4 +664,4 @@ tags: [place, государство]
     }
 }
 
-module.exports = ProvinceWizardModal;
+module.exports = { ProvinceWizardModal };

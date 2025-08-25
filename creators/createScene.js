@@ -13,7 +13,7 @@
 /**
  * Создание сцены
  */
-async function createScene(plugin, startPath = '') {
+var createScene = async function(plugin, startPath = '') {
     try {
         await plugin.logDebug('=== createScene вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);

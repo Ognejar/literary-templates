@@ -12,27 +12,27 @@
 
 const { PeopleWizardModal } = require('../PeopleWizardModal.js');
 
-async function createPeople(plugin, startPath = '') {
+var createPeople = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createPeople вызвана ===');
         // Определяем корень проекта
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         } else {
             const activeFile = plugin.app.workspace.getActiveFile();
-            if (activeFile) projectRoot = findProjectRoot(plugin.app, activeFile.parent.path);
+            if (activeFile) resolvedProjectRoot = findProjectRoot(plugin.app, activeFile.parent.path) || '';
         }
-        if (!projectRoot) {
+        if (!resolvedProjectRoot) {
             const roots = await getAllProjectRoots(plugin.app);
             if (!roots || roots.length === 0) {
                 new Notice('Проект не найден: отсутствует файл "Настройки_мира.md"');
                 return;
             }
-            projectRoot = roots[0];
+            resolvedProjectRoot = roots[0];
         }
 
-        const modal = new PeopleWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectRoot, () => {
+        const modal = new PeopleWizardModal(plugin.app, Modal, Setting, Notice, plugin, resolvedProjectRoot, () => {
             plugin.logDebug('Народ создан');
         });
         modal.open();
@@ -40,7 +40,7 @@ async function createPeople(plugin, startPath = '') {
         new Notice('Ошибка при создании народа: ' + error.message);
         try { await plugin.logDebug('createPeople error: ' + error.message); } catch {}
     }
-}
+};
 
 module.exports = { createPeople };
 

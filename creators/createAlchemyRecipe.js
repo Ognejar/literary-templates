@@ -12,7 +12,7 @@
 
 const { AlchemyRecipeWizardModal } = require('../AlchemyRecipeWizardModal.js');
 
-async function createAlchemyRecipe(plugin, startPath = '', options = {}) {
+var createAlchemyRecipe = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createAlchemyRecipe: начало ===');
         
@@ -20,7 +20,7 @@ async function createAlchemyRecipe(plugin, startPath = '', options = {}) {
         let projectRoot = '';
         if (startPath) {
             await plugin.logDebug(`createAlchemyRecipe: ищем projectRoot от ${startPath}`);
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            projectRoot = window.findProjectRoot(plugin.app, startPath);
             await plugin.logDebug(`Найденный projectRoot: ${projectRoot}`);
         }
         
@@ -73,19 +73,6 @@ async function createAlchemyRecipe(plugin, startPath = '', options = {}) {
     }
 }
 
-// Вспомогательные функции
-function findProjectRoot(app, startPath) {
-    if (!startPath) return null;
-    
-    let currentPath = startPath;
-    while (currentPath && currentPath !== '/') {
-        const settingsFile = app.vault.getAbstractFileByPath(`${currentPath}/Настройки_мира.md`);
-        if (settingsFile) {
-            return currentPath;
-        }
-        currentPath = currentPath.split('/').slice(0, -1).join('/');
-    }
-    return null;
-}
+
 
 module.exports = { createAlchemyRecipe };

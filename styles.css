@@ -1,0 +1,291 @@
+/* Стили для модального окна настроек AI */
+
+.ai-settings-modal {
+    padding: 20px;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.ai-settings-modal h2 {
+    color: var(--text-accent);
+    border-bottom: 2px solid var(--text-accent);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.ai-settings-modal h3 {
+    color: var(--text-normal);
+    margin-top: 25px;
+    margin-bottom: 15px;
+    padding-left: 10px;
+    border-left: 3px solid var(--text-accent);
+}
+
+.ai-settings-modal h4 {
+    color: var(--text-muted);
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+}
+
+/* Основные настройки */
+.ai-settings-modal .setting-item {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+/* Настройки ключей */
+.add-key-container {
+    background: var(--background-primary-alt);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 2px dashed var(--text-accent);
+}
+
+.key-list-container {
+    margin-top: 20px;
+}
+
+.key-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.key-item {
+    background: var(--background-secondary);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+    transition: all 0.2s ease;
+}
+
+.key-item:hover {
+    background: var(--background-secondary-alt);
+    border-color: var(--text-accent);
+}
+
+.key-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.active-key {
+    font-weight: bold;
+    color: var(--text-accent);
+}
+
+.active-badge {
+    background: var(--text-accent);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+/* Прогресс-бар использования ключей */
+.progress-container {
+    margin: 10px 0;
+}
+
+.progress-bar {
+    height: 8px;
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+    margin-bottom: 5px;
+    transition: all 0.3s ease;
+}
+
+.progress-bar.normal {
+    background: var(--text-success);
+}
+
+.progress-bar.warning {
+    background: var(--text-warning);
+}
+
+.progress-bar.exhausted {
+    background: var(--text-error);
+}
+
+.progress-text {
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+/* Кнопки управления ключами */
+.key-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.key-actions button {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.2s ease;
+}
+
+.key-actions button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Статистика и предупреждения */
+.key-stats-container {
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--background-primary-alt);
+    border-radius: 8px;
+    border-left: 4px solid var(--text-accent);
+}
+
+.warning-text {
+    color: var(--text-warning);
+    margin: 5px 0;
+    padding: 5px;
+    background: rgba(255, 193, 7, 0.1);
+    border-radius: 4px;
+}
+
+.success-text {
+    color: var(--text-success);
+    margin: 5px 0;
+    padding: 5px;
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 4px;
+}
+
+.no-keys {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Кнопки действий */
+.action-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.action-buttons button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.action-buttons button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .ai-settings-modal {
+        padding: 15px;
+        max-width: 95vw;
+    }
+    
+    .key-actions {
+        flex-direction: column;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.key-item {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Темная тема */
+.theme-dark .ai-settings-modal {
+    background: var(--background-primary);
+}
+
+.theme-dark .key-item:hover {
+    background: var(--background-secondary-alt);
+    border-color: var(--text-accent);
+}
+
+/* Светлая тема */
+.theme-light .ai-settings-modal {
+    background: var(--background-primary);
+}
+
+.theme-light .key-item:hover {
+    background: var(--background-secondary-alt);
+    border-color: var(--text-accent);
+}
+
+/* Минималистичные стили для PromptSelectorModal */
+.lt-modal-title {
+    font-size: 1.2em;
+    margin-bottom: 12px;
+    text-align: center;
+}
+.lt-prompt-list {
+    padding: 0;
+    margin: 0;
+}
+.lt-prompt-item {
+    margin: 0 0 4px 0;
+    padding: 8px 12px;
+    font-size: 1em;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    transition: background 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lt-prompt-item:hover {
+    background: #e3f2fd;
+    border-color: #007acc;
+}
+.lt-prompt-import {
+    background: #e3ffe3;
+    color: #1b5e20;
+    font-weight: bold;
+    border: 1px solid #b2dfdb;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+.lt-prompt-import:hover {
+    background: #b2ffb2;
+    border-color: #388e3c;
+}
+.lt-prompt-separator {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 8px 0;
+}

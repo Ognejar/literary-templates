@@ -17,17 +17,12 @@ const { TFile } = require('obsidian');
 /**
  * Создание деревни
  */
-async function createVillage(plugin, startPath = '') {
+var createVillage = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createVillage вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        await plugin.logDebug('startPath: ' + projectRoot);
         // 1. Найти projectRoot от startPath
-        let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
-        }
         let project = '';
-
         if (projectRoot) {
             project = projectRoot;
         } else {
@@ -75,6 +70,23 @@ async function createVillage(plugin, startPath = '') {
             const tagImage = window.litSettingsService ? window.litSettingsService.findTagImage(plugin.app, project, baseName) : '';
             const imageBlock = tagImage ? `![[${tagImage}]]` : '';
             
+            // Определяем государство для деревни
+            let country = '';
+            if (villageData.province) {
+                try {
+                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Провинции/${villageData.province}.md`);
+                    if (provinceFile) {
+                        const provinceContent = await plugin.app.vault.read(provinceFile);
+                        const stateMatch = provinceContent.match(/state:\s*"([^"]+)"/);
+                        if (stateMatch) {
+                            country = stateMatch[1];
+                        }
+                    }
+                } catch (e) {
+                    await plugin.logDebug('Не удалось определить государство из провинции: ' + e.message);
+                }
+            }
+
             // --- Формируем данные для шаблона ---
             const data = {
               date: createdDate,
@@ -82,6 +94,7 @@ async function createVillage(plugin, startPath = '') {
               climate: villageData.climate || '',
               faction: villageData.faction || '',
               province: villageData.province || '',
+              country: country, // Добавляем государство
               // Статус и причина
               status: villageData.status || 'действует',
               statusReason: villageData.statusReason || '',
@@ -118,6 +131,6 @@ async function createVillage(plugin, startPath = '') {
         new Notice('Ошибка при создании деревни: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createVillage };

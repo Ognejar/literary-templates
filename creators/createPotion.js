@@ -18,7 +18,7 @@
  * @param {string} startPath - Начальный путь для поиска проекта (может быть корнем проекта)
  * @param {Object} [options] - Доп. опции: { targetFile?: TFile, prefillName?: string }
  */
-async function createPotion(plugin, startPath = '', options = {}) {
+var createPotion = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createPotion вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -120,12 +120,14 @@ async function createPotion(plugin, startPath = '', options = {}) {
             // Генерируем контент из шаблона
             const content = await generateFromTemplate('Новое_зелье', data, plugin);
             
+            // Определяем fileName для использования в уведомлении
+            const fileName = cleanName;
+            
             // Если передан существующий пустой файл — записываем в него
             if (options && options.targetFile instanceof TFile) {
                 await plugin.app.vault.modify(options.targetFile, content);
                 await plugin.app.workspace.getLeaf(true).openFile(options.targetFile);
             } else {
-                const fileName = cleanName;
                 const targetFolder = `${project}/Магия/Зелья`;
                 await ensureEntityInfrastructure(targetFolder, fileName, plugin.app);
                 const targetPath = `${targetFolder}/${fileName}.md`;

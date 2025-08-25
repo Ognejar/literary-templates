@@ -18,7 +18,7 @@ const { PortWizardModal } = require('../PortWizardModal.js');
  * @param {string} startPath - Начальный путь для поиска проекта
  * @param {Object} options - Дополнительные опции
  */
-async function createPort(plugin, startPath = '', options = {}) {
+var createPort = async function(plugin, startPath = '', options = {}) {
     try {
         let projectRoot = '';
         if (startPath) projectRoot = window.findProjectRoot(plugin.app, startPath) || startPath;

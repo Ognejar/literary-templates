@@ -17,18 +17,18 @@
  * @param {Object} plugin - Экземпляр плагина
  * @param {string} startPath - Начальный путь для поиска проекта
  */
-async function createState(plugin, startPath = '') {
+var createState = async function(plugin, startPath = '') {
     try {
         await plugin.logDebug('=== createState вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
 
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         }
         let project = '';
-        if (projectRoot) {
-            project = projectRoot;
+        if (resolvedProjectRoot) {
+            project = resolvedProjectRoot;
         } else {
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -83,6 +83,6 @@ async function createState(plugin, startPath = '') {
         new Notice('Ошибка при создании государства: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createState };

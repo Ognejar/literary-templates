@@ -37,7 +37,7 @@ function normalizeToArray(value) {
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class CityWizardModal extends EntityWizardBase {
+var CityWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
@@ -159,32 +159,13 @@ class CityWizardModal extends EntityWizardBase {
                 }
             }
             
-            // Загружаем провинции из папки Провинции
-            const provincesFolder = `${projectRoot}/Провинции`;
-            const provincesFolderObj = this.app.vault.getAbstractFileByPath(provincesFolder);
-            if (provincesFolderObj && provincesFolderObj.children) {
-                this.config.provinces = [];
-                
-                for (const child of provincesFolderObj.children) {
-                    if (child instanceof TFile && child.extension === 'md' && !child.basename.startsWith('Index') && !child.basename.startsWith('.')) {
-                        this.config.provinces.push(child.basename);
-                    }
-                }
-            }
+            // Загружаем государства
+            this.config.countries = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
             
-            // Загружаем государства из папки Государства
-            const statesFolder = `${projectRoot}/Государства`;
-            const statesFolderObj = this.app.vault.getAbstractFileByPath(statesFolder);
-            if (statesFolderObj && statesFolderObj.children) {
-                this.config.countries = [];
-                for (const child of statesFolderObj.children) {
-                    if (child instanceof TFile && child.extension === 'md' && !child.basename.startsWith('Index') && !child.basename.startsWith('.')) {
-                        this.config.countries.push(child.basename);
-                    }
-                }
-            } else {
-                this.config.countries = [];
-            }
+            // Загружаем все провинции (будут фильтроваться по государству)
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            this.config.provinces = []; // Будет заполнено при выборе государства
+
             
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || this.config.climates[0] || 'Умеренный';
@@ -195,10 +176,27 @@ class CityWizardModal extends EntityWizardBase {
         }
     }
 
+    /**
+     * Фильтрует провинции по выбранному государству
+     * @param {string} countryName - название государства
+     */
+    async filterProvincesByCountry(countryName) {
+        if (!countryName || countryName === 'manual') {
+            this.config.provinces = [];
+            return;
+        }
+
+        try {
+            this.config.provinces = await this.filterProvincesByState(countryName, this.projectRoot, this.config.allProvinces);
+        } catch (e) {
+            console.error('Ошибка фильтрации провинций:', e);
+            this.config.provinces = [];
+        }
+    }
     render() {
         const { contentEl } = this;
         contentEl.empty();
-        
+
         // Индикатор прогресса
         const progress = contentEl.createDiv('progress-indicator');
         progress.style.cssText = `
@@ -358,8 +356,13 @@ class CityWizardModal extends EntityWizardBase {
 
         // Провинция (обязательно при режиме province)
         if ((this.data.jurisdictionMode || 'province') === 'province') {
+            const provinceDesc = this.data.country && this.data.country !== 'manual' 
+                ? `Провинции государства "${this.data.country}"` 
+                : 'Выберите государство для отображения провинций';
+            
             new this.Setting(contentEl)
                 .setName('Провинция')
+                .setDesc(provinceDesc)
                 .addDropdown(dropdown => {
                     dropdown.addOption('', 'Выберите провинцию');
                     this.config.provinces.forEach(province => dropdown.addOption(province, province));
@@ -381,13 +384,16 @@ class CityWizardModal extends EntityWizardBase {
                 countries.forEach(c => d.addOption(c, c));
                 d.addOption('manual', '— Ввести вручную —');
                 d.setValue(this.data.country || '');
-                d.onChange(v => { 
+                d.onChange(async (v) => { 
                     this.data.country = v; 
                     // Обновляем поле state для шаблона
                     if (v === 'manual') {
                         this.data.state = this.data.countryManual || '';
+                        this.config.provinces = []; // Очищаем провинции
                     } else {
                         this.data.state = v;
+                        // Фильтруем провинции по выбранному государству
+                        await this.filterProvincesByCountry(v);
                     }
                     this.render(); 
                 });
@@ -708,5 +714,4 @@ class CityWizardModal extends EntityWizardBase {
     }
 }
 
-
-module.exports = CityWizardModal;
+module.exports = { CityWizardModal };

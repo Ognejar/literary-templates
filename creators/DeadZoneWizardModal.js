@@ -12,18 +12,20 @@
 
 // Modal, Setting, Notice передаются через конструктор
 
-class DeadZoneWizardModal extends Modal {
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
+var DeadZoneWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.config = {
             climates: [],
-            factions: []
+            factions: [],
+            states: [],
+            allProvinces: [],
+            provinces: []
         };
         this.data = {
             zoneName: '',
@@ -39,7 +41,12 @@ class DeadZoneWizardModal extends Modal {
             type: 'Мёртвая зона',
             // Статус по умолчанию
             status: 'заброшено',
-            statusReason: 'Затопление'
+            statusReason: 'Затопление',
+            // Юрисдикция
+            state: '',
+            province: '',
+            country: '',
+            stateManual: ''
         };
     }
 
@@ -94,6 +101,11 @@ class DeadZoneWizardModal extends Modal {
                 this.config.factions = [];
             }
             
+            // Загрузка государств и всех провинций
+            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            this.config.provinces = [];
+
             // Инициализируем this.data.climate и this.data.faction здесь, после загрузки конфига
             this.data.climate = this.data.climate || this.config.climates[0] || '';
             this.data.faction = this.data.faction || this.config.factions[0] || '';
@@ -119,32 +131,37 @@ class DeadZoneWizardModal extends Modal {
                 navButtons = '<button class="mod-cta" id="next">Далее</button>';
                 break;
             case 1:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 2/7: Климат, Фракция, Эпоха');
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 2/8: Климат, Фракция, Эпоха');
                 this.renderClimateFactionEra(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 2:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 3/7: Бывшая экономика');
-                this.renderOldEconomy(contentEl);
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 3/8: Государство и провинция');
+                this.renderJurisdiction(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 3:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 4/7: Текущее состояние');
-                this.renderCurrentState(contentEl);
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 4/8: Бывшая экономика');
+                this.renderOldEconomy(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 4:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 5/7: Описание');
-                this.renderDescription(contentEl);
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 5/8: Текущее состояние');
+                this.renderCurrentState(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 5:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 6/7: Находки');
-                this.renderFindings(contentEl);
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 6/8: Описание');
+                this.renderDescription(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 6:
-                this.titleEl.setText('Создание новой мертвой зоны - Шаг 7/7: Предпросмотр');
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 7/8: Находки');
+                this.renderFindings(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 7:
+                this.titleEl.setText('Создание новой мертвой зоны - Шаг 8/8: Предпросмотр');
                 this.renderPreview(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
                 break;
@@ -277,6 +294,58 @@ class DeadZoneWizardModal extends Modal {
             });
     }
 
+    renderJurisdiction(contentEl) {
+        // Государство
+        new this.Setting(contentEl)
+            .setName('Государство')
+            .setDesc('Выберите государство для фильтрации провинций')
+            .addDropdown(d => {
+                d.addOption('', 'Выберите государство');
+                (this.config.states || []).forEach(s => d.addOption(s, s));
+                d.addOption('manual', '— Ввести вручную —');
+                d.setValue(this.data.state || '');
+                d.onChange(async (v) => {
+                    this.data.state = v === 'manual' ? (this.data.stateManual || '') : v;
+                    this.data.country = this.data.state; // Дублируем для единообразия
+                    // Фильтруем провинции
+                    this.config.provinces = await super.filterProvincesByState(this.data.state, this.projectRoot, this.config.allProvinces);
+                    this.render();
+                });
+                d.selectEl.style.minWidth = '320px';
+                d.selectEl.style.fontSize = '14px';
+                d.selectEl.style.padding = '6px';
+            });
+
+        if (this.data.state === 'manual') {
+            new this.Setting(contentEl)
+                .setName('Государство (ручной ввод)')
+                .addText(t => {
+                    t.setValue(this.data.stateManual || '').onChange(v => {
+                        this.data.stateManual = v;
+                        this.data.state = v;
+                        this.data.country = v;
+                    });
+                    t.inputEl.style.width = '100%';
+                    t.inputEl.style.fontSize = '16px';
+                    t.inputEl.style.padding = '8px';
+                });
+        }
+
+        // Провинция
+        new this.Setting(contentEl)
+            .setName('Провинция (опционально)')
+            .setDesc(this.data.state ? `Провинции государства "${this.data.state}"` : 'Сначала выберите государство')
+            .addDropdown(dropdown => {
+                dropdown.addOption('', 'Выберите провинцию');
+                (this.config.provinces || []).forEach(p => dropdown.addOption(p, p));
+                dropdown.setValue(this.data.province || '');
+                dropdown.onChange(value => this.data.province = value);
+                dropdown.selectEl.style.minWidth = '320px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+    }
+
     renderPreview(contentEl) {
         const previewEl = contentEl.createEl('div', { cls: 'preview-section' });
         previewEl.createEl('h3', { text: 'Предпросмотр:' });
@@ -339,17 +408,20 @@ class DeadZoneWizardModal extends Modal {
                     return false;
                 }
                 break;
-            case 2: // Old Economy (optional)
-            case 3: // Current State (optional)
+            case 2: // Jurisdiction (optional)
+                // Nothing to validate, as jurisdiction is optional
+                break;
+            case 3: // Old Economy (optional)
+            case 4: // Current State (optional)
                 // Nothing to validate, as they are optional
                 break;
-            case 4: // Description
+            case 5: // Description
                 if (!this.data.description.trim()) {
                     new this.Notice('Пожалуйста, введите описание мертвой зоны.');
                     return false;
                 }
                 break;
-            case 5: // Findings
+            case 6: // Findings
                 // Findings can be empty
                 break;
         }

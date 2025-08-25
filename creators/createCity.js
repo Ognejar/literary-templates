@@ -22,7 +22,7 @@ const { CityWizardModal } = require('../CityWizardModal.js');
 /**
  * Создание города
  */
-async function createCity(plugin, startPath = '') {
+var createCity = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('[DEBUG] createCity: ТЕСТОВЫЙ ЛОГ — ЭТО ТОЧНО НОВЫЙ КОД!');
         await plugin.logDebug('=== createCity вызвана ===');
@@ -30,13 +30,13 @@ async function createCity(plugin, startPath = '') {
 
         console.log('createCity вызвана!');
 
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         }
         let project = '';
-        if (projectRoot) {
-            project = projectRoot;
+        if (resolvedProjectRoot) {
+            project = resolvedProjectRoot;
         } else {
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -78,11 +78,33 @@ async function createCity(plugin, startPath = '') {
 
                 // Формируем данные для шаблона с ссылками на заметки
                 const cityNameForFile = cleanName;
+                // Определяем государство
+                let country = '';
+                if (cityData.jurisdictionMode === 'province' && cityData.province) {
+                    // Если есть провинция, ищем её государство
+                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Провинции/${cityData.province}.md`);
+                    if (provinceFile) {
+                        try {
+                            const provinceContent = await plugin.app.vault.read(provinceFile);
+                            const stateMatch = provinceContent.match(/state:\s*"([^"]+)"/);
+                            if (stateMatch) {
+                                country = stateMatch[1];
+                            }
+                        } catch (e) {
+                            await plugin.logDebug('Не удалось прочитать файл провинции для определения государства: ' + e.message);
+                        }
+                    }
+                } else if (cityData.jurisdictionMode === 'countryOnly') {
+                    // Если прямой режим, берем государство напрямую
+                    country = (cityData.country === 'manual') ? (cityData.countryManual || '') : (cityData.country || '');
+                }
+
                 const data = {
                     cityName: cityData.cityName,
                     type: cityData.type || 'Город',
                     typeLower: cityData.type ? cityData.type.toLowerCase() : 'город',
                     province: cityData.province || '',
+                    country: country, // Добавляем государство
                     climate: cityData.climate || '',
                     dominantFaction: cityData.dominantFaction || '',
                     // Статус и причина

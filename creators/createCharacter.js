@@ -12,27 +12,27 @@
 
 const { CharacterWizardModal } = require('../CharacterWizardModal.js');
 
-async function createCharacter(plugin, startPath = '') {
+var createCharacter = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createCharacter вызвана ===');
         // Определяем корень проекта
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         } else {
             const activeFile = plugin.app.workspace.getActiveFile();
-            if (activeFile) projectRoot = findProjectRoot(plugin.app, activeFile.parent.path);
+            if (activeFile) resolvedProjectRoot = findProjectRoot(plugin.app, activeFile.parent.path) || '';
         }
-        if (!projectRoot) {
+        if (!resolvedProjectRoot) {
             const roots = await getAllProjectRoots(plugin.app);
             if (!roots || roots.length === 0) {
                 new Notice('Проект не найден: отсутствует файл "Настройки_мира.md"');
                 return;
             }
-            projectRoot = roots[0];
+            resolvedProjectRoot = roots[0];
         }
 
-        const modal = new CharacterWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectRoot, () => {
+        const modal = new CharacterWizardModal(plugin.app, Modal, Setting, Notice, plugin, resolvedProjectRoot, () => {
             plugin.logDebug('Персонаж создан');
         });
         modal.open();
@@ -40,6 +40,6 @@ async function createCharacter(plugin, startPath = '') {
         new Notice('Ошибка при создании персонажа: ' + error.message);
         try { await plugin.logDebug('createCharacter error: ' + error.message); } catch {}
     }
-}
+};
 
 module.exports = { createCharacter };

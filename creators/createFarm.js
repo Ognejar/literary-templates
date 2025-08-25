@@ -19,17 +19,12 @@ const { TFile } = require('obsidian');
 /**
  * Создание фермы
  */
-async function createFarm(plugin, startPath = '') {
+var createFarm = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createFarm вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        await plugin.logDebug('startPath: ' + projectRoot);
         // 1. Найти projectRoot от startPath
-        let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
-        }
         let project = '';
-
         if (projectRoot) {
             project = projectRoot;
         } else {

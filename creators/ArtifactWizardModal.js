@@ -12,7 +12,7 @@
 
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
 
-class ArtifactWizardModal extends HtmlWizardModal {
+var ArtifactWizardModal = class extends HtmlWizardModal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
@@ -296,7 +296,8 @@ class ArtifactWizardModal extends HtmlWizardModal {
             );
         
         new Setting(container)
-            .setName('')
+            .setName('Дополнительный артефакт')
+            .setDesc('Второй связанный артефакт')
             .addText(text => text
                 .setPlaceholder('Например: Кольцо Власти')
                 .setValue(this.data.relatedArtifact2)
@@ -324,7 +325,8 @@ class ArtifactWizardModal extends HtmlWizardModal {
             );
         
         new Setting(container)
-            .setName('')
+            .setName('Дополнительный персонаж')
+            .setDesc('Второй связанный персонаж')
             .addText(text => text
                 .setPlaceholder('Например: Моргана')
                 .setValue(this.data.character2)
@@ -357,6 +359,9 @@ class ArtifactWizardModal extends HtmlWizardModal {
             <p><strong>Местонахождение:</strong> ${this.data.location || 'Не указано'}</p>
             <p><strong>Описание:</strong> ${this.data.description ? this.data.description.substring(0, 100) + '...' : 'Не указано'}</p>
         `;
+
+        // Кнопка анализа лор-контекста
+        this.createLoreAnalysisButton(container, 'artifact', this.projectPath);
     }
 
     renderNavigation() {
@@ -394,6 +399,12 @@ class ArtifactWizardModal extends HtmlWizardModal {
                     new this.Notice('Введите название артефакта');
                     return false;
                 }
+                // Проверяем, не является ли название стандартным именем файла
+                const isDefaultName = this.data.name === 'Без названия' || this.data.name === 'Untitled' || this.data.name === 'Новый документ';
+                if (isDefaultName) {
+                    new this.Notice('Пожалуйста, измените название артефакта на осмысленное имя');
+                    return false;
+                }
                 if (!this.data.type) {
                     new this.Notice('Выберите тип артефакта');
                     return false;
@@ -407,6 +418,18 @@ class ArtifactWizardModal extends HtmlWizardModal {
                 break;
             case 2: // Владение — значения можно не вводить
                 // Ничего не валидируем: по умолчанию будет "Не известно"
+                break;
+            case 7: // Предварительный просмотр - дополнительная проверка названия
+                if (!this.data.name.trim()) {
+                    new this.Notice('Введите название артефакта');
+                    return false;
+                }
+                // Повторная проверка стандартных имен на финальном этапе
+                const isDefaultNameFinal = this.data.name === 'Без названия' || this.data.name === 'Untitled' || this.data.name === 'Новый документ';
+                if (isDefaultNameFinal) {
+                    new this.Notice('Пожалуйста, измените название артефакта на осмысленное имя');
+                    return false;
+                }
                 break;
         }
         return true;
@@ -458,7 +481,13 @@ class ArtifactWizardModal extends HtmlWizardModal {
                 rarity: this.data.rarity,
                 activationMethod: this.data.activationMethod,
                 maintenance: this.data.maintenance,
-                tagImage
+                tagImage,
+                // Связанные сущности
+                relatedArtifact1: this.data.relatedArtifact1,
+                relatedArtifact2: this.data.relatedArtifact2,
+                event1: this.data.event1,
+                character1: this.data.character1,
+                character2: this.data.character2
             };
 
             // Генерация по шаблону из папки плагина с include и условными блоками
@@ -466,11 +495,27 @@ class ArtifactWizardModal extends HtmlWizardModal {
             
             // Создание/запись файла
             const targetFolder = `${this.projectPath}/Магия/Артефакты`;
-            const fileName = this.data.name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
+            const cleanName = this.data.name.trim();
+            if (!cleanName) {
+                new this.Notice('Название артефакта не может быть пустым');
+                return;
+            }
+            const fileName = cleanName.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
+            
             if (this.options && this.options.targetFile instanceof TFile) {
-                await this.app.vault.modify(this.options.targetFile, filled);
-                await this.app.workspace.getLeaf(true).openFile(this.options.targetFile);
+                // Если это автозапуск, переименовываем файл и записываем содержимое
+                const newPath = `${this.options.targetFile.parent.path}/${fileName}.md`;
+                try {
+                    await this.app.vault.rename(this.options.targetFile, fileName);
+                    await this.app.vault.modify(this.options.targetFile, filled);
+                    await this.app.workspace.getLeaf(true).openFile(this.options.targetFile);
+                } catch (e) {
+                    // Если переименование не удалось, просто записываем содержимое
+                    await this.app.vault.modify(this.options.targetFile, filled);
+                    await this.app.workspace.getLeaf(true).openFile(this.options.targetFile);
+                }
             } else {
+                // Обычное создание файла
                 try { await this.app.vault.createFolder(targetFolder); } catch {}
                 const targetPath = `${targetFolder}/${fileName}.md`;
                 await this.app.vault.create(targetPath, filled);
@@ -501,6 +546,6 @@ class ArtifactWizardModal extends HtmlWizardModal {
         }
         return result;
     }
-}
+};
 
 module.exports = { ArtifactWizardModal };

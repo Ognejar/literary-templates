@@ -15,7 +15,7 @@ const { TFolder, TFile } = require('obsidian');
 /**
  * Создание мира (проекта)
  */
-async function createWorld(plugin, startPath = '') {
+var createWorld = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createWorld вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -155,7 +155,8 @@ async function createWorld(plugin, startPath = '') {
         const secondaryThemes = secondaryThemesInput.split(',').map(t => t.trim()).filter(Boolean);
 
         // 9. Создание проекта
-        const projectPath = startPath ? `${startPath}/${safeName}` : safeName;
+        const baseRoot = startPath ? (findProjectRoot(plugin.app, startPath) || startPath) : '';
+        const projectPath = baseRoot ? `${baseRoot}/${safeName}` : safeName;
         await plugin.logDebug('startPath: ' + startPath);
         await plugin.logDebug('safeName: ' + safeName);
         await plugin.logDebug('projectPath: ' + projectPath);
@@ -402,6 +403,43 @@ async function createWorld(plugin, startPath = '') {
                     ].join('\n');
                     content += dvBlock;
                     await plugin.logDebug('Добавлен блок Dataview задач в главный файл проекта');
+                }
+
+                // Добавляем обзор папки проекта (folder-overview)
+                if (!content.includes('```folder-overview')) {
+                    const foBlock = [
+                        '',
+                        '## Обзор проекта',
+                        '',
+                        '```folder-overview',
+                        `folderPath: "${projectPath}"`,
+                        'title: "Обзор проекта"',
+                        'showTitle: false',
+                        'depth: 2',
+                        'includeTypes:',
+                        '  - folder',
+                        '  - markdown',
+                        'style: list',
+                        'disableFileTag: false',
+                        'sortBy: name',
+                        'sortByAsc: true',
+                        'showEmptyFolders: false',
+                        'onlyIncludeSubfolders: false',
+                        'storeFolderCondition: true',
+                        'showFolderNotes: true',
+                        'disableCollapseIcon: true',
+                        'alwaysCollapse: false',
+                        'autoSync: true',
+                        'allowDragAndDrop: true',
+                        'hideLinkList: true',
+                        'hideFolderOverview: false',
+                        'useActualLinks: false',
+                        'fmtpIntegration: false',
+                        '```',
+                        ''
+                    ].join('\n');
+                    content += foBlock;
+                    await plugin.logDebug('Добавлен блок folder-overview в главный файл проекта');
                 }
 
                 await plugin.app.vault.modify(mainFile, content);

@@ -11,8 +11,9 @@
  */
 
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
+const { ensureEntityInfrastructure, safeCreateFile } = require('../main.js');
 
-class PeopleWizardModal extends HtmlWizardModal {
+var PeopleWizardModal = class extends HtmlWizardModal {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
@@ -377,9 +378,9 @@ class PeopleWizardModal extends HtmlWizardModal {
 
             const content = fm + body;
             const targetFolder = `${this.projectPath}/Народы`;
-            await window.ensureEntityInfrastructure(targetFolder, cleanName, app);
+            await ensureEntityInfrastructure(targetFolder, cleanName, app);
             const targetPath = `${targetFolder}/${cleanName}.md`;
-            await window.safeCreateFile(targetPath, content, app);
+            await safeCreateFile(targetPath, content, app);
 
             const file = app.vault.getAbstractFileByPath(targetPath);
             if (file instanceof TFile) {

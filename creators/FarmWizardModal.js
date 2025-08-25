@@ -14,7 +14,7 @@
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class FarmWizardModal extends EntityWizardBase {
+var FarmWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
@@ -116,13 +116,7 @@ class FarmWizardModal extends EntityWizardBase {
             }
 
             // Загружаем государства
-            const statesFolder = `${this.projectRoot}/Государства`;
-            const statesFolderObj = this.app.vault.getAbstractFileByPath(statesFolder);
-            if (statesFolderObj && statesFolderObj.children) {
-                this.config.states = statesFolderObj.children
-                    .filter(f => f instanceof TFile && f.extension === 'md')
-                    .map(f => f.basename);
-            }
+            this.config.states = this.loadFilesFromFolder(`${this.projectRoot}/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
@@ -526,4 +520,4 @@ class FarmWizardModal extends EntityWizardBase {
     }
 }
 
-module.exports = FarmWizardModal;
+module.exports = { FarmWizardModal };

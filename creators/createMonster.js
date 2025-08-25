@@ -10,7 +10,7 @@
  * @docs       docs/Карточка функционала.md
  */
 
-async function createMonster(plugin, startPath = '') {
+var createMonster = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createMonster вызвана ===');
 

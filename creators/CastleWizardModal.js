@@ -10,14 +10,14 @@
  * @docs       [ссылка на документацию]
  */
 
+// Импортируем базовый класс
+const { EntityWizardBase } = require('./EntityWizardBase.js');
+
 // Modal, Setting, Notice передаются через конструктор
 
-class CastleWizardModal extends Modal {
+var CastleWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
-        super(app);
-        this.Modal = ModalClass;
-        this.Setting = SettingClass;
-        this.Notice = NoticeClass;
+        super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
@@ -51,6 +51,8 @@ class CastleWizardModal extends Modal {
                 { value: 'разрушено', label: 'Разрушено', icon: '💥' }
             ]
         };
+
+
         this.steps = [
             'Название и тип',
             'Статус фортификации',
@@ -121,24 +123,11 @@ class CastleWizardModal extends Modal {
             }
 
             // Список провинций берём из папки `Провинции`
-            this.config.provinces = [];
-            const provincesFolderPath = `${projectRoot}/Провинции`;
-            const provincesFolder = this.app.vault.getAbstractFileByPath(provincesFolderPath);
-            if (provincesFolder && provincesFolder.children && Array.isArray(provincesFolder.children)) {
-                this.config.provinces = provincesFolder.children
-                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
-                    .map(f => f.basename.replace(/\.md$/i, ''));
-            }
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            this.config.provinces = []; // Будет заполнено при выборе государства
 
             // Список государств берём из папки `Государства`
-            this.config.states = [];
-            const statesFolderPath = `${projectRoot}/Государства`;
-            const statesFolder = this.app.vault.getAbstractFileByPath(statesFolderPath);
-            if (statesFolder && statesFolder.children && Array.isArray(statesFolder.children)) {
-                this.config.states = statesFolder.children
-                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
-                    .map(f => f.basename.replace(/\.md$/i, ''));
-            }
+            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
 
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
             this.data.dominantFaction = this.data.dominantFaction || (this.config.factions[0] || '');
@@ -150,6 +139,24 @@ class CastleWizardModal extends Modal {
             new this.Notice('Ошибка загрузки конфигурации для замка: ' + e.message);
             console.error('Ошибка загрузки конфигурации для замка:', e);
             this.close();
+        }
+    }
+
+    /**
+     * Фильтрует провинции по выбранному государству
+     * @param {string} stateName - название государства
+     */
+    async filterProvincesByState(stateName) {
+        if (!stateName) {
+            this.config.provinces = [];
+            return;
+        }
+
+        try {
+            this.config.provinces = await super.filterProvincesByState(stateName, this.projectRoot, this.config.allProvinces);
+        } catch (e) {
+            console.error('Ошибка фильтрации провинций:', e);
+            this.config.provinces = [];
         }
     }
 
@@ -316,7 +323,12 @@ class CastleWizardModal extends Modal {
                 dropdown.addOption('', 'Выберите государство');
                 this.config.states.forEach(state => dropdown.addOption(state, state));
                 dropdown.setValue(this.data.state);
-                dropdown.onChange(value => this.data.state = value);
+                dropdown.onChange(async (value) => { 
+                    this.data.state = value; 
+                    // Фильтруем провинции по выбранному государству
+                    await this.filterProvincesByState(value);
+                    this.render(); 
+                });
                 // Увеличиваем размер выпадающего списка
                 dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
@@ -498,4 +510,4 @@ class CastleWizardModal extends Modal {
     }
 }
 
-module.exports = CastleWizardModal;
+module.exports = { CastleWizardModal };

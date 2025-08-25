@@ -20,7 +20,7 @@
  * @param {string} startPath - Начальный путь для поиска проекта (может быть корнем проекта)
  * @param {Object} [options] - Доп. опции: { targetFile?: TFile, prefillName?: string }
  */
-async function createSpell(plugin, startPath = '', options = {}) {
+var createSpell = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createSpell вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -103,6 +103,6 @@ async function createSpell(plugin, startPath = '', options = {}) {
         new Notice('Ошибка при создании заклинания: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createSpell };

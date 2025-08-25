@@ -13,7 +13,7 @@
 /**
  * Создание главы
  */
-async function createChapter(plugin, startPath = '') {
+var createChapter = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createChapter вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
@@ -152,6 +152,6 @@ async function createChapter(plugin, startPath = '') {
         new Notice('Ошибка при создании главы: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createChapter };

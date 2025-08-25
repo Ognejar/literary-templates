@@ -12,7 +12,7 @@
 
 const { ArtifactWizardModal } = require('../ArtifactWizardModal.js');
 
-async function createArtifact(plugin, startPath = '', options = {}) {
+var createArtifact = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createArtifact: начало ===');
         
@@ -20,7 +20,7 @@ async function createArtifact(plugin, startPath = '', options = {}) {
         let projectRoot = '';
         if (startPath) {
             await plugin.logDebug(`createArtifact: ищем projectRoot от ${startPath}`);
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            projectRoot = window.findProjectRoot(plugin.app, startPath);
             await plugin.logDebug(`Найденный projectRoot: ${projectRoot}`);
         }
         
@@ -75,19 +75,6 @@ async function createArtifact(plugin, startPath = '', options = {}) {
     }
 }
 
-// Вспомогательные функции
-function findProjectRoot(app, startPath) {
-    if (!startPath) return null;
-    
-    let currentPath = startPath;
-    while (currentPath && currentPath !== '/') {
-        const settingsFile = app.vault.getAbstractFileByPath(`${currentPath}/Настройки_мира.md`);
-        if (settingsFile) {
-            return currentPath;
-        }
-        currentPath = currentPath.split('/').slice(0, -1).join('/');
-    }
-    return null;
-}
+
 
 module.exports = { createArtifact };

@@ -5,15 +5,15 @@
 
 const { findProjectRoot, generateFromTemplate, ensureEntityInfrastructure, safeCreateFile } = require('../main.js');
 
-async function createCastle(plugin, startPath = '', quickType = '') {
+var createCastle = async function(plugin, startPath = '', options = {}) {
     try {
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         }
         let project = '';
-        if (projectRoot) {
-            project = projectRoot;
+        if (resolvedProjectRoot) {
+            project = resolvedProjectRoot;
         } else {
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -77,6 +77,6 @@ async function createCastle(plugin, startPath = '', quickType = '') {
     } catch (error) {
         new Notice('Ошибка при создании фортификации: ' + error.message);
     }
-}
+};
 
 module.exports = { createCastle };

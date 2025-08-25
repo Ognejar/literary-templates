@@ -12,27 +12,27 @@
 
 const { TaskWizardModal } = require('./TaskWizardModal.js');
 
-async function createTask(plugin, startPath = '') {
+var createTask = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createTask вызвана ===');
         // Определяем корень проекта
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         } else {
             const activeFile = plugin.app.workspace.getActiveFile();
-            if (activeFile) projectRoot = findProjectRoot(plugin.app, activeFile.parent.path);
+            if (activeFile) resolvedProjectRoot = findProjectRoot(plugin.app, activeFile.parent.path) || '';
         }
-        if (!projectRoot) {
+        if (!resolvedProjectRoot) {
             const roots = await getAllProjectRoots(plugin.app);
             if (!roots || roots.length === 0) {
                 new Notice('Проект не найден: отсутствует файл "Настройки_мира.md"');
                 return;
             }
-            projectRoot = roots[0];
+            resolvedProjectRoot = roots[0];
         }
 
-        const modal = new TaskWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectRoot, () => {
+        const modal = new TaskWizardModal(plugin.app, Modal, Setting, Notice, plugin, resolvedProjectRoot, () => {
             plugin.logDebug('Задача создана');
         });
         modal.open();
@@ -40,6 +40,6 @@ async function createTask(plugin, startPath = '') {
         new Notice('Ошибка при создании задачи: ' + error.message);
         try { await plugin.logDebug('createTask error: ' + error.message); } catch {}
     }
-}
+};
 
 module.exports = { createTask };

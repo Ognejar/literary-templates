@@ -17,14 +17,14 @@ const { TFile } = require('obsidian');
 /**
  * Создание шахты
  */
-async function createMine(plugin, startPath = '') {
+var createMine = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createMine вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        await plugin.logDebug('startPath: ' + projectRoot);
         // 1. Найти projectRoot от startPath
         let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+        if (projectRoot) {
+            projectRoot = findProjectRoot(plugin.app, projectRoot);
         }
         let project = '';
 
@@ -152,6 +152,6 @@ async function createMine(plugin, startPath = '') {
         new Notice('Ошибка при создании шахты: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createMine };

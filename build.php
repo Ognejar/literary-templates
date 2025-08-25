@@ -7,9 +7,15 @@ $files = [
     'modals.js',           // Сначала вспомогательные модальные окна
     'projectRoot.js',      // Затем утилиты
     'src/settingsService.js', // Сервис настроек и тэговых картинок
+    // AI сервисы
+    'src/KeyRotationService.js',
+    'src/AIProviderService.js',
+    'src/LoreAnalyzerService.js',
     // Базовые классы для визардов (ПЕРЕД всеми визардами!)
     'creators/HtmlWizardModal.js',
     'creators/EntityWizardBase.js',
+    'creators/LoreAnalysisModal.js',
+	'creators/TaskWizardModal.js',
     // Все визарды из папки creators
     'creators/AlchemyRecipeWizardModal.js',
     'creators/ProjectSelectorModal.js',
@@ -21,6 +27,7 @@ $files = [
     'creators/VillageWizardModal.js',
     'creators/LocationWizardModal.js',
     'creators/CityWizardModal.js',
+    'creators/SocialInstitutionWizardModal.js',
     'creators/DeadZoneWizardModal.js',
     'creators/PortWizardModal.js',
     'creators/ProvinceWizardModal.js',
@@ -58,16 +65,51 @@ $files = [
     'creators/createSpell.js',
     'creators/createPeople.js',
     'creators/createAlchemyRecipe.js',
+    'creators/createArtifact.js',
     'creators/createState.js',
     'creators/createProvince.js',
     'creators/createCharacter.js',
     'creators/createMonster.js',
-    'main.js'              // Главный файл в конце
+	'creators/createTask.js',
+    'creators/createSocialInstitution.js',
+    // main.js должен быть последним!
+    'main.js',
 ];
 
 $out = '';
 $totalSize = 0;
+
+// Инициализируем счетчики для require('./src/...')
+$countRequireSrc = 0;
+$countRequireAssign = 0;
+$countRequireSrcAny = 0;
+$countConstRequire = 0;
+$countRequireSrcAggressive = 0;
+$countRequireSrcSimple = 0;
+$countRequireSrcPrimitive = 0;
+$countSuperAggressive = 0;
+$countFinalCleanup = 0;
+// Счетчики для require('./main_modules/...')
+$countRequireMainModules = 0;
+$countRequireMainModulesAssign = 0;
+$countRequireMainModulesAny = 0;
+
 echo "Размеры исходных файлов:\n";
+
+// Опциональная директория с модульными частями основного плагина
+$mainModulesDir = __DIR__ . DIRECTORY_SEPARATOR . 'main_modules';
+if (is_dir($mainModulesDir)) {
+	$moduleFilesAbs = glob($mainModulesDir . DIRECTORY_SEPARATOR . '*.js');
+	if (!empty($moduleFilesAbs)) {
+		sort($moduleFilesAbs, SORT_NATURAL);
+		$moduleFilesRel = array_map(function($p){ return 'main_modules/' . basename($p); }, $moduleFilesAbs);
+		$idx = array_search('main.js', $files, true);
+		if ($idx === false) { $idx = count($files); }
+		$files = array_merge(array_slice($files, 0, $idx), $moduleFilesRel, array_slice($files, $idx));
+		echo "Обнаружены модульные файлы (будут включены перед main.js):\n";
+		foreach ($moduleFilesRel as $mf) { echo "  + $mf\n"; }
+	}
+}
 foreach ($files as $file) {
     if (file_exists($file)) {
         $size = filesize($file);
@@ -102,28 +144,104 @@ $main = preg_replace('/^.*const \{ .* \} = require\([\'\"].*\.js[\'\"]\);.*\n?/m
 $main = preg_replace('/const \{ .* \} = require\([\'\"].*\.js[\'\"]\);.*\n?/m', '', $main, -1, $count12);
 $main = preg_replace('/const \{ .* \} = require\([\'\"].*[\'\"]\);.*\n?/m', '', $main, -1, $count13);
 
-// Удаляем старые сигнатуры функций create* с параметрами (app, plugin, startPath)
-$main = preg_replace('/async function createWorld\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count14);
-$main = preg_replace('/async function createVillage\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count15);
-$main = preg_replace('/async function createDeadZone\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count16);
-$main = preg_replace('/async function createScene\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count17);
-$main = preg_replace('/async function createChapter\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count18);
-$main = preg_replace('/async function createCity\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count19);
-$main = preg_replace('/async function createLocation\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count20);
+// НЕ удаляем функции create* из main.js - они нужны для работы плагина
+// $main = preg_replace('/async function createWorld\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count14);
+// $main = preg_replace('/async function createVillage\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count15);
+// $main = preg_replace('/async function createDeadZone\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count16);
+// $main = preg_replace('/async function createScene\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count17);
+// $main = preg_replace('/async function createChapter\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count18);
+// $main = preg_replace('/async function createCity\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count19);
+// $main = preg_replace('/async function createLocation\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count20);
 
 // Удаляем module.exports из modals.js (не нужен для плагина)
 $main = preg_replace('/module\\.exports = \\{ PromptModal, SuggesterModal \\};\\s*\\n/', '', $main, -1, $count11);
 
+// Удаляем module.exports из creators/*.js (делаем функции глобальными)
+$main = preg_replace('/module\\.exports = \\{ .* \\};\\s*\\n/', '', $main, -1, $count11a);
+
 // Удаляем дублированные module.exports в конце файла
 $main = preg_replace('/module\\.exports = LiteraryTemplatesPlugin;\\s*\\n\\s*module\\.exports = LiteraryTemplatesPlugin;\\s*$/', 'module.exports = LiteraryTemplatesPlugin;', $main, -1, $count9);
 
-// Добавляем правильный экспорт для плагина Obsidian в конец файла (если его нет)
-if (strpos($main, 'module.exports = LiteraryTemplatesPlugin;') === false) {
-    $main .= "\n\nmodule.exports = LiteraryTemplatesPlugin;";
+// Удаляем ВСЕ вхождения module.exports = LiteraryTemplatesPlugin;
+$main = preg_replace('/module\.exports = LiteraryTemplatesPlugin;\s*/', '', $main, -1, $countExports);
+
+// Добавляем правильный экспорт для плагина Obsidian в самый конец файла
+$main = rtrim($main) . "\n\nmodule.exports = LiteraryTemplatesPlugin;\n";
+
+// Добавляем один импорт obsidian в начало (включая MarkdownView и requestUrl)
+$main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView, requestUrl } = require('obsidian');\n\n" . $main;
+
+// Удаляем все require('./src/....js')
+$main = preg_replace('/^.*require\(["\']\.\/src\/.*["\']\);.*\n?/m', '', $main, -1, $countRequireSrc);
+echo "Удалено $countRequireSrc require('./src/...')\n";
+
+// Удаляем все присваивания require('./src/....js') без const/let/var
+$main = preg_replace('/^.*[= ]require\([\'\"]\.\/src\/.*[\'\"]\);.*\n?/m', '', $main, -1, $countRequireAssign);
+echo "Удалено $countRequireAssign присваиваний require('./src/...')\n";
+
+// Удаляем любые require('./src/...') в любых местах файла (включая KeyRotationService = require(...))
+$main = preg_replace('/[a-zA-Z_$][a-zA-Z0-9_$]*\s*=\s*require\([\'"]\.\/src\/.*[\'"]\);?/m', '', $main, -1, $countRequireSrcAny);
+echo "Удалено $countRequireSrcAny любых require('./src/...')\n";
+
+// Специально для const/let/var require('./src/...')
+$main = preg_replace('/\s*(const|let|var)\s+[a-zA-Z_$][a-zA-Z0-9_$]*\s*=\s*require\([\'"]\.\/src\/.*[\'"]\);?/m', '', $main, -1, $countConstRequire);
+echo "Удалено $countConstRequire const/let/var require('./src/...')\n";
+
+// Отладочная информация - показываем что именно ищем
+echo "Ищем строки вида: const keyModule = require('./src/KeyRotationService.js');\n";
+preg_match_all('/\s*(const|let|var)\s+[a-zA-Z_$][a-zA-Z0-9_$]*\s*=\s*require\([\'"]\.\/src\/.*[\'"]\);?/m', $main, $matches);
+echo "Найдено строк для удаления: " . count($matches[0]) . "\n";
+if (count($matches[0]) > 0) {
+    echo "Примеры найденных строк:\n";
+    foreach (array_slice($matches[0], 0, 3) as $match) {
+        echo "  " . trim($match) . "\n";
+    }
 }
 
-// Добавляем один импорт obsidian в начало
-$main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting } = require('obsidian');\n\n" . $main;
+// Более агрессивное удаление всех require('./src/...') в любых форматах
+$main = preg_replace('/[^;]*require\([\'"]\.\/src\/[^\'"]*[\'"]\)[^;]*;?/m', '', $main, -1, $countRequireSrcAggressive);
+echo "Удалено $countRequireSrcAggressive require('./src/...') (агрессивно)\n";
+
+// Самая простая и надежная регулярка - удаляем любую строку, содержащую require('./src/...')
+$main = preg_replace('/.*require\([\'"]\.\/src\/.*[\'"]\).*\n?/m', '', $main, -1, $countRequireSrcSimple);
+echo "Удалено $countRequireSrcSimple require('./src/...') (простая)\n";
+
+// Самая примитивная регулярка - удаляем любую строку, содержащую './src/'
+$main = preg_replace('/.*\.\/src\/.*\n?/m', '', $main, -1, $countRequireSrcPrimitive);
+echo "Удалено $countRequireSrcPrimitive строк с './src/' (примитивно)\n";
+
+// СУПЕР АГРЕССИВНОЕ удаление - удаляем ВСЕ строки, содержащие './src/' в любом контексте
+$main = preg_replace('/.*\.\/src\/.*\n?/m', '', $main, -1, $countSuperAggressive);
+echo "Удалено $countSuperAggressive строк с './src/' (супер агрессивно)\n";
+
+// Финальная проверка - удаляем любые оставшиеся упоминания src
+$main = preg_replace('/.*src\/.*\n?/m', '', $main, -1, $countFinalCleanup);
+echo "Удалено $countFinalCleanup строк с 'src/' (финальная очистка)\n";
+
+// Удаляем require('./main_modules/...') для итогового файла без require
+$main = preg_replace('/^.*require\(["\']\.\/main_modules\/.*["\']\);.*\n?/m', '', $main, -1, $countRequireMainModules);
+echo "Удалено $countRequireMainModules require('./main_modules/...')\n";
+
+// Удаляем присваивания require('./main_modules/...')
+$main = preg_replace('/^.*[= ]require\([\'\"]\.\/main_modules\/.*[\'\"]\);.*\n?/m', '', $main, -1, $countRequireMainModulesAssign);
+echo "Удалено $countRequireMainModulesAssign присваиваний require('./main_modules/...')\n";
+
+// Удаляем любые формы require('./main_modules/...')
+$main = preg_replace('/[a-zA-Z_$][a-zA-Z0-9_$]*\s*=\s*require\([\'\"]\.\/main_modules\/.*[\'\"]\);?/m', '', $main, -1, $countRequireMainModulesAny);
+echo "Удалено $countRequireMainModulesAny любых require('./main_modules/...')\n";
+
+// Отладочная информация - подсчитываем оставшиеся строки с './src/'
+$remainingSrcLines = preg_match_all('/.*\.\/src\/.*\n?/m', $main);
+echo "Осталось строк с './src/': $remainingSrcLines\n";
+
+// Если остались строки с './src/' - выводим их для отладки
+if ($remainingSrcLines > 0) {
+    echo "ВНИМАНИЕ: Остались строки с './src/':\n";
+    preg_match_all('/.*\.\/src\/.*\n?/m', $main, $matches);
+    foreach ($matches[0] as $match) {
+        echo "  " . trim($match) . "\n";
+    }
+}
 
 file_put_contents('main.bundle.js', $main);
 
@@ -140,15 +258,10 @@ echo "Удалено $count2 лишних импортов obsidian (повто�
 echo "Удалено $count4 импортов модулей\n";
 echo "Функции findProjectRoot, getAllProjectRoots, fillTemplate, generateFromTemplate, ensureEntityInfrastructure оставлены в main.js\n";
 echo "Удалено $count11 module.exports из modals.js\n";
+echo "Удалено $count11a module.exports из creators\n";
 echo "Удалено $count12 неправильных require импортов из creators\n";
 echo "Удалено $count13 неправильных require импортов (общий)\n";
-echo "Удалено $count14 старых функций createWorld\n";
-echo "Удалено $count15 старых функций createVillage\n";
-echo "Удалено $count16 старых функций createDeadZone\n";
-echo "Удалено $count17 старых функций createScene\n";
-echo "Удалено $count18 старых функций createChapter\n";
-echo "Удалено $count19 старых функций createCity\n";
-echo "Удалено $count20 старых функций createLocation\n";
+echo "Функции create* сохранены в main.js (не удаляем)\n";
 echo "Удалено $count9 дублированных module.exports\n";
 echo "Проверен экспорт для плагина\n";
 
@@ -242,4 +355,28 @@ if (copyDir($srcSections, $dstSections)) {
     echo "Секции шаблонов скопированы в $dstSections\n";
 } else {
     echo "Ошибка копирования секций шаблонов в $dstSections\n";
+}
+
+// Копируем теговые картинки
+$srcTagImages = __DIR__ . '/templates/Теговые_картинки';
+$dstTagImages = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates/Теговые_картинки';
+
+// Диагностика исходной папки
+if (!is_dir($srcTagImages)) {
+    echo "Исходная папка теговых картинок не найдена: $srcTagImages\n";
+} else {
+    echo "Исходная папка теговых картинок найдена: $srcTagImages\n";
+    // Автоматически создаём целевую папку, если её нет
+    if (!is_dir($dstTagImages)) {
+        if (mkdir($dstTagImages, 0777, true)) {
+            echo "Целевая папка теговых картинок создана: $dstTagImages\n";
+        } else {
+            echo "Не удалось создать целевую папку теговых картинок: $dstTagImages\n";
+        }
+    }
+}
+if (copyDir($srcTagImages, $dstTagImages)) {
+    echo "Теговые картинки скопированы в $dstTagImages\n";
+} else {
+    echo "Ошибка копирования теговых картинок в $dstTagImages\n";
 }

@@ -102,7 +102,7 @@ class StateWizardModal extends EntityWizardBase {
                 const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
                 if (configMatch && configMatch[1]) {
                     const parsedConfig = JSON.parse(configMatch[1]);
-                    this.config.governmentTypes = parsedConfig.politics?.governmentTypes || ['Монархия', 'Республика', 'Империя', 'Федерация', 'Конфедерация'];
+                    this.config.governmentTypes = parsedConfig.politics?.governmentTypes || ['Монархия', 'Конституционная монархия', 'Республика', 'Империя', 'Федерация', 'Конфедерация', 'Город-государство'];
                     this.config.climates = parsedConfig.locations?.climates || ['Умеренный', 'Тропический', 'Арктический', 'Пустынный', 'Горный'];
                     this.config.religions = parsedConfig.culture?.religions || ['Монотеизм', 'Политеизм', 'Атеизм', 'Анимизм', 'Пантеизм'];
                     this.config.currencies = parsedConfig.economy?.currencies || ['Золото', 'Серебро', 'Медные монеты', 'Бумажные деньги', 'Криптовалюта'];
@@ -234,10 +234,12 @@ class StateWizardModal extends EntityWizardBase {
             .addDropdown(dropdown => {
                 dropdown.addOptions({
                     'Монархия': 'Монархия',
+                    'Конституционная монархия': 'Конституционная монархия',
                     'Республика': 'Республика',
                     'Империя': 'Империя',
                     'Федерация': 'Федерация',
                     'Конфедерация': 'Конфедерация',
+                    'Город-государство': 'Город-государство',
                     'Олигархия': 'Олигархия',
                     'Теократия': 'Теократия',
                     'Демократия': 'Демократия'

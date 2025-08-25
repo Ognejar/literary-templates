@@ -1,0 +1,4 @@
+Task Progress:
+
+- [x] Create task details file
+- [x] Create todo list file

@@ -17,14 +17,14 @@ const { TFile } = require('obsidian');
 /**
  * Создание завода
  */
-async function createFactory(plugin, startPath = '') {
+var createFactory = async function(plugin, projectRoot, options = {}) {
     try {
         await plugin.logDebug('=== createFactory вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        await plugin.logDebug('startPath: ' + projectRoot);
         // 1. Найти projectRoot от startPath
         let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+        if (projectRoot) {
+            projectRoot = findProjectRoot(plugin.app, projectRoot);
         }
         let project = '';
 

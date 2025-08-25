@@ -10,18 +10,18 @@
  * @docs       docs/project.md
  */
 
-async function createDeadZone(plugin, startPath = '') {
+var createDeadZone = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createDeadZone вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
 
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         }
         let project = '';
-        if (projectRoot) {
-            project = projectRoot;
+        if (resolvedProjectRoot) {
+            project = resolvedProjectRoot;
         } else {
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -59,7 +59,17 @@ async function createDeadZone(plugin, startPath = '') {
             }
             
             const templateContent = await plugin.readTemplateFile('Новая_мертвая_зона');
-            const content = plugin.applyTemplate(templateContent, {
+            // Формируем секции юрисдикции
+            let provinceSection = '';
+            if (deadZoneData.province && deadZoneData.province.trim()) {
+                provinceSection = `**Провинция:** [[${deadZoneData.province.trim()}]]`;
+            }
+            let stateSection = '';
+            if (deadZoneData.state && deadZoneData.state.trim()) {
+                stateSection = `**Государство:** [[${deadZoneData.state.trim()}]]`;
+            }
+
+            let content = plugin.applyTemplate(templateContent, {
                 date: createdDate,
                 zoneName: deadZoneData.zoneName,
                 climate: deadZoneData.climate,
@@ -70,10 +80,31 @@ async function createDeadZone(plugin, startPath = '') {
                 // Статус по умолчанию для мёртвых зон
                 status: deadZoneData.status || 'заброшено',
                 statusReason: deadZoneData.statusReason || 'Затопление',
+                statusLabel: (deadZoneData.status === 'заброшено'
+                    ? '🏚️ Заброшено'
+                    : (deadZoneData.status === 'разрушено'
+                        ? '💥 Разрушено'
+                        : '✅ Действует')),
+                province: deadZoneData.province || '',
+                state: deadZoneData.state || '',
+                country: deadZoneData.country || deadZoneData.state || '',
+                provinceSection,
+                stateSection,
                 findingsContent: findingsContent,
                 projectName: projectName,
                 imageBlock: imageBlock
             });
+
+            // Дополнительная подстраховка замены ключевых плейсхолдеров
+            content = content
+                .replace(/{{province}}/g, deadZoneData.province || '')
+                .replace(/{{state}}/g, (deadZoneData.state || ''))
+                .replace(/{{country}}/g, (deadZoneData.country || deadZoneData.state || ''))
+                .replace(/{{statusLabel}}/g, (deadZoneData.status === 'заброшено'
+                    ? '🏚️ Заброшено'
+                    : (deadZoneData.status === 'разрушено'
+                        ? '💥 Разрушено'
+                        : '✅ Действует')));
             
             const fileName = cleanName;
             const targetFolder = `${project}/Локации`;
@@ -91,6 +122,6 @@ async function createDeadZone(plugin, startPath = '') {
         new Notice('Ошибка при создании мертвой зоны: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createDeadZone };

@@ -90,4 +90,73 @@ class SuggesterModal extends Modal {
     }
 }
 
-module.exports = { PromptModal, SuggesterModal };
+var AIAnalysisResultModal = class extends Modal {
+    constructor(app, Modal, Setting, Notice, title, content) {
+        super(app);
+        this.Modal = Modal;
+        this.Setting = Setting;
+        this.Notice = Notice;
+        this.title = title;
+        this.content = content;
+        this.result = null;
+        this.resolve = null;
+    }
+    
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('ai-analysis-modal');
+        
+        // Заголовок
+        contentEl.createEl('h2', { text: this.title });
+        
+        // Контент (Markdown)
+        const contentDiv = contentEl.createDiv({ cls: 'ai-content' });
+        contentDiv.innerHTML = this.content;
+        
+        // Кнопки действий
+        const buttonsContainer = contentEl.createDiv({ cls: 'ai-buttons' });
+        
+        const insertBtn = buttonsContainer.createEl('button', { 
+            text: '📝 Вставить в заметку', 
+            cls: 'insert-btn' 
+        });
+        insertBtn.addEventListener('click', () => {
+            this.result = 'insert';
+            this.close();
+        });
+        
+        const copyBtn = buttonsContainer.createEl('button', { 
+            text: '📋 Копировать', 
+            cls: 'copy-btn' 
+        });
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(this.content);
+            new this.Notice('Результат скопирован в буфер обмена');
+        });
+        
+        const closeBtn = buttonsContainer.createEl('button', { 
+            text: '❌ Закрыть', 
+            cls: 'close-btn' 
+        });
+        closeBtn.addEventListener('click', () => {
+            this.result = 'close';
+            this.close();
+        });
+    }
+    
+    onClose() {
+        if (this.resolve) {
+            this.resolve(this.result);
+        }
+    }
+    
+    openAndGetValue() {
+        return new Promise((resolve) => {
+            this.resolve = resolve;
+            this.open();
+        });
+    }
+}
+
+module.exports = { PromptModal, SuggesterModal, AIAnalysisResultModal };

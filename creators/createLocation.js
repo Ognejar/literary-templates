@@ -13,18 +13,18 @@
 /**
  * Создание локации
  */
-async function createLocation(plugin, startPath = '') {
+var createLocation = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createLocation вызвана ===');
         await plugin.logDebug('startPath: ' + startPath);
 
-        let projectRoot = '';
+        let resolvedProjectRoot = '';
         if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
+            resolvedProjectRoot = findProjectRoot(plugin.app, startPath) || startPath;
         }
         let project = '';
-        if (projectRoot) {
-            project = projectRoot;
+        if (resolvedProjectRoot) {
+            project = resolvedProjectRoot;
         } else {
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -76,6 +76,6 @@ async function createLocation(plugin, startPath = '') {
         new Notice('Ошибка при создании локации: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createLocation };

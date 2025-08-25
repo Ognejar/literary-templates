@@ -12,7 +12,7 @@
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-class PortWizardModal extends EntityWizardBase {
+var PortWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
@@ -102,13 +102,7 @@ class PortWizardModal extends EntityWizardBase {
             }
 
             // Загружаем государства
-            const statesFolder = `${this.projectPath}/Государства`;
-            const statesFolderObj = this.app.vault.getAbstractFileByPath(statesFolder);
-            if (statesFolderObj && statesFolderObj.children) {
-                this.config.states = statesFolderObj.children
-                    .filter(f => f instanceof TFile && f.extension === 'md')
-                    .map(f => f.basename);
-            }
+            this.config.states = this.loadFilesFromFolder(`${this.projectPath}/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
@@ -327,4 +321,4 @@ class PortWizardModal extends EntityWizardBase {
     }
 }
 
-module.exports = PortWizardModal;
+module.exports = { PortWizardModal };
