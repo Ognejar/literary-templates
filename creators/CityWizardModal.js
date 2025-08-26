@@ -160,10 +160,10 @@ var CityWizardModal = class extends EntityWizardBase {
             }
             
             // Загружаем государства
-            this.config.countries = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
+            this.config.countries = this.loadFilesFromFolder(`${projectRoot}/Локации/Государства`, 'Государства');
             
             // Загружаем все провинции (будут фильтроваться по государству)
-            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Локации/Провинции`, 'Провинции');
             this.config.provinces = []; // Будет заполнено при выборе государства
 
             
@@ -322,19 +322,37 @@ var CityWizardModal = class extends EntityWizardBase {
             });
 
         // Фракция
+        const factions = Array.isArray(this.config.factions) ? this.config.factions : [];
         new this.Setting(contentEl)
             .setName('Доминирующая фракция')
             .addDropdown(dropdown => {
-                dropdown.addOption('', 'Выберите фракцию');
-                this.config.factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.dominantFaction || '');
-                dropdown.onChange(value => this.data.dominantFaction = value);
-                // Унифицированные стили для выпадающего списка
-                dropdown.selectEl.style.minWidth = '320px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
-                dropdown.selectEl.style.borderRadius = '4px';
-                dropdown.selectEl.style.border = '1px solid var(--background-modifier-border)';
+                try {
+                    dropdown.addOption('', 'Выберите фракцию');
+                    factions.forEach(faction => {
+                        if (typeof faction === 'string' && faction.trim()) {
+                            dropdown.addOption(faction, faction);
+                        }
+                    });
+                    const current = typeof this.data.dominantFaction === 'string' ? this.data.dominantFaction : '';
+                    dropdown.setValue(current);
+                    dropdown.onChange(value => {
+                        try {
+                            this.data.dominantFaction = value || '';
+                        } catch (e) {
+                            console.error('Ошибка обработки выбора фракции:', e);
+                            new this.Notice('Ошибка обработки выбора фракции');
+                        }
+                    });
+                    // Унифицированные стили для выпадающего списка
+                    dropdown.selectEl.style.minWidth = '320px';
+                    dropdown.selectEl.style.fontSize = '14px';
+                    dropdown.selectEl.style.padding = '6px';
+                    dropdown.selectEl.style.borderRadius = '4px';
+                    dropdown.selectEl.style.border = '1px solid var(--background-modifier-border)';
+                } catch (e) {
+                    console.error('Ошибка инициализации списка фракций:', e);
+                    new this.Notice('Ошибка инициализации списка фракций');
+                }
             });
     }
 
@@ -392,7 +410,9 @@ var CityWizardModal = class extends EntityWizardBase {
                         this.config.provinces = []; // Очищаем провинции
                     } else {
                         this.data.state = v;
-                        // Фильтруем провинции по выбранному государству
+                        // Фильтруем провинции по выбранному государству (с полной перезагрузкой allProvinces)
+                        // Перезагружаем список всех провинций из папки на случай, если кэш пуст
+                        this.config.allProvinces = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Провинции`, 'Провинции');
                         await this.filterProvincesByCountry(v);
                     }
                     this.render(); 
@@ -591,12 +611,19 @@ var CityWizardModal = class extends EntityWizardBase {
             finishBtn.addEventListener('mouseleave', () => {
                 finishBtn.style.background = 'var(--interactive-accent)';
             });
-            finishBtn.onclick = () => {
+            finishBtn.onclick = async () => {
                 if (this.validateCurrentStep()) {
-                    // Дополнительная валидация соответствия шаблону
                     if (this.validateTemplateMapping()) {
-                        this.onFinish(this.data);
-                        this.close();
+                        try {
+                            // Дождаться завершения создания; закрыть окно только при успехе
+                            if (this.onFinish) {
+                                await this.onFinish(this.data);
+                            }
+                            this.close();
+                        } catch (e) {
+                            console.error('[CityWizardModal] Ошибка создания города:', e);
+                            new this.Notice('Не удалось создать город: ' + (e?.message || e));
+                        }
                     } else {
                         new this.Notice('Ошибка: не все обязательные поля заполнены для создания города.');
                     }

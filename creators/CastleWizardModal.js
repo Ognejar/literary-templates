@@ -122,12 +122,12 @@ var CastleWizardModal = class extends EntityWizardBase {
                 }
             }
 
-            // Список провинций берём из папки `Провинции`
-            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            // Список провинций берём из папки `Локации/Провинции`
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Локации/Провинции`, 'Провинции');
             this.config.provinces = []; // Будет заполнено при выборе государства
 
-            // Список государств берём из папки `Государства`
-            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
+            // Список государств берём из папки `Локации/Государства`
+            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Локации/Государства`, 'Государства');
 
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
             this.data.dominantFaction = this.data.dominantFaction || (this.config.factions[0] || '');

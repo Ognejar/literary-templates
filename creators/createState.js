@@ -67,16 +67,24 @@ var createState = async function(plugin, startPath = '') {
             const markdown = await generateFromTemplate('Новое_государство', data, plugin);
             
             const cleanName = stateData.stateName.trim().replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            const targetFolder = `${project}/Государства`;
+            const targetFolder = `${project}/Локации/Государства`;
             await ensureEntityInfrastructure(targetFolder, cleanName, plugin.app);
-            const targetPath = `${targetFolder}/${cleanName}.md`;
+            // Автонумерация при конфликте имени
+            let fileName = cleanName;
+            const toPath = (n) => `${targetFolder}/${n}.md`;
+            let attempt = 1;
+            while (plugin.app.vault.getAbstractFileByPath(toPath(fileName))) {
+                attempt += 1;
+                fileName = `${cleanName}_${attempt}`;
+            }
+            const targetPath = toPath(fileName);
             await safeCreateFile(targetPath, markdown, plugin.app);
             
             const file = plugin.app.vault.getAbstractFileByPath(targetPath);
             if (file instanceof TFile) {
                 await plugin.app.workspace.getLeaf().openFile(file);
             }
-            new Notice(`Создано государство: ${cleanName}`);
+            new Notice(`Создано государство: ${fileName}`);
         });
         modal.open();
     } catch (error) {

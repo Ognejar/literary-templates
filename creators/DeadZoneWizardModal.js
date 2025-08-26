@@ -102,8 +102,8 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
             }
             
             // Загрузка государств и всех провинций
-            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Государства`, 'Государства');
-            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Провинции`, 'Провинции');
+            this.config.states = this.loadFilesFromFolder(`${projectRoot}/Локации/Государства`, 'Государства');
+            this.config.allProvinces = this.loadFilesFromFolder(`${projectRoot}/Локации/Провинции`, 'Провинции');
             this.config.provinces = [];
 
             // Инициализируем this.data.climate и this.data.faction здесь, после загрузки конфига

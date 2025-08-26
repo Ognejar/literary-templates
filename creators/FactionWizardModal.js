@@ -174,13 +174,59 @@ class FactionWizardModal extends EntityWizardBase {
         const cleanName = name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
         const date = (window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10));
         
+        // Автоматически создаём персонажей в папке Персонажи/
+        const leaders = list(this.data.leaders);
+        const members = list(this.data.members);
+        const allCharacters = [...new Set([...leaders, ...members])]; // Убираем дубликаты
+        
+        for (const charName of allCharacters) {
+            if (charName && charName.trim()) {
+                try {
+                    const charData = {
+                        name: charName.trim(),
+                        date,
+                        description: `Член фракции "${name}"`,
+                        background: `Принадлежит к фракции "${name}"`,
+                        personality: '',
+                        abilities: '',
+                        relationships: `[[${name}]]`,
+                        goals: '',
+                        faction: name,
+                        tagImage: ''
+                    };
+                    
+                    // Ищем картинку для персонажа
+                    try {
+                        if (window.litSettingsService) {
+                            charData.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Персонаж') || '';
+                        }
+                    } catch {}
+                    
+                    const charContent = await window.generateFromTemplate('Новый_персонаж', charData, this.plugin);
+                    const charFolder = `${this.projectPath}/Персонажи`;
+                    const charCleanName = charName.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
+                    
+                    await window.ensureEntityInfrastructure(charFolder, charCleanName, this.app);
+                    const charPath = `${charFolder}/${charCleanName}.md`;
+                    
+                    // Проверяем, не существует ли уже файл
+                    const existingFile = this.app.vault.getAbstractFileByPath(charPath);
+                    if (!existingFile) {
+                        await window.safeCreateFile(charPath, charContent, this.app);
+                    }
+                } catch (error) {
+                    console.warn(`Не удалось создать персонажа "${charName}":`, error);
+                }
+            }
+        }
+        
         const data = {
             name,
             date,
             description: clean(this.data.description),
             ideology: clean(this.data.ideology),
-            leadersContent: list(this.data.leaders).map(x => `[[${x}]]`).join(', '),
-            membersContent: list(this.data.members).map(x => `[[${x}]]`).join(', '),
+            leadersContent: leaders.map(x => `[[${x}]]`).join(', '),
+            membersContent: members.map(x => `[[${x}]]`).join(', '),
             resourcesContent: list(this.data.resources).map(x => `- ${x}`).join('\n'),
             territoriesContent: list(this.data.territories).map(x => `- ${x}`).join('\n'),
             relationsContent: list(this.data.relations).map(x => `- ${x}`).join('\n'),
@@ -200,7 +246,7 @@ class FactionWizardModal extends EntityWizardBase {
         } catch {}
         
         const content = await window.generateFromTemplate('Новая_фракция', data, this.plugin);
-        const folder = `${this.projectPath}/Фракции`;
+        const folder = `${this.projectPath}/Локации/Фракции`;
         
         if (this.options.targetFile instanceof TFile) {
             await this.app.vault.modify(this.options.targetFile, content);
@@ -213,7 +259,12 @@ class FactionWizardModal extends EntityWizardBase {
             if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
         }
         
-        new this.Notice(`Фракция «${name}» создана.`);
+        const createdCount = allCharacters.length;
+        const message = createdCount > 0 
+            ? `Фракция «${name}» создана. Также создано ${createdCount} персонажей в папке Персонажи/.`
+            : `Фракция «${name}» создана.`;
+        
+        new this.Notice(message);
         this.close();
         if (this.onFinish) this.onFinish();
     }

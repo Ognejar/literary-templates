@@ -77,7 +77,28 @@
 
   async function getFactions(app, projectRoot) {
     const settings = await readWorldSettings(app, projectRoot);
-    return ensureArray(settings.factions);
+    let factions = ensureArray(settings.factions);
+    
+    // Автоматически добавляем фракции из папки Фракции/
+    if (projectRoot) {
+      try {
+        const factionsFolder = app.vault.getAbstractFileByPath(`${projectRoot}/Локации/Фракции`);
+        if (factionsFolder && factionsFolder.children) {
+          const createdFactions = factionsFolder.children
+            .filter(file => file.extension === 'md')
+            .map(file => file.basename)
+            .filter(name => name && name.trim());
+          
+          // Объединяем статические фракции с созданными, убираем дубликаты
+          const allFactions = [...new Set([...factions, ...createdFactions])];
+          return allFactions.sort();
+        }
+      } catch (error) {
+        console.warn('Ошибка сканирования папки Фракции:', error);
+      }
+    }
+    
+    return factions;
   }
 
   async function getLocationTypes(app, projectRoot) {

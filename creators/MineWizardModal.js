@@ -96,7 +96,7 @@ var MineWizardModal = class extends EntityWizardBase {
             }
 
             // Загружаем провинции
-            const provincesFolder = `${this.projectRoot}/Провинции`;
+            const provincesFolder = `${this.projectRoot}/Локации/Провинции`;
             const provincesFolderObj = this.app.vault.getAbstractFileByPath(provincesFolder);
             if (provincesFolderObj && provincesFolderObj.children) {
                 this.config.provinces = provincesFolderObj.children
@@ -105,7 +105,7 @@ var MineWizardModal = class extends EntityWizardBase {
             }
 
             // Загружаем государства
-            this.config.states = this.loadFilesFromFolder(`${this.projectRoot}/Государства`, 'Государства');
+            this.config.states = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');

@@ -89,10 +89,17 @@ var createProvince = async function(plugin, startPath = '') {
                 imageBlock
             });
 
-            const fileName = cleanName;
-            const targetFolder = `${project}/Провинции`;
-            await ensureEntityInfrastructure(targetFolder, fileName, plugin.app);
-            const targetPath = `${targetFolder}/${fileName}.md`;
+            // Гарантируем уникальность имени файла (автонумерация)
+            const targetFolder = `${project}/Локации/Провинции`;
+            await ensureEntityInfrastructure(targetFolder, cleanName, plugin.app);
+            let fileName = cleanName;
+            const makePath = (n) => `${targetFolder}/${n}.md`;
+            let attempt = 1;
+            while (plugin.app.vault.getAbstractFileByPath(makePath(fileName))) {
+                attempt += 1;
+                fileName = `${cleanName}_${attempt}`;
+            }
+            const targetPath = makePath(fileName);
             await safeCreateFile(targetPath, content, plugin.app);
 
             const file = plugin.app.vault.getAbstractFileByPath(targetPath);

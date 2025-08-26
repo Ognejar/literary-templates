@@ -147,7 +147,7 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
 
     async loadStates() {
         try {
-            const folder = `${this.projectRoot}/Государства`;
+            const folder = `${this.projectRoot}/Локации/Государства`;
             const files = this.app.vault.getMarkdownFiles().filter(f => f.parent && f.parent.path === folder);
             return files.map(f => f.basename).sort((a,b)=>a.localeCompare(b));
         } catch { return []; }
@@ -155,7 +155,7 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
 
     async loadProvincesByState(stateName) {
         try {
-            const folder = `${this.projectRoot}/Провинции`;
+            const folder = `${this.projectRoot}/Локации/Провинции`;
             const files = this.app.vault.getMarkdownFiles().filter(f => f.parent && f.parent.path === folder);
             const out = [];
             for (const f of files) {

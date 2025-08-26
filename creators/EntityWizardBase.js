@@ -79,16 +79,26 @@ class EntityWizardBase extends HtmlWizardModal {
      */
     loadFilesFromFolder(folderPath, excludeName = null) {
         const folderObj = this.app.vault.getAbstractFileByPath(folderPath);
-        if (!folderObj || !folderObj.children) {
-            return [];
+        let files = [];
+        // Основной способ — напрямую из детей папки
+        if (folderObj && Array.isArray(folderObj.children) && folderObj.children.length > 0) {
+            for (const child of folderObj.children) {
+                if (child.extension === 'md' &&
+                    !child.basename.startsWith('.') &&
+                    (!excludeName || child.basename !== excludeName)) {
+                    files.push(child.basename);
+                }
+            }
         }
-        
-        const files = [];
-        for (const child of folderObj.children) {
-            if (child.extension === 'md' && 
-                !child.basename.startsWith('.') && 
-                (!excludeName || child.basename !== excludeName)) {
-                files.push(child.basename);
+        // Фолбэк — скан всех markdown-файлов по точному пути родителя
+        if (files.length === 0) {
+            const allMd = this.app.vault.getMarkdownFiles() || [];
+            for (const f of allMd) {
+                if (f.parent && f.parent.path === folderPath) {
+                    if (!excludeName || f.basename !== excludeName) {
+                        files.push(f.basename);
+                    }
+                }
             }
         }
         return files;
@@ -106,17 +116,29 @@ class EntityWizardBase extends HtmlWizardModal {
             return [];
         }
 
+        // Экранируем имя для безопасного использования в RegExp
+        const esc = (s) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const nameRe = esc(stateName);
+        // Ищем ключи state или country, допускаем кавычки ' или ", а также отсутствие кавычек
+        const yamlKeyRe = new RegExp(`\\b(state|country)\\s*:\\s*['\"]?${nameRe}['\"]?\\b`, 'i');
+        // Фолбэк: встреча в тексте wiki-ссылки на государство, либо явной строки "Государство: [[...]]"
+        const wikiLinkRe = new RegExp(`\\[\\[${nameRe}(?:\\||\\\\]\\])`, 'i');
+        const labelLineRe = new RegExp(`Государство\\s*:\\s*\\[\\[${nameRe}(?:\\||\\\\]\\])`, 'i');
+
         try {
             const filteredProvinces = [];
             for (const provinceName of allProvinces) {
-                const provinceFile = this.app.vault.getAbstractFileByPath(`${projectRoot}/Провинции/${provinceName}.md`);
-                if (provinceFile) {
+                const provinceFile = this.app.vault.getAbstractFileByPath(`${projectRoot}/Локации/Провинции/${provinceName}.md`);
+                if (!provinceFile) continue;
+                try {
                     const content = await this.app.vault.read(provinceFile);
-                    const stateMatch = content.match(/state:\s*"([^"]+)"/);
-                    if (stateMatch && stateMatch[1] === stateName) {
+                    // Пытаемся анализировать только фронтматтер, если он есть
+                    const fmMatch = content.match(/^---[\s\S]*?---/m);
+                    const scope = fmMatch ? fmMatch[0] : content;
+                    if (yamlKeyRe.test(scope) || wikiLinkRe.test(content) || labelLineRe.test(content)) {
                         filteredProvinces.push(provinceName);
                     }
-                }
+                } catch {}
             }
             return filteredProvinces;
         } catch (e) {

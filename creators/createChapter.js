@@ -13,15 +13,21 @@
 /**
  * Создание главы
  */
-var createChapter = async function(plugin, projectRoot, options = {}) {
+var createChapter = async function(plugin, startPath = '', options = {}) {
     try {
         await plugin.logDebug('=== createChapter вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
-        // 1. Найти projectRoot от startPath
+        // 1. Найти projectRoot от startPath / активного файла / списка проектов
         let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(plugin.app, startPath);
-        }
+        try {
+            if (startPath) {
+                projectRoot = findProjectRoot(plugin.app, startPath) || '';
+            }
+            if (!projectRoot) {
+                const activeFile = plugin.app.workspace.getActiveFile();
+                const parent = activeFile && activeFile.parent ? activeFile.parent.path : '';
+                if (parent) projectRoot = findProjectRoot(plugin.app, parent) || '';
+            }
+        } catch {}
         let project = '';
 
         if (projectRoot) {
@@ -42,7 +48,7 @@ var createChapter = async function(plugin, projectRoot, options = {}) {
         }
         await plugin.logDebug('project: ' + project);
         const projectName = project.split('/').pop();
-        const chaptersFolder = `${project}/Главы`;
+        const chaptersFolder = `${project}/1_Рукопись/Главы`;
         await plugin.app.vault.createFolder(chaptersFolder).catch(()=>{});
 
         // 2. Генерация номера главы

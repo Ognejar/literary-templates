@@ -106,8 +106,8 @@ var ProvinceWizardModal = class extends EntityWizardBase {
 
     async createStateFile(stateName) {
         try {
-            // Создаем папку Государства, если её нет
-            const statesFolderPath = `${this.projectRoot}/Государства`;
+            // Создаем папку Локации/Государства, если её нет
+            const statesFolderPath = `${this.projectRoot}/Локации/Государства`;
             let statesFolder = this.app.vault.getAbstractFileByPath(statesFolderPath);
             if (!statesFolder) {
                 await this.app.vault.createFolder(statesFolderPath);
@@ -287,7 +287,7 @@ tags: [place, государство]
 
     async loadStatesFromFolder() {
         try {
-            return this.loadFilesFromFolder(`${this.projectRoot}/Государства`, 'Государства');
+            return this.loadFilesFromFolder(`${this.projectRoot}/Локации/Государства`, 'Государства');
         } catch (e) {
             console.error('Ошибка загрузки государств из папки:', e);
             return [];

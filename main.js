@@ -204,15 +204,30 @@ async function ensureEntityInfrastructure(folderPath, _entityName, app) {
  */
 async function safeCreateFile(filePath, content, app) {
     try {
-        // Проверяем, существует ли файл
-        const existingFile = app.vault.getAbstractFileByPath(filePath);
+        // Если файл существует — автонумерация: Имя -> Имя_2, Имя_3, ...
+        let finalPath = filePath;
+        let existingFile = app.vault.getAbstractFileByPath(finalPath);
         if (existingFile) {
-            console.warn(`[DEBUG] Файл уже существует: ${filePath}`);
-            return existingFile;
+            // Разбираем путь
+            const parts = String(filePath).split('/');
+            const fileWithExt = parts.pop();
+            const folderPath = parts.join('/');
+            const dotIdx = fileWithExt.lastIndexOf('.');
+            const base = dotIdx !== -1 ? fileWithExt.slice(0, dotIdx) : fileWithExt;
+            const ext = dotIdx !== -1 ? fileWithExt.slice(dotIdx) : '';
+            let attempt = 1;
+            let candidate;
+            do {
+                attempt += 1;
+                candidate = `${folderPath}/${base}_${attempt}${ext}`;
+                existingFile = app.vault.getAbstractFileByPath(candidate);
+            } while (existingFile);
+            finalPath = candidate;
+            console.warn(`[DEBUG] Файл уже существовал, используем имя: ${finalPath}`);
         }
-        // Создаем файл
-        const newFile = await app.vault.create(filePath, content);
-        console.log(`[DEBUG] Файл успешно создан: ${filePath}`);
+        // Создаем файл с уникальным именем
+        const newFile = await app.vault.create(finalPath, content);
+        console.log(`[DEBUG] Файл успешно создан: ${finalPath}`);
         return newFile;
     } catch (error) {
         console.error(`[DEBUG] Ошибка создания файла ${filePath}: ${error.message}`);
@@ -1195,7 +1210,23 @@ class LiteraryTemplatesPlugin extends Plugin {
                     }
                     
                     // Пропускаем папки, которые создаются системно при создании сущностей
-                    const systemFolders = ['Государства', 'Персонажи', 'Магия', 'Справочник', 'Руководства', 'Провинции', 'Города', 'Деревни', 'Замки', 'Порты', 'Шахты', 'Фермы', 'Заводы', 'Зелья', 'Заклинания', 'Артефакты', 'Алхимия', 'События', 'Конфликты', 'Организации', 'Религии', 'Культы', 'Торговые_пути', 'Фракции', 'Квесты', 'Задачи'];
+                    const systemFolders = [
+                                // Рукопись и её подкатегории
+        '1_Рукопись', 'Главы', 'Сцены', 'События', 'Конфликты', 'Квесты',
+                        
+                        // Локации и их подкатегории
+                        'Локации', 'Государства', 'Провинции', 'Фракции', 'Торговые_пути',
+                        'Города', 'Деревни', 'Замки', 'Порты', 'Шахты', 'Фермы', 'Заводы', 'Мёртвые_зоны',
+                        
+                        // Персонажи и социальные объекты
+                        'Персонажи', 'Народы', 'Организации', 'Религии', 'Культы',
+                        
+                        // Магия и её подкатегории
+                        'Магия', 'Зелья', 'Заклинания', 'Артефакты', 'Алхимия',
+                        
+                        // Справочники и задачи
+                        'Справочник', 'Руководства', 'Задачи'
+                    ];
                     if (systemFolders.includes(folderName)) {
                         return; // Пропускаем системные папки
                     }
@@ -1344,6 +1375,13 @@ class LiteraryTemplatesPlugin extends Plugin {
             id: 'create-organization',
             name: 'Создать организацию (мастер)',
             callback: () => createOrganizationWizard(this, ''),
+        });
+
+        // Социальные учреждения (единый мастер)
+        this.addCommand({
+            id: 'create-social-institution',
+            name: 'Создать социальный объект (мастер)',
+            callback: () => (window.createSocialInstitution ? window.createSocialInstitution(this, '') : null),
         });
         
         // Команда 'Управление AI ключами' регистрируется ниже, удалён дубликат
@@ -1957,16 +1995,65 @@ class LiteraryTemplatesPlugin extends Plugin {
                 try {
                     let raw = '';
                     this.logDebug('Пробуем прочитать буфер обмена...');
+                    
+                    // Проверяем доступность буфера обмена
                     if (navigator && navigator.clipboard && navigator.clipboard.readText) {
-                        raw = await navigator.clipboard.readText();
-                        this.logDebug('Буфер обмена прочитан, длина: ' + raw.length);
+                        try {
+                            // Запрашиваем разрешение на доступ к буферу
+                            const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+                            this.logDebug('Разрешение на буфер: ' + permission.state);
+                            
+                            if (permission.state === 'denied') {
+                                this.logDebug('Доступ к буферу запрещён');
+                                new Notice('Доступ к буферу обмена запрещён. Разрешите доступ в настройках браузера.');
+                                return;
+                            }
+                            
+                            raw = await navigator.clipboard.readText();
+                            this.logDebug('Буфер обмена прочитан, длина: ' + raw.length);
+                        } catch (clipboardError) {
+                            this.logDebug('Ошибка чтения буфера: ' + clipboardError.message);
+                            new Notice('Ошибка чтения буфера обмена: ' + clipboardError.message);
+                            return;
+                        }
+                    } else if (document.queryCommandSupported && document.queryCommandSupported('paste')) {
+                        // Альтернативный способ для старых браузеров
+                        this.logDebug('Пробуем альтернативный способ чтения буфера...');
+                        try {
+                            // Создаём временный textarea для вставки
+                            const textarea = document.createElement('textarea');
+                            textarea.style.position = 'fixed';
+                            textarea.style.left = '-9999px';
+                            document.body.appendChild(textarea);
+                            textarea.focus();
+                            
+                            // Пытаемся вставить
+                            const success = document.execCommand('paste');
+                            if (success) {
+                                raw = textarea.value;
+                                this.logDebug('Буфер прочитан альтернативным способом, длина: ' + raw.length);
+                            } else {
+                                throw new Error('Не удалось выполнить команду paste');
+                            }
+                            
+                            document.body.removeChild(textarea);
+                        } catch (altError) {
+                            this.logDebug('Альтернативный способ не сработал: ' + altError.message);
+                            new Notice('Не удалось прочитать буфер обмена. Скопируйте JSON вручную.');
+                            return;
+                        }
                     } else {
-                        this.logDebug('Буфер обмена недоступен');
+                        this.logDebug('Буфер обмена недоступен в этом браузере');
+                        new Notice('Буфер обмена недоступен в этом браузере');
                         return;
                     }
 
                     // Предочистка ввода
+                    this.logDebug('Сырой текст из буфера: ' + raw.substring(0, 200) + '...');
+                    
                     let s = cleanJsonInput ? cleanJsonInput(raw) : String(raw || '').trim();
+                    this.logDebug('После очистки: ' + s.substring(0, 200) + '...');
+                    
                     // Удаляем многоточия в конце (… или ...)
                     s = s.replace(/[\u2026.]{3,}\s*$/u, '');
                     // Удаляем висячие запятые перед ] или }
@@ -1977,21 +2064,27 @@ class LiteraryTemplatesPlugin extends Plugin {
                         const last = s.lastIndexOf(']');
                         if (first !== -1 && last !== -1 && last > first) {
                             s = s.slice(first, last + 1).trim();
+                            this.logDebug('Извлечён массив из позиции ' + first + ' до ' + last);
                         }
                     }
+                    
+                    this.logDebug('Финальный текст для парсинга: ' + s.substring(0, 200) + '...');
 
                     let parsed = [];
                     try {
                         parsed = JSON.parse(s);
                         this.logDebug('JSON успешно распарсен, элементов: ' + (Array.isArray(parsed) ? parsed.length : 'не массив'));
+                        new Notice(`JSON распарсен: ${parsed.length} элементов`);
                     } catch (e) {
                         this.logDebug('Ошибка парсинга JSON после очистки: ' + e.message);
                         // Логируем первые 200 символов для диагностики
                         this.logDebug('Фрагмент ввода: ' + s.slice(0, 200));
+                        new Notice('Ошибка парсинга JSON: ' + e.message);
                         return;
                     }
                     if (!Array.isArray(parsed)) {
                         this.logDebug('Ожидался массив фактов');
+                        new Notice('Ожидался массив фактов в JSON');
                         return;
                     }
 
@@ -2016,6 +2109,9 @@ class LiteraryTemplatesPlugin extends Plugin {
                         if (!ok) skipped++;
                         return ok;
                     });
+                    
+                    this.logDebug(`Обработано фактов: ${newFacts.length}, пропущено: ${skipped}`);
+                    new Notice(`Обработано фактов: ${newFacts.length}, пропущено: ${skipped}`);
 
                     // Определяем корень проекта
                     const active = this.app.workspace.getActiveFile();
@@ -2078,8 +2174,222 @@ class LiteraryTemplatesPlugin extends Plugin {
                     const merged = Array.from(index.values());
                     await saveFacts(this.app, projectRoot, merged);
                     this.logDebug(`Импорт фактов завершён: добавлено ${added}, обновлено ${updated}, пропущено ${skipped}`);
+                    new Notice(`Импорт завершён: +${added}, обновлено ${updated}, пропущено ${skipped}`);
                 } catch (e) {
                     this.logDebug('Ошибка импорта фактов: ' + e.message + (e.stack ? '\n' + e.stack : ''));
+                    new Notice('Ошибка импорта фактов: ' + e.message);
+                }
+            }
+        });
+
+        // Импорт фактов через ручной ввод JSON
+        this.addCommand({
+            id: 'import-facts-manual',
+            name: 'Импортировать факты (ручной ввод)',
+            callback: async () => {
+                this.logDebug('=== Ручной импорт фактов: команда вызвана ===');
+                try {
+                    const raw = await this.prompt('Вставьте JSON с фактами:');
+                    if (!raw || !raw.trim()) {
+                        this.logDebug('JSON не введён');
+                        return;
+                    }
+
+                    this.logDebug('Ручной ввод получен, длина: ' + raw.length);
+                    
+                    // Используем ту же логику обработки
+                    let s = cleanJsonInput ? cleanJsonInput(raw) : String(raw || '').trim();
+                    this.logDebug('После очистки: ' + s.substring(0, 200) + '...');
+                    
+                    // Удаляем многоточия в конце (… или ...)
+                    s = s.replace(/[\u2026.]{3,}\s*$/u, '');
+                    // Удаляем висячие запятые перед ] или }
+                    s = s.replace(/,\s*(\]|\})/g, '$1');
+                    // Если в тексте есть несколько блоков, оставляем самый внешний массив
+                    if (!(s.trim().startsWith('[') && s.trim().endsWith(']'))) {
+                        const first = s.indexOf('[');
+                        const last = s.lastIndexOf(']');
+                        if (first !== -1 && last !== -1 && last > first) {
+                            s = s.slice(first, last + 1).trim();
+                            this.logDebug('Извлечён массив из позиции ' + first + ' до ' + last);
+                        }
+                    }
+                    
+                    this.logDebug('Финальный текст для парсинга: ' + s.substring(0, 200) + '...');
+
+                    let parsed = [];
+                    try {
+                        parsed = JSON.parse(s);
+                        this.logDebug('JSON успешно распарсен, элементов: ' + (Array.isArray(parsed) ? parsed.length : 'не массив'));
+                        new Notice(`JSON распарсен: ${parsed.length} элементов`);
+                    } catch (e) {
+                        this.logDebug('Ошибка парсинга JSON после очистки: ' + e.message);
+                        this.logDebug('Фрагмент ввода: ' + s.slice(0, 200));
+                        new Notice('Ошибка парсинга JSON: ' + e.message);
+                        return;
+                    }
+                    if (!Array.isArray(parsed)) {
+                        this.logDebug('Ожидался массив фактов');
+                        new Notice('Ожидался массив фактов в JSON');
+                        return;
+                    }
+
+                    // Нормализация ключей к русской схеме и правка отношений
+                    let skipped = 0;
+                    const newFacts = parsed.map(f => normalizeRussianFactKeys(f)).map(f => {
+                        // Приводим отношения к массиву
+                        if (f && f['отношения'] && !Array.isArray(f['отношения'])) {
+                            const rel = f['отношения'];
+                            if (rel && typeof rel === 'object') {
+                                const keys = Object.keys(rel);
+                                f['отношения'] = keys.length === 0
+                                    ? []
+                                    : keys.map(k => ({ 'связь': k, 'объект': String(rel[k]) }));
+                            } else {
+                                f['отношения'] = [];
+                            }
+                        }
+                        return f;
+                    }).filter(f => {
+                        const ok = f && typeof f === 'object' && f['тип'] && f['имя'];
+                        if (!ok) skipped++;
+                        return ok;
+                    });
+                    
+                    this.logDebug(`Обработано фактов: ${newFacts.length}, пропущено: ${skipped}`);
+                    new Notice(`Обработано фактов: ${newFacts.length}, пропущено: ${skipped}`);
+
+                    // Определяем корень проекта
+                    const active = this.app.workspace.getActiveFile();
+                    const parentPath = active && active.parent ? active.parent.path : '';
+                    let projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
+                    if (!projectRoot) {
+                        // Пытаемся выбрать первый доступный проект
+                        try {
+                            const roots = await getAllProjectRoots(this.app);
+                            if (roots && roots.length > 0) projectRoot = roots[0];
+                        } catch {}
+                    }
+                    this.logDebug('projectRoot: ' + projectRoot);
+                    if (!projectRoot) {
+                        this.logDebug('Проект не найден для импорта фактов');
+                        new Notice('Проект не найден для импорта фактов');
+                        return;
+                    }
+
+                    // Загружаем существующие факты
+                    let existing = await loadFacts(this.app, projectRoot);
+                    if (!Array.isArray(existing)) existing = [];
+                    this.logDebug('Загружено существующих фактов: ' + existing.length);
+
+                    // Индекс по тип+имя
+                    const index = new Map();
+                    for (const f of existing) {
+                        const key = `${f['тип']}|${f['имя']}`;
+                        index.set(key, { ...f });
+                    }
+
+                    // Умный merge
+                    let added = 0, updated = 0;
+                    for (const f of newFacts) {
+                        const key = `${f['тип']}|${f['имя']}`;
+                        if (index.has(key)) {
+                            const old = index.get(key);
+                            // Объединяем атрибуты
+                            old['атрибуты'] = { ...(old['атрибуты'] || {}), ...(f['атрибуты'] || {}) };
+                            // Объединяем отношения без дубликатов
+                            const oldRels = Array.isArray(old['отношения']) ? old['отношения'] : [];
+                            const newRels = Array.isArray(f['отношения']) ? f['отношения'] : [];
+                            const relSet = new Set(oldRels.map(r => JSON.stringify(r)));
+                            for (const r of newRels) {
+                                const srl = JSON.stringify(r);
+                                if (!relSet.has(srl)) {
+                                    oldRels.push(r);
+                                    relSet.add(srl);
+                                }
+                            }
+                            old['отношения'] = oldRels;
+                            index.set(key, old);
+                            updated++;
+                        } else {
+                            index.set(key, f);
+                            added++;
+                        }
+                    }
+
+                    // Сохраняем
+                    const merged = Array.from(index.values());
+                    await saveFacts(this.app, projectRoot, merged);
+                    this.logDebug(`Импорт фактов завершён: добавлено ${added}, обновлено ${updated}, пропущено ${skipped}`);
+                    new Notice(`Импорт завершён: +${added}, обновлено ${updated}, пропущено ${skipped}`);
+                } catch (e) {
+                    this.logDebug('Ошибка ручного импорта фактов: ' + e.message + (e.stack ? '\n' + e.stack : ''));
+                    new Notice('Ошибка ручного импорта фактов: ' + e.message);
+                }
+            }
+        });
+
+        // Просмотр текущей базы фактов
+        this.addCommand({
+            id: 'view-facts-database',
+            name: 'Просмотреть базу фактов',
+            callback: async () => {
+                this.logDebug('=== Просмотр базы фактов: команда вызвана ===');
+                try {
+                    // Определяем корень проекта
+                    const active = this.app.workspace.getActiveFile();
+                    const parentPath = active && active.parent ? active.parent.path : '';
+                    let projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
+                    if (!projectRoot) {
+                        try {
+                            const roots = await getAllProjectRoots(this.app);
+                            if (roots && roots.length > 0) projectRoot = roots[0];
+                        } catch {}
+                    }
+                    
+                    if (!projectRoot) {
+                        new Notice('Проект не найден');
+                        return;
+                    }
+
+                    // Загружаем факты
+                    const facts = await loadFacts(this.app, projectRoot);
+                    if (!Array.isArray(facts) || facts.length === 0) {
+                        new Notice('База фактов пуста');
+                        return;
+                    }
+
+                    // Создаём временный файл для просмотра
+                    const content = `# База фактов проекта: ${projectRoot}
+
+## Статистика
+- Всего фактов: ${facts.length}
+- Типы: ${[...new Set(facts.map(f => f['тип'] || 'неизвестно'))].join(', ')}
+
+## Все факты
+\`\`\`json
+${JSON.stringify(facts, null, 2)}
+\`\`\`
+
+---
+*Создано автоматически для просмотра базы фактов*
+`;
+
+                    const fileName = `База_фактов_${new Date().toISOString().slice(0, 10)}.md`;
+                    const filePath = `${projectRoot}/${fileName}`;
+                    
+                    await this.app.vault.create(filePath, content);
+                    new Notice(`База фактов экспортирована в ${fileName}`);
+                    
+                    // Открываем файл
+                    const file = this.app.vault.getAbstractFileByPath(filePath);
+                    if (file) {
+                        this.app.workspace.openLinkText(fileName, filePath);
+                    }
+                    
+                } catch (e) {
+                    this.logDebug('Ошибка просмотра базы фактов: ' + e.message);
+                    new Notice('Ошибка просмотра базы фактов: ' + e.message);
                 }
             }
         });
@@ -4176,7 +4486,14 @@ async function createConflictWizard(plugin, projectPath, options = {}) {
 
 async function createOrganizationWizard(plugin, projectPath, options = {}) {
     const { OrganizationWizardModal } = require('./creators/OrganizationWizardModal.js');
-    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    // Гарантируем, что в модал уходит именно корень проекта
+    let root = projectPath || '';
+    try {
+        const active = plugin.app.workspace.getActiveFile();
+        const parentPath = projectPath || (active && active.parent ? active.parent.path : '');
+        root = (typeof findProjectRoot === 'function' ? (findProjectRoot(plugin.app, parentPath) || '') : '') || plugin.activeProjectRoot || projectPath || '';
+    } catch {}
+    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, root, () => {}, options);
     modal.open();
 }
 
@@ -4559,7 +4876,7 @@ class PromptSelectorModal extends HtmlWizardModal {
         importItem.onclick = () => {
             try {
                 // Важно: вызываем команду сразу в обработчике клика (user gesture)
-                this.app.commands.executeCommandById('import-facts-from-clipboard');
+                this.app.commands.executeCommandById('literary-templates:import-facts-from-clipboard');
             } catch (err) {
                 if (this.app && this.app.logDebug) this.app.logDebug('Ошибка вызова команды импорта: ' + err.message);
             } finally {

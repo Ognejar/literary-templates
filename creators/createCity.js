@@ -76,13 +76,28 @@ var createCity = async function(plugin, startPath = '', options = {}) {
                 }
                 const imageBlock = tagImage ? `![[${tagImage}]]` : '';
 
-                // Формируем данные для шаблона с ссылками на заметки
-                const cityNameForFile = cleanName;
+                // Определяем целевую папку и финальное имя файла (с авто-нумерацией при конфликте)
+                const targetFolder = `${project}/Локации/Города`;
+                await plugin.logDebug('targetFolder: ' + targetFolder);
+                await ensureEntityInfrastructure(targetFolder, cleanName, plugin.app);
+                
+                let fileName = cleanName;
+                const makePath = (name) => `${targetFolder}/${name}.md`;
+                let attempt = 1;
+                // Если файл существует — добавляем суффикс _2, _3, ...
+                while (plugin.app.vault.getAbstractFileByPath(makePath(fileName))) {
+                    attempt += 1;
+                    fileName = `${cleanName}_${attempt}`;
+                }
+                await plugin.logDebug('final fileName: ' + fileName);
+                
+                // Формируем данные для шаблона с ссылками на заметки под финальное имя файла
+                const cityNameForFile = fileName;
                 // Определяем государство
                 let country = '';
                 if (cityData.jurisdictionMode === 'province' && cityData.province) {
                     // Если есть провинция, ищем её государство
-                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Провинции/${cityData.province}.md`);
+                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Локации/Провинции/${cityData.province}.md`);
                     if (provinceFile) {
                         try {
                             const provinceContent = await plugin.app.vault.read(provinceFile);
@@ -132,37 +147,10 @@ var createCity = async function(plugin, startPath = '', options = {}) {
                 const content = await generateFromTemplate('Новый_город', data, plugin);
                 await plugin.logDebug('Контент сгенерирован, длина: ' + content.length);
                 
-                const fileName = cleanName;
-                const targetFolder = `${project}/Локации/Города`;
-                await plugin.logDebug('targetFolder: ' + targetFolder);
-                
-                // Проверяем существование папки
-                const folderExists = plugin.app.vault.getAbstractFileByPath(targetFolder);
-                await plugin.logDebug('Папка существует: ' + (folderExists ? 'Да' : 'Нет'));
-                if (folderExists) {
-                    await plugin.logDebug('Тип папки: ' + folderExists.constructor.name);
-                    await plugin.logDebug('Путь папки: ' + folderExists.path);
-                }
-                
-                await plugin.logDebug('Создаем инфраструктуру...');
-                await ensureEntityInfrastructure(targetFolder, fileName, plugin.app);
-                
-                // Проверяем папку после создания инфраструктуры
-                const folderAfterCreation = plugin.app.vault.getAbstractFileByPath(targetFolder);
-                await plugin.logDebug('Папка после создания инфраструктуры: ' + (folderAfterCreation ? 'Да' : 'Нет'));
-                
-                const targetPath = `${targetFolder}/${fileName}.md`;
+                const targetPath = makePath(fileName);
                 await plugin.logDebug('targetPath: ' + targetPath);
                 await plugin.logDebug('targetPath тип: ' + typeof targetPath);
                 await plugin.logDebug('targetPath длина: ' + targetPath.length);
-                
-                // Проверяем, существует ли уже файл с таким путем
-                const existingFileCheck = plugin.app.vault.getAbstractFileByPath(targetPath);
-                await plugin.logDebug('Файл уже существует по пути: ' + (existingFileCheck ? 'Да' : 'Нет'));
-                if (existingFileCheck) {
-                    await plugin.logDebug('Тип существующего файла: ' + existingFileCheck.constructor.name);
-                    await plugin.logDebug('Путь существующего файла: ' + existingFileCheck.path);
-                }
                 
                 await plugin.logDebug('Создаем файл...');
                 const file = await safeCreateFile(targetPath, content, plugin.app);
@@ -171,18 +159,13 @@ var createCity = async function(plugin, startPath = '', options = {}) {
                     await plugin.logDebug('Файл успешно создан, открываем...');
                     await plugin.app.workspace.getLeaf().openFile(file);
                     new Notice(`Создан город: ${fileName}`);
-                } else {
-                    await plugin.logDebug('Файл уже существовал, открываем...');
-                    const existingFile = plugin.app.vault.getAbstractFileByPath(targetPath);
-                    if (existingFile instanceof TFile) {
-                        await plugin.app.workspace.getLeaf().openFile(existingFile);
-                        new Notice(`Открыт существующий город: ${fileName}`);
-                    }
                 }
             } catch (error) {
                 await plugin.logDebug('Ошибка в обработке данных города: ' + error.message);
                 new Notice('Ошибка при создании города: ' + error.message);
                 console.error('Ошибка в createCity:', error);
+                // Пробрасываем ошибку дальше, чтобы мастер не закрылся
+                throw error;
             }
         });
         modal.open();
