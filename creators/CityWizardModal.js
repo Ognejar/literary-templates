@@ -739,6 +739,6 @@ var CityWizardModal = class extends EntityWizardBase {
         
         this.close();
     }
-}
+};
 
 module.exports = { CityWizardModal };

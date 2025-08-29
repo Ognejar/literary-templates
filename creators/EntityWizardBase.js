@@ -13,16 +13,40 @@
 const { HtmlWizardModal } = require('./HtmlWizardModal');
 const { TFile } = require('obsidian');
 
+/**
+ * Базовый класс для мастеров создания сущностей
+ * Предоставляет общие методы для работы с UI, фильтрации и анализа контента
+ */
 class EntityWizardBase extends HtmlWizardModal {
+    
+    /**
+     * Конструктор базового класса
+     * @param {Object} app - экземпляр приложения Obsidian
+     * @param {Function} ModalClass - класс модального окна
+     * @param {Function} SettingClass - класс настройки
+     * @param {Function} NoticeClass - класс уведомлений
+     */
     constructor(app, ModalClass, SettingClass, NoticeClass) {
         super(app, ModalClass, NoticeClass);
         this.Setting = SettingClass;
     }
 
+    /**
+     * Применяет базовые стили UI к модальному окну
+     */
     applyBaseUI() {
-        try { this.applyBaseStyles(); } catch {}
+        try { 
+            this.applyBaseStyles(); 
+        } catch (error) {
+            console.warn('Не удалось применить базовые стили:', error);
+        }
     }
 
+    /**
+     * Обеспечивает наличие стандартных статусов, если не предоставлены свои
+     * @param {Array} statuses - массив статусов для проверки
+     * @returns {Array} - массив статусов (стандартные или предоставленные)
+     */
     ensureStatuses(statuses) {
         if (!Array.isArray(statuses) || statuses.length === 0) {
             return [
@@ -34,40 +58,69 @@ class EntityWizardBase extends HtmlWizardModal {
         return statuses;
     }
 
+    /**
+     * Добавляет опции в выпадающий список
+     * @param {Object} dropdown - объект выпадающего списка
+     * @param {Array} options - массив опций (строки или объекты {value, label, icon})
+     */
     addDropdownOptions(dropdown, options) {
         (options || []).forEach(opt => {
-            if (typeof opt === 'string') dropdown.addOption(opt, opt);
-            else if (opt && typeof opt === 'object' && opt.value !== undefined) {
-                dropdown.addOption(opt.value, opt.label !== undefined ? `${opt.icon ? opt.icon + ' ' : ''}${opt.label}` : String(opt.value));
+            if (typeof opt === 'string') {
+                dropdown.addOption(opt, opt);
+            } else if (opt && typeof opt === 'object' && opt.value !== undefined) {
+                const displayText = `${opt.icon ? opt.icon + ' ' : ''}${opt.label || opt.value}`;
+                dropdown.addOption(opt.value, displayText);
             }
         });
     }
 
+    /**
+     * Создает текстовое поле ввода
+     * @param {HTMLElement} container - контейнер для поля
+     * @param {string} name - название поля
+     * @param {string} value - начальное значение
+     * @param {Function} onChange - обработчик изменения
+     */
     addTextInput(container, name, value, onChange) {
         new this.Setting(container)
             .setName(name)
-            .addText(t => {
-                t.setValue(value || '');
-                t.onChange(onChange);
+            .addText(text => {
+                text.setValue(value || '');
+                text.onChange(onChange);
             });
     }
 
+    /**
+     * Создает многострочное текстовое поле
+     * @param {HTMLElement} container - контейнер для поля
+     * @param {string} name - название поля
+     * @param {string} value - начальное значение
+     * @param {Function} onChange - обработчик изменения
+     */
     addTextAreaInput(container, name, value, onChange) {
         new this.Setting(container)
             .setName(name)
-            .addTextArea(t => {
-                t.setValue(value || '');
-                t.onChange(onChange);
+            .addTextArea(textArea => {
+                textArea.setValue(value || '');
+                textArea.onChange(onChange);
             });
     }
 
+    /**
+     * Создает выпадающий список
+     * @param {HTMLElement} container - контейнер для списка
+     * @param {string} name - название списка
+     * @param {string} value - выбранное значение
+     * @param {Array} options - массив опций
+     * @param {Function} onChange - обработчик изменения
+     */
     addDropdownInput(container, name, value, options, onChange) {
         new this.Setting(container)
             .setName(name)
-            .addDropdown(d => {
-                options.forEach(opt => d.addOption(opt, opt));
-                d.setValue(value || '');
-                d.onChange(onChange);
+            .addDropdown(dropdown => {
+                options.forEach(opt => dropdown.addOption(opt, opt));
+                dropdown.setValue(value || '');
+                dropdown.onChange(onChange);
             });
     }
 
@@ -80,6 +133,7 @@ class EntityWizardBase extends HtmlWizardModal {
     loadFilesFromFolder(folderPath, excludeName = null) {
         const folderObj = this.app.vault.getAbstractFileByPath(folderPath);
         let files = [];
+        
         // Основной способ — напрямую из детей папки
         if (folderObj && Array.isArray(folderObj.children) && folderObj.children.length > 0) {
             for (const child of folderObj.children) {
@@ -90,6 +144,7 @@ class EntityWizardBase extends HtmlWizardModal {
                 }
             }
         }
+        
         // Фолбэк — скан всех markdown-файлов по точному пути родителя
         if (files.length === 0) {
             const allMd = this.app.vault.getMarkdownFiles() || [];
@@ -101,51 +156,161 @@ class EntityWizardBase extends HtmlWizardModal {
                 }
             }
         }
+        
         return files;
     }
 
     /**
-     * Универсальная функция фильтрации провинций по государству
-     * @param {string} stateName - название государства
-     * @param {string} projectRoot - корневая папка проекта
-     * @param {string[]} allProvinces - массив всех провинций
-     * @returns {Promise<string[]>} - отфильтрованный массив провинций
+     * Экранирует специальные символы для использования в регулярных выражениях
+     * @param {string} string - строка для экранирования
+     * @returns {string} - экранированная строка
      */
-    async filterProvincesByState(stateName, projectRoot, allProvinces) {
-        if (!stateName || !projectRoot || !Array.isArray(allProvinces)) {
-            return [];
-        }
-
-        // Экранируем имя для безопасного использования в RegExp
-        const esc = (s) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-        const nameRe = esc(stateName);
-        // Ищем ключи state или country, допускаем кавычки ' или ", а также отсутствие кавычек
-        const yamlKeyRe = new RegExp(`\\b(state|country)\\s*:\\s*['\"]?${nameRe}['\"]?\\b`, 'i');
-        // Фолбэк: встреча в тексте wiki-ссылки на государство, либо явной строки "Государство: [[...]]"
-        const wikiLinkRe = new RegExp(`\\[\\[${nameRe}(?:\\||\\\\]\\])`, 'i');
-        const labelLineRe = new RegExp(`Государство\\s*:\\s*\\[\\[${nameRe}(?:\\||\\\\]\\])`, 'i');
-
-        try {
-            const filteredProvinces = [];
-            for (const provinceName of allProvinces) {
-                const provinceFile = this.app.vault.getAbstractFileByPath(`${projectRoot}/Локации/Провинции/${provinceName}.md`);
-                if (!provinceFile) continue;
-                try {
-                    const content = await this.app.vault.read(provinceFile);
-                    // Пытаемся анализировать только фронтматтер, если он есть
-                    const fmMatch = content.match(/^---[\s\S]*?---/m);
-                    const scope = fmMatch ? fmMatch[0] : content;
-                    if (yamlKeyRe.test(scope) || wikiLinkRe.test(content) || labelLineRe.test(content)) {
-                        filteredProvinces.push(provinceName);
-                    }
-                } catch {}
-            }
-            return filteredProvinces;
-        } catch (e) {
-            console.error('Ошибка фильтрации провинций:', e);
-            return [];
-        }
+    escapeRegex(string) {
+        return string.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
     }
+
+/**
+ * Фильтрует провинции по принадлежности к государству
+ * Ищет совпадения в фронтматтере (поля state/country) и wiki-ссылках
+ * @param {string} stateName - название государства
+ * @param {string} projectRoot - корневая папка проекта
+ * @param {string[]} allProvinces - массив всех провинций
+ * @returns {Promise<string[]>} - отфильтрованный массив провинций
+ */
+async filterProvincesByState(stateName, projectRoot, allProvinces) {
+    // Валидация входных параметров
+    if (!stateName || !projectRoot || !Array.isArray(allProvinces)) {
+        console.warn('Неверные параметры для фильтрации провинций');
+        return [];
+    }
+
+    console.log('🔍 Поиск провинций для государства:', stateName);
+    console.log('📁 Путь проекта:', projectRoot);
+    console.log('📊 Всего провинций для проверки:', allProvinces.length);
+
+    // Создаем различные варианты имени государства для поиска
+    const variants = [
+        stateName, // оригинальное имя
+        stateName.replace(/\s+/g, '_'), // с подчеркиваниями
+        stateName.replace(/\s+/g, '-'), // с дефисами
+        stateName.toLowerCase(), // в нижнем регистре
+        stateName.replace(/\s+/g, '_').toLowerCase(), // с подчеркиваниями в нижнем регистре
+        // Добавляем варианты с пробелами и подчеркиваниями в разных комбинациях
+        stateName.replace(/_/g, ' '), // подчеркивания -> пробелы
+        stateName.replace(/_/g, ' ').toLowerCase(), // подчеркивания -> пробелы + нижний регистр
+    ];
+
+    // Удаляем дубликаты и пустые значения
+    const uniqueVariants = [...new Set(variants.filter(v => v && v.trim()))];
+
+    console.log('🔤 Варианты поиска:', uniqueVariants);
+
+    try {
+        const filteredProvinces = [];
+        let processedCount = 0;
+        
+        // Перебираем все провинции для проверки
+        for (const provinceName of allProvinces) {
+            processedCount++;
+            const filePath = `${projectRoot}/Локации/Провинции/${provinceName}.md`;
+            const provinceFile = this.app.vault.getAbstractFileByPath(filePath);
+            
+            // Пропускаем если файл не найден
+            if (!provinceFile) {
+                console.log(`❌ Файл не найден: ${filePath}`);
+                continue;
+            }
+            
+            try {
+                const content = await this.app.vault.read(provinceFile);
+                console.log(`📄 Содержимое файла ${provinceName}:`, content.substring(0, 200) + '...');
+                
+                // Ищем фронтматтер в начале файла
+                const fmMatch = content.match(/^---[\s\S]*?---/m);
+                
+                if (fmMatch) {
+                    const frontmatter = fmMatch[0];
+                    console.log(`📋 Фронтматтер ${provinceName}:`, frontmatter);
+                    
+                    // Упрощенный поиск - ищем просто наличие значения в полях state и country
+                    const stateFieldMatch = frontmatter.match(/state\s*:\s*(.*)/i);
+                    const countryFieldMatch = frontmatter.match(/country\s*:\s*(.*)/i);
+                    
+                    console.log(`🏛️ State поле:`, stateFieldMatch ? stateFieldMatch[1] : 'не найдено');
+                    console.log(`🇺🇳 Country поле:`, countryFieldMatch ? countryFieldMatch[1] : 'не найдено');
+                    
+                    // Проверяем значения полей на совпадение с любым вариантом
+                    const checkFieldValue = (fieldValue) => {
+                        if (!fieldValue) return false;
+                        
+                        // Очищаем значение от кавычек и пробелов
+                        const cleanValue = fieldValue.trim().replace(/['"]/g, '');
+                        
+                        // Проверяем все варианты
+                        return uniqueVariants.some(variant => {
+                            const normalizedVariant = variant.trim();
+                            const normalizedValue = cleanValue.trim();
+                            
+                            console.log(`🔍 Сравниваем: "${normalizedValue}" с "${normalizedVariant}"`);
+                            
+                            return normalizedValue === normalizedVariant ||
+                                   normalizedValue.toLowerCase() === normalizedVariant.toLowerCase();
+                        });
+                    };
+                    
+                    if (stateFieldMatch && checkFieldValue(stateFieldMatch[1])) {
+                        console.log(`✅ Провинция "${provinceName}" найдена по полю state`);
+                        filteredProvinces.push(provinceName);
+                        continue;
+                    }
+                    
+                    if (countryFieldMatch && checkFieldValue(countryFieldMatch[1])) {
+                        console.log(`✅ Провинция "${provinceName}" найдена по полю country`);
+                        filteredProvinces.push(provinceName);
+                        continue;
+                    }
+                }
+                
+                // Дополнительно: ищем wiki-ссылки в основном контенте
+                const wikiLinks = content.match(/\[\[(.*?)\]\]/g) || [];
+                const hasWikiLink = wikiLinks.some(link => {
+                    const linkContent = link.replace(/\[\[|\]\]/g, '');
+                    return uniqueVariants.some(variant => {
+                        const normalizedVariant = variant.trim();
+                        const normalizedLink = linkContent.split('|')[0].trim(); // Берем только часть до |
+                        
+                        console.log(`🔗 Сравниваем wiki: "${normalizedLink}" с "${normalizedVariant}"`);
+                        
+                        return normalizedLink === normalizedVariant ||
+                               normalizedLink.toLowerCase() === normalizedVariant.toLowerCase();
+                    });
+                });
+                
+                if (hasWikiLink) {
+                    console.log(`✅ Провинция "${provinceName}" найдена по wiki-ссылке`);
+                    filteredProvinces.push(provinceName);
+                } else {
+                    console.log(`❌ Провинция "${provinceName}" не принадлежит государству "${stateName}"`);
+                }
+                
+            } catch (readError) {
+                console.error(`📖 Ошибка чтения файла "${provinceName}":`, readError);
+            }
+            
+            // Логируем прогресс
+            if (processedCount % 10 === 0) {
+                console.log(`📊 Обработано ${processedCount}/${allProvinces.length} провинций`);
+            }
+        }
+        
+        console.log(`🎯 Найдено провинций: ${filteredProvinces.length}`, filteredProvinces);
+        return filteredProvinces;
+        
+    } catch (error) {
+        console.error('💥 Ошибка фильтрации провинций:', error);
+        return [];
+    }
+}
 
     /**
      * Анализирует лор-контекст текущего контента
@@ -187,9 +352,12 @@ class EntityWizardBase extends HtmlWizardModal {
      * @param {HTMLElement} container - контейнер для кнопки
      * @param {string} contentType - тип контента
      * @param {string} projectRoot - корневая папка проекта
+     * @returns {HTMLElement} - созданная кнопка
      */
     createLoreAnalysisButton(container, contentType, projectRoot) {
         const button = container.createEl('button', { text: '📊 Анализ лора' });
+        
+        // Стилизация кнопки
         button.style.cssText = `
             padding: 8px 16px;
             background: #2196F3;
@@ -199,32 +367,118 @@ class EntityWizardBase extends HtmlWizardModal {
             cursor: pointer;
             margin-top: 10px;
             font-size: 14px;
+            transition: background-color 0.2s ease;
         `;
         
+        // Эффект при наведении
+        button.addEventListener('mouseenter', () => {
+            button.style.backgroundColor = '#1976D2';
+        });
+        
+        button.addEventListener('mouseleave', () => {
+            button.style.backgroundColor = '#2196F3';
+        });
+        
+        // Обработчик клика - исправлено: добавлен async
         button.onclick = async () => {
             try {
                 button.disabled = true;
                 button.textContent = 'Анализирую...';
+                button.style.opacity = '0.7';
                 
                 const analysis = await this.analyzeLoreContext(contentType, projectRoot);
                 
                 // Открываем модальное окно с результатами
-                const { LoreAnalysisModal } = require('./LoreAnalysisModal.js');
-                const modal = new LoreAnalysisModal(this.app, Modal, Setting, Notice, analysis);
+                // Исправлено: убрано await из require
+                const LoreAnalysisModal = require('./LoreAnalysisModal.js').LoreAnalysisModal;
+                const modal = new LoreAnalysisModal(this.app, this.Modal, this.Setting, this.Notice, analysis);
                 modal.open();
                 
             } catch (error) {
-                new Notice(`Ошибка анализа: ${error.message}`);
+                if (this.Notice) {
+                    new this.Notice(`Ошибка анализа: ${error.message}`);
+                }
+                console.error('Ошибка анализа лора:', error);
             } finally {
                 button.disabled = false;
                 button.textContent = '📊 Анализ лора';
+                button.style.opacity = '1';
             }
         };
         
         return button;
     }
+
+    /**
+     * Создает информационную панель с подсказками
+     * @param {HTMLElement} container - контейнер для панели
+     * @param {string} title - заголовок панели
+     * @param {string} content - содержимое подсказки
+     * @returns {HTMLElement} - созданная панель
+     */
+    createInfoPanel(container, title, content) {
+        const panel = container.createEl('div', { cls: 'entity-wizard-info-panel' });
+        
+        panel.style.cssText = `
+            background: #f5f5f5;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        `;
+        
+        if (title) {
+            const titleEl = panel.createEl('strong', { text: title });
+            titleEl.style.display = 'block';
+            titleEl.style.marginBottom = '8px';
+            titleEl.style.color = '#2196F3';
+        }
+        
+        if (content) {
+            panel.createEl('div', { text: content });
+        }
+        
+        return panel;
+    }
+
+    /**
+     * Создает разделитель между секциями
+     * @param {HTMLElement} container - контейнер для разделителя
+     * @returns {HTMLElement} - созданный разделитель
+     */
+    createDivider(container) {
+        const divider = container.createEl('hr');
+        divider.style.cssText = `
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #e0e0e0;
+        `;
+        return divider;
+    }
+
+    /**
+     * Безопасная асинхронная загрузка модуля
+     * @param {string} modulePath - путь к модулю
+     * @returns {Promise<Object>} - загруженный модуль
+     */
+    async safeRequire(modulePath) {
+        try {
+            // Для Obsidian плагинов используем app.plugins
+            if (this.app && this.app.plugins) {
+                const plugin = this.app.plugins.getPlugin('literary-templates');
+                if (plugin && plugin.require) {
+                    return plugin.require(modulePath);
+                }
+            }
+            // Фолбэк: обычный require
+            return require(modulePath);
+        } catch (error) {
+            console.error(`Ошибка загрузки модуля ${modulePath}:`, error);
+            throw error;
+        }
+    }
 }
 
+// Экспорт класса
 module.exports = { EntityWizardBase };
-
-

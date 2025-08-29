@@ -93,33 +93,74 @@ var createCity = async function(plugin, startPath = '', options = {}) {
                 
                 // Формируем данные для шаблона с ссылками на заметки под финальное имя файла
                 const cityNameForFile = fileName;
-                // Определяем государство
+                
+                // ОПРЕДЕЛЯЕМ ГОСУДАРСТВО - ИСПРАВЛЕННАЯ ЛОГИКА
                 let country = '';
+                console.log('🔍 Определение государства для города...');
+                console.log('Режим юрисдикции:', cityData.jurisdictionMode);
+                console.log('Провинция:', cityData.province);
+                console.log('State из данных:', cityData.state);
+                console.log('Country из данных:', cityData.country);
+                
                 if (cityData.jurisdictionMode === 'province' && cityData.province) {
                     // Если есть провинция, ищем её государство
-                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Локации/Провинции/${cityData.province}.md`);
+                    const provinceFilePath = `${project}/Локации/Провинции/${cityData.province}.md`;
+                    console.log('📁 Ищем файл провинции:', provinceFilePath);
+                    
+                    const provinceFile = plugin.app.vault.getAbstractFileByPath(provinceFilePath);
                     if (provinceFile) {
                         try {
                             const provinceContent = await plugin.app.vault.read(provinceFile);
-                            const stateMatch = provinceContent.match(/state:\s*"([^"]+)"/);
-                            if (stateMatch) {
-                                country = stateMatch[1];
-                            }
+                            console.log('📋 Содержимое файла провинции:', provinceContent.substring(0, 200));
+                            
+                            // Ищем state или country в фронтматтере
+                            const stateMatch = provinceContent.match(/state\s*:\s*(.*)/i);
+                            const countryMatch = provinceContent.match(/country\s*:\s*(.*)/i);
+                            
+                            console.log('🏛️ State поле провинции:', stateMatch ? stateMatch[1] : 'не найдено');
+                            console.log('🇺🇳 Country поле провинции:', countryMatch ? countryMatch[1] : 'не найдено');
+                            
+                            // Берем значение из state или country, очищаем от кавычек и пробелов
+                            const stateValue = stateMatch ? stateMatch[1].trim().replace(/['"]/g, '') : '';
+                            const countryValue = countryMatch ? countryMatch[1].trim().replace(/['"]/g, '') : '';
+                            
+                            country = stateValue || countryValue;
+                            console.log('✅ Определено государство из провинции:', country);
+                            
                         } catch (e) {
+                            console.error('❌ Не удалось прочитать файл провинции:', e.message);
                             await plugin.logDebug('Не удалось прочитать файл провинции для определения государства: ' + e.message);
                         }
+                    } else {
+                        console.error('❌ Файл провинции не найден:', provinceFilePath);
                     }
                 } else if (cityData.jurisdictionMode === 'countryOnly') {
                     // Если прямой режим, берем государство напрямую
                     country = (cityData.country === 'manual') ? (cityData.countryManual || '') : (cityData.country || '');
+                    console.log('✅ Государство из прямого выбора:', country);
                 }
+                
+                // ЗАПАСНЫЕ ВАРИАНТЫ - если страна все еще пустая
+                if (!country) {
+                    if (cityData.state) {
+                        country = cityData.state;
+                        console.log('⚠️  Используем state как запасной вариант:', country);
+                    } else if (cityData.country) {
+                        country = cityData.country;
+                        console.log('⚠️  Используем country как запасной вариант:', country);
+                    } else {
+                        console.warn('⚠️  Государство не определено, оставляем пустым');
+                    }
+                }
+                
+                console.log('🎯 Финальное значение country:', country);
 
                 const data = {
                     cityName: cityData.cityName,
                     type: cityData.type || 'Город',
                     typeLower: cityData.type ? cityData.type.toLowerCase() : 'город',
                     province: cityData.province || '',
-                    country: country, // Добавляем государство
+                    country: country, // Используем определенное значение
                     climate: cityData.climate || '',
                     dominantFaction: cityData.dominantFaction || '',
                     // Статус и причина
@@ -174,6 +215,6 @@ var createCity = async function(plugin, startPath = '', options = {}) {
         await plugin.logDebug('Ошибка: ' + error.message);
         console.error('Ошибка в createCity:', error);
     }
-}
+};
 
 module.exports = { createCity };

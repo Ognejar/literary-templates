@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест модулей утилит</title>
+</head>
+<body>
+    <h1>🧪 Тест модулей утилит</h1>
+    
+    <div id="results">
+        <h2>Результаты тестирования:</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        // Имитируем загрузку модулей
+        console.log('🔧 Начинаем тестирование модулей...');
+        
+        // Тест 1: Проверка загрузки модулей
+        function testModuleLoading() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h3>1. Тест загрузки модулей:</h3>';
+            
+            try {
+                // Проверяем, что модули загружены
+                if (window.yamlUtils) {
+                    output.innerHTML += '<p>✅ yamlUtils загружен</p>';
+                    console.log('📦 yamlUtils:', Object.keys(window.yamlUtils));
+                } else {
+                    output.innerHTML += '<p>❌ yamlUtils НЕ загружен</p>';
+                }
+                
+                if (window.fileUtils) {
+                    output.innerHTML += '<p>✅ fileUtils загружен</p>';
+                    console.log('📁 fileUtils:', Object.keys(window.fileUtils));
+                } else {
+                    output.innerHTML += '<p>❌ fileUtils НЕ загружен</p>';
+                }
+                
+                if (window.logUtils) {
+                    output.innerHTML += '<p>✅ logUtils загружен</p>';
+                    console.log('📝 logUtils:', Object.keys(window.logUtils));
+                } else {
+                    output.innerHTML += '<p>❌ logUtils НЕ загружен</p>';
+                }
+                
+                if (window.errorUtils) {
+                    output.innerHTML += '<p>✅ errorUtils загружен</p>';
+                    console.log('❌ errorUtils:', Object.keys(window.errorUtils));
+                } else {
+                    output.innerHTML += '<p>❌ errorUtils НЕ загружен</p>';
+                }
+                
+                if (window.utils) {
+                    output.innerHTML += '<p>✅ Основной объект utils загружен</p>';
+                    console.log('🔧 utils:', Object.keys(window.utils));
+                } else {
+                    output.innerHTML += '<p>❌ Основной объект utils НЕ загружен</p>';
+                }
+                
+            } catch (error) {
+                output.innerHTML += `<p>❌ Ошибка при проверке модулей: ${error.message}</p>`;
+                console.error('Ошибка:', error);
+            }
+        }
+        
+        // Тест 2: Тестирование YAML утилит
+        function testYamlUtils() {
+            const output = document.getElementById('output');
+            output.innerHTML += '<h3>2. Тест YAML утилит:</h3>';
+            
+            try {
+                if (window.yamlUtils) {
+                    const testContent = `---
+name: "Тестовая деревня"
+type: "Деревня"
+climate: "Умеренный"
+---
+Содержимое файла`;
+                    
+                    const parsed = window.yamlUtils.parseYamlFrontmatter(testContent);
+                    output.innerHTML += `<p>✅ YAML парсинг работает: ${parsed.parsed.name}</p>`;
+                    
+                    const field = window.yamlUtils.extractFrontmatterField(testContent, 'climate', 'Неизвестно');
+                    output.innerHTML += `<p>✅ Извлечение поля работает: ${field}</p>`;
+                    
+                    console.log('🧪 YAML тест:', { parsed, field });
+                } else {
+                    output.innerHTML += '<p>❌ yamlUtils недоступен</p>';
+                }
+            } catch (error) {
+                output.innerHTML += `<p>❌ Ошибка YAML теста: ${error.message}</p>`;
+                console.error('YAML ошибка:', error);
+            }
+        }
+        
+        // Тест 3: Тестирование логирования
+        function testLogUtils() {
+            const output = document.getElementById('output');
+            output.innerHTML += '<h3>3. Тест логирования:</h3>';
+            
+            try {
+                if (window.logUtils) {
+                    window.logUtils.info('Тест логирования', 'TEST');
+                    window.logUtils.warn('Тестовое предупреждение', 'TEST');
+                    window.logUtils.error('Тестовая ошибка', 'TEST');
+                    
+                    output.innerHTML += '<p>✅ Логирование работает (проверьте консоль)</p>';
+                    
+                    // Тест изменения уровня логирования
+                    window.logUtils.setLogLevel('WARN');
+                    window.logUtils.debug('Это не должно появиться'); // Должно быть скрыто
+                    output.innerHTML += '<p>✅ Уровни логирования работают</p>';
+                    
+                } else {
+                    output.innerHTML += '<p>❌ logUtils недоступен</p>';
+                }
+            } catch (error) {
+                output.innerHTML += `<p>❌ Ошибка логирования: ${error.message}</p>`;
+                console.error('Логирование ошибка:', error);
+            }
+        }
+        
+        // Тест 4: Тестирование обработки ошибок
+        function testErrorUtils() {
+            const output = document.getElementById('output');
+            output.innerHTML += '<h3>4. Тест обработки ошибок:</h3>';
+            
+            try {
+                if (window.errorUtils) {
+                    // Тест безопасной функции
+                    const safeFn = window.errorUtils.createSafeFunction(
+                        () => { throw new Error('Тестовая ошибка'); },
+                        'значение по умолчанию'
+                    );
+                    
+                    const result = safeFn();
+                    output.innerHTML += `<p>✅ Безопасная функция работает: ${result}</p>`;
+                    
+                    // Тест обёртки ошибок
+                    const wrappedFn = window.errorUtils.wrapSync(
+                        () => { throw new Error('Тестовая ошибка 2'); },
+                        (error) => console.log('Ошибка перехвачена:', error.message)
+                    );
+                    
+                    try {
+                        wrappedFn();
+                    } catch (e) {
+                        output.innerHTML += '<p>✅ Обёртка ошибок работает</p>';
+                    }
+                    
+                } else {
+                    output.innerHTML += '<p>❌ errorUtils недоступен</p>';
+                }
+            } catch (error) {
+                output.innerHTML += `<p>❌ Ошибка теста обработки ошибок: ${error.message}</p>`;
+                console.error('Ошибка обработки ошибок:', error);
+            }
+        }
+        
+        // Запуск всех тестов
+        function runAllTests() {
+            console.log('🚀 Запуск всех тестов...');
+            testModuleLoading();
+            testYamlUtils();
+            testLogUtils();
+            testErrorUtils();
+            console.log('✅ Все тесты завершены');
+        }
+        
+        // Запускаем тесты после загрузки страницы
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 100); // Небольшая задержка для имитации загрузки
+        });
+    </script>
+</body>
+</html>

@@ -24,7 +24,22 @@ var createVillage = async function(plugin, projectRoot, options = {}) {
         // 1. Найти projectRoot от startPath
         let project = '';
         if (projectRoot) {
-            project = projectRoot;
+            // Используем findProjectRoot для правильного определения корня проекта
+            project = findProjectRoot(plugin.app, projectRoot);
+            if (!project) {
+                await plugin.logDebug('Не удалось найти корень проекта для: ' + projectRoot);
+                // Fallback: выбор из всех проектов
+                const allFiles = plugin.app.vault.getMarkdownFiles();
+                const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
+                const projects = projectFiles.map(f => f.parent.path);
+                if (projects.length === 0) {
+                    new Notice('Проекты не найдены!');
+                    await plugin.logDebug('Проекты не найдены!');
+                    return;
+                }
+                project = await plugin.selectProject(projects);
+                if (!project) return;
+            }
         } else {
             // Fallback: выбор из всех проектов
             const allFiles = plugin.app.vault.getMarkdownFiles();
@@ -37,14 +52,13 @@ var createVillage = async function(plugin, projectRoot, options = {}) {
             }
             project = await plugin.selectProject(projects);
             if (!project) return;
-
         }
         await plugin.logDebug('project: ' + project);
         // --- Автозаполнение ---
         // 1. Провинции
         let provincesList = [];
         try {
-            const provincesFolder = `${project}/Провинции`;
+            const provincesFolder = `${project}/Локации/Провинции`;
             const folder = plugin.app.vault.getAbstractFileByPath(provincesFolder);
             if (folder && folder.children) {
                 provincesList = folder.children
@@ -71,20 +85,29 @@ var createVillage = async function(plugin, projectRoot, options = {}) {
             const imageBlock = tagImage ? `![[${tagImage}]]` : '';
             
             // Определяем государство для деревни
-            let country = '';
-            if (villageData.province) {
+            let state = villageData.state || '';
+            if (!state && villageData.province) {
                 try {
-                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Провинции/${villageData.province}.md`);
+                    const provinceFile = plugin.app.vault.getAbstractFileByPath(`${project}/Локации/Провинции/${villageData.province}.md`);
                     if (provinceFile) {
                         const provinceContent = await plugin.app.vault.read(provinceFile);
-                        const stateMatch = provinceContent.match(/state:\s*"([^"]+)"/);
+                        // Ищем и state, и country в провинции
+                        const stateMatch = provinceContent.match(/^state:\s*"?([^"\n]+)"?/m);
+                        const countryMatch = provinceContent.match(/^country:\s*"?([^"\n]+)"?/m);
                         if (stateMatch) {
-                            country = stateMatch[1];
+                            state = stateMatch[1];
+                        } else if (countryMatch) {
+                            state = countryMatch[1];
                         }
                     }
                 } catch (e) {
                     await plugin.logDebug('Не удалось определить государство из провинции: ' + e.message);
                 }
+            }
+            
+            // Если государство всё ещё не определено, используем значение по умолчанию
+            if (!state) {
+                state = 'не указано';
             }
 
             // --- Формируем данные для шаблона ---
@@ -94,7 +117,7 @@ var createVillage = async function(plugin, projectRoot, options = {}) {
               climate: villageData.climate || '',
               faction: villageData.faction || '',
               province: villageData.province || '',
-              country: country, // Добавляем государство
+              country: state, // Добавляем государство
               // Статус и причина
               status: villageData.status || 'действует',
               statusReason: villageData.statusReason || '',
