@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
     window.errorUtils = window.errorUtils || {};
     
     console.log('🔧 Утилиты загружены в window.utils');
-    console.log('📦 Доступные модули:', Object.keys(window.utils).filter(key => !key.startsWith('_')));
+    // console.log('📦 Доступные модули:', Object.keys(window.utils).filter(key => !key.startsWith('_')));
 }
 
 // Node.js экспорты убраны для совместимости с build.php

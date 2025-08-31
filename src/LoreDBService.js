@@ -6,7 +6,7 @@
  * @license    MIT
  * @dependencies obsidian
  * @created    2025-08-18
- * @updated    2025-08-18
+ * @updated    2025-08-29
  * @docs       docs/Карточка функционала.md
  */
 
@@ -17,7 +17,7 @@ class LoreDBService {
 
 	// Папка и пути базы лора для заданного корня проекта
 	getLorePaths(projectRoot) {
-		const folder = `${projectRoot}/.lore`;
+		const folder = `${projectRoot}/_lore`;
 		return {
 			folder,
 			jsonPath: `${folder}/lore.json`,
@@ -33,7 +33,10 @@ class LoreDBService {
 			if (!existing) {
 				await vault.createFolder(folder);
 			}
-		} catch {}
+		} catch (error) {
+			// Игнорируем все ошибки
+			console.log('Папка лора уже существует или ошибка создания:', error.message);
+		}
 	}
 
 	// Загружает или создаёт БД
@@ -54,18 +57,21 @@ class LoreDBService {
 
 	createEmptyDB() {
 		return {
-			version: 1,
+			version: 2, // Обновляем версию для поддержки временных слоев
 			updatedAt: new Date().toISOString(),
 			globals: {
 				worldInfo: {}
 			},
-			entities: []
+			entities: [], // Старая структура для обратной совместимости
+			temporalEntities: [] // Новая структура для версионированных сущностей
 		};
 	}
 
 	normalizeDB(db) {
 		if (!db || typeof db !== 'object') return this.createEmptyDB();
 		if (!Array.isArray(db.entities)) db.entities = [];
+		// Добавляем поддержку временных сущностей
+		if (!Array.isArray(db.temporalEntities)) db.temporalEntities = [];
 		if (!db.globals) db.globals = { worldInfo: {} };
 		if (!db.globals.worldInfo) db.globals.worldInfo = {};
 		if (!db.version) db.version = 1;
@@ -162,7 +168,7 @@ class LoreDBService {
 		await this.ensureLoreFolder(projectRoot);
 		const vault = this.plugin.app.vault;
 		const all = vault.getMarkdownFiles();
-		const projectFiles = all.filter((f) => f.path.startsWith(projectRoot) && !f.path.includes('/.lore/'));
+		const projectFiles = all.filter((f) => f.path.startsWith(projectRoot) && !f.path.includes('_lore/'));
 		const db = this.createEmptyDB();
 		// Попытаемся извлечь глобальные настройки мира
 		try {
@@ -288,8 +294,122 @@ class LoreDBService {
 		});
 		return info;
 	}
+	
+	// Новые методы для работы с версионированными сущностями
+	
+	/**
+	 * Получить сущность в заданной эпохе
+	 * @param {string} projectRoot - Корневая директория проекта
+	 * @param {string} entityId - Идентификатор сущности
+	 * @param {string} epochId - Идентификатор эпохи (опционально, по умолчанию активная)
+	 * @returns {Object|null} Данные сущности или null, если не найдена
+	 */
+	async getEntityAtEpoch(projectRoot, entityId, epochId = null) {
+		const db = await this.loadDB(projectRoot);
+		
+		// Если не указана эпоха, пытаемся получить активную
+		if (!epochId) {
+			// Здесь нужно импортировать TimelineService, но из-за ограничений 
+			// мы просто возвращаем последнюю версию сущности
+			const temporalEntity = db.temporalEntities.find(te => te.entityId === entityId);
+			if (temporalEntity && temporalEntity.versions.length > 0) {
+				// Возвращаем последнюю версию
+				const latestVersion = temporalEntity.versions[temporalEntity.versions.length - 1];
+				return this.mergeVersionData(latestVersion);
+			}
+			return null;
+		}
+		
+		// Ищем версионированную сущность
+		const temporalEntity = db.temporalEntities.find(te => te.entityId === entityId);
+		if (!temporalEntity) return null;
+		
+		// Ищем версию, соответствующую заданной эпохе
+		const version = temporalEntity.versions.find(v => v.epochId === epochId);
+		if (!version) return null;
+		
+		return this.mergeVersionData(version);
+	}
+	
+	/**
+	 * Создать или обновить версию сущности в заданной эпохе
+	 * @param {string} projectRoot - Корневая директория проекта
+	 * @param {string} entityId - Идентификатор сущности
+	 * @param {string} epochId - Идентификатор эпохи
+	 * @param {Object} entityData - Данные сущности
+	 * @returns {Object} Обновленная база данных
+	 */
+	async upsertEntityVersion(projectRoot, entityId, epochId, entityData) {
+		const db = await this.loadDB(projectRoot);
+		
+		// Ищем существующую версионированную сущность
+		let temporalEntity = db.temporalEntities.find(te => te.entityId === entityId);
+		
+		if (!temporalEntity) {
+			// Создаем новую версионированную сущность
+			temporalEntity = {
+				entityId: entityId,
+				type: entityData.type || 'unknown',
+				versions: []
+			};
+			db.temporalEntities.push(temporalEntity);
+		}
+		
+		// Создаем новую версию
+		const newVersion = {
+			versionId: this.generateVersionId(),
+			epochId: epochId,
+			data: entityData,
+			createdAt: new Date().toISOString()
+		};
+		
+		// Если у сущности уже есть версии в этой эпохе, наследуемся от последней
+		const existingVersionsInEpoch = temporalEntity.versions.filter(v => v.epochId === epochId);
+		if (existingVersionsInEpoch.length > 0) {
+			const latestVersion = existingVersionsInEpoch[existingVersionsInEpoch.length - 1];
+			newVersion.basedOn = latestVersion.versionId;
+		}
+		
+		temporalEntity.versions.push(newVersion);
+		
+		await this.saveDB(projectRoot, db);
+		return db;
+	}
+	
+	/**
+	 * Получить все версии сущности
+	 * @param {string} projectRoot - Корневая директория проекта
+	 * @param {string} entityId - Идентификатор сущности
+	 * @returns {Array} Массив версий сущности
+	 */
+	async getEntityVersions(projectRoot, entityId) {
+		const db = await this.loadDB(projectRoot);
+		const temporalEntity = db.temporalEntities.find(te => te.entityId === entityId);
+		return temporalEntity ? temporalEntity.versions : [];
+	}
+	
+	/**
+	 * Сгенерировать ID для версии
+	 * @returns {string} Сгенерированный ID
+	 */
+	generateVersionId() {
+		return `v_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+	}
+	
+	/**
+	 * Объединить данные версии с базовой версией (если есть)
+	 * @param {Object} version - Версия сущности
+	 * @returns {Object} Объединенные данные
+	 */
+	mergeVersionData(version) {
+		if (!version.basedOn) {
+			return version.data;
+		}
+		
+		// В реальной реализации здесь нужно найти базовую версию и объединить данные
+		// Пока просто возвращаем данные текущей версии
+		return version.data;
+	}
 }
 
 module.exports = { LoreDBService };
-
-

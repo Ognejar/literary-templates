@@ -294,6 +294,6 @@ var LoreAnalysisModal = class extends Modal {
         // TODO: Реализовать улучшение с помощью AI
         new this.Notice('Функция улучшения с AI будет добавлена в следующей версии');
     }
-}
+};
 
 module.exports = { LoreAnalysisModal };

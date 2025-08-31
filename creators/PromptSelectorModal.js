@@ -60,7 +60,7 @@ class PromptSelectorModal extends HtmlWizardModal {
             if (prompt.tags) {
                 const tags = item.createEl('div', { cls: 'lt-prompt-tags' });
                 Object.entries(prompt.tags).forEach(([k,v]) => {
-                    if (["output","source","description"].includes(k))
+                    if (['output','source','description'].includes(k))
                         tags.createEl('span', { text: `${k}: ${v}`, cls: 'lt-prompt-tag' });
                 });
             }

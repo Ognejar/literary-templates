@@ -11,11 +11,20 @@ $files = [
     'src/KeyRotationService.js',
     'src/AIProviderService.js',
     'src/LoreAnalyzerService.js',
+  // Сервисы для работы с временными слоями
+    'src/TimelineService.js',
+    'src/TemporalEntityService.js',
+    'src/TemporalContextService.js',
+    'src/MigrationService.js',
+    'src/TemporalAPI.js',
     // Базовые классы для визардов (ПЕРЕД всеми визардами!)
     'creators/HtmlWizardModal.js',
-    'creators/EntityWizardBase.js',
-    'creators/LoreAnalysisModal.js',
-	'creators/TaskWizardModal.js',
+   'creators/EntityWizardBase.js',
+   'creators/LoreAnalysisModal.js',
+   'creators/EpochManagerModal.js',
+   'creators/EpochSelectorModal.js',
+       
+    'creators/TaskWizardModal.js',
     // Все визарды из папки creators
     'creators/AlchemyRecipeWizardModal.js',
     'creators/ProjectSelectorModal.js',
@@ -48,6 +57,7 @@ $files = [
     'creators/PeopleWizardModal.js',
     'creators/ArtifactWizardModal.js',
     'creators/BaseWizardModal.js',
+    'creators/WorkCreationModal.js',
     // Включаем creators файлы - они нужны для standalone функций
     'creators/createWorld.js',
     'creators/createVillage.js',
@@ -71,6 +81,7 @@ $files = [
     'creators/createCharacter.js',
     'creators/createMonster.js',
 	'creators/createTask.js',
+    'creators/createWork.js',
     'creators/createSocialInstitution.js',
     // main.js должен быть последним!
     'main.js',
@@ -90,6 +101,7 @@ $countRequireSrcPrimitive = 0;
 $countSuperAggressive = 0;
 $countFinalCleanup = 0;
 // Счетчики для require('./main_modules/...')
+$countWindowGlobal = 0;
 $countRequireMainModules = 0;
 $countRequireMainModulesAssign = 0;
 $countRequireMainModulesAny = 0;
@@ -126,6 +138,9 @@ echo "Сборка завершена: main.bundle.js\n";
 
 // Простая очистка - удаляем только дублирующиеся импорты obsidian
 $main = file_get_contents('main.bundle.js');
+// СОХРАНЯЕМ строки глобализации window.* = *; (важно для работы модальных окон)
+$main = preg_replace('/^.*window\.[a-zA-Z_$][a-zA-Z0-9_$]*\s*=\s*[a-zA-Z_$][a-zA-Z0-9_$]*;.*\n?/m', '// СОХРАНЕНО: $0', $main, -1, $countWindowGlobal);
+echo "Сохранено $countWindowGlobal строк глобализации window.*\n";
 
 // Удаляем ВСЕ строки с импортами obsidian (более агрессивно)
 $main = preg_replace('/^.*const \{ .* \} = require\([\'\"]obsidian[\'\"]\);.*\n?/m', '', $main, -1, $count1);
@@ -140,9 +155,9 @@ $main = preg_replace('/^.*const \{ .* \} = require\([\'\"].*\.js[\'\"]\);.*\n?/m
 // НЕ удаляем findProjectRoot, getAllProjectRoots, fillTemplate, generateFromTemplate, ensureEntityInfrastructure из main.js
 // так как они нужны для работы функций create*
 
-// Удаляем неправильные require импорты из creators файлов
-$main = preg_replace('/const \{ .* \} = require\([\'\"].*\.js[\'\"]\);.*\n?/m', '', $main, -1, $count12);
-$main = preg_replace('/const \{ .* \} = require\([\'\"].*[\'\"]\);.*\n?/m', '', $main, -1, $count13);
+// Удаляем неправильные require импорты из creators файлов, но оставляем createWork
+$main = preg_replace('/const \{ (?!createWork).* \} = require\([\'\"].*\.js[\'\"]\);.*\n?/m', '', $main, -1, $count12);
+$main = preg_replace('/const \{ (?!createWork).* \} = require\([\'\"].*[\'\"]\);.*\n?/m', '', $main, -1, $count13);
 
 // НЕ удаляем функции create* из main.js - они нужны для работы плагина
 // $main = preg_replace('/async function createWorld\(app, plugin, startPath = \'\'\)\s*\{[\s\S]*?\n\}/m', '', $main, -1, $count14);
@@ -167,6 +182,17 @@ $main = preg_replace('/module\.exports = LiteraryTemplatesPlugin;\s*/', '', $mai
 
 // Добавляем правильный экспорт для плагина Obsidian в самый конец файла
 $main = rtrim($main) . "\n\nmodule.exports = LiteraryTemplatesPlugin;\n";
+
+// ВОССТАНАВЛИВАЕМ строки глобализации window.* = *; (важно для работы модальных окон)
+$main = preg_replace('/\/\/ СОХРАНЕНО: (.*)/m', '$1', $main, -1, $countWindowGlobal);
+echo "Восстановлено $countWindowGlobal строк глобализации window.*\n";
+
+// Удаляю добавление глобализации WorkCreationModal и createWork в конец файла (str_replace) - больше не нужно
+
+// Добавляем глобализацию TimelineService как конструктор
+$main .= "\n// Глобализация TimelineService для работы createWork\n";
+$main .= "window.TimelineService = TimelineService;\n";
+$main .= "window.WorkCreationModal = WorkCreationModal;\n";
 
 // Добавляем один импорт obsidian в начало (включая MarkdownView и requestUrl)
 $main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView, requestUrl } = require('obsidian');\n\n" . $main;

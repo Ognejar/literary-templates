@@ -71,7 +71,7 @@ var createAlchemyRecipe = async function(plugin, startPath = '', options = {}) {
         await plugin.logDebug(`Error in createAlchemyRecipe: ${error.message}`);
         new Notice('Ошибка при создании алхимического рецепта: ' + error.message);
     }
-}
+};
 
 
 

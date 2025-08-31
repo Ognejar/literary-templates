@@ -150,7 +150,7 @@ var createMonster = async function(plugin, startPath = '', options = {}) {
         new Notice('Ошибка при создании монстра: ' + error.message);
         try { await plugin.logDebug('createMonster error: ' + error.message); } catch {}
     }
-}
+};
 
 module.exports = { createMonster };
 

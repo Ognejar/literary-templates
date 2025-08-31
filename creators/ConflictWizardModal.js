@@ -207,7 +207,7 @@ var ConflictWizardModal = class extends HtmlWizardModal {
         this.close();
         if (this.onFinish) this.onFinish();
     }
-}
+};
 
 module.exports = { ConflictWizardModal };
 

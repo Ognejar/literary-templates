@@ -319,6 +319,6 @@ var PortWizardModal = class extends EntityWizardBase {
         this.close();
         if (this.onFinish) this.onFinish();
     }
-}
+};
 
 module.exports = { PortWizardModal };

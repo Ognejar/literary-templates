@@ -662,6 +662,6 @@ tags: [place, государство]
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 module.exports = { ProvinceWizardModal };

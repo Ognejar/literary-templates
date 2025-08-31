@@ -322,6 +322,6 @@ var TaskWizardModal = class extends EntityWizardBase {
         this.close();
         if (this.onFinish) this.onFinish();
     }
-}
+};
 
 module.exports = { TaskWizardModal };

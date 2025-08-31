@@ -219,7 +219,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
         new Notice('Ошибка при создании зелья: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createPotion };
 

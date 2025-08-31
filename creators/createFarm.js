@@ -152,6 +152,6 @@ var createFarm = async function(plugin, projectRoot, options = {}) {
         new Notice('Ошибка при создании фермы: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createFarm };

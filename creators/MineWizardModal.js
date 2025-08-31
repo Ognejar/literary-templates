@@ -443,7 +443,7 @@ var MineWizardModal = class extends EntityWizardBase {
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 // Защита: если по каким-то причинам метод отсутствует после сборки — добавим его на прототип
 if (typeof MineWizardModal !== 'undefined' && typeof MineWizardModal.prototype.renderStatus !== 'function') {

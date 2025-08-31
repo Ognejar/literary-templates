@@ -394,7 +394,7 @@ var PeopleWizardModal = class extends HtmlWizardModal {
             new this.Notice(`Ошибка при создании народа: ${e.message}`);
         }
     }
-}
+};
 
 module.exports = { PeopleWizardModal };
 

@@ -482,3 +482,8 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
 
 // Экспорт класса
 module.exports = { EntityWizardBase };
+
+// Делаем класс доступным глобально
+if (typeof window !== 'undefined') {
+    window.EntityWizardBase = EntityWizardBase;
+}

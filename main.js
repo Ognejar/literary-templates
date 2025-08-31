@@ -39,6 +39,13 @@ const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView } = require
 // const { createProvince } = require('./creators/createProvince.js');
 // const { createCharacter } = require('./creators/createCharacter.js');
 
+// Импорт сервисов для работы с временными слоями
+const { TimelineService } = require('./src/TimelineService.js');
+const { TemporalEntityService } = require('./src/TemporalEntityService.js');
+const { TemporalContextService } = require('./src/TemporalContextService.js');
+const { MigrationService } = require('./src/MigrationService.js');
+const { TemporalAPI } = require('./src/TemporalAPI.js');
+
 // Импорт сервисов
 // const { KeyRotationService } = require('./src/KeyRotationService.js');
 // const { AIProviderService } = require('./src/AIProviderService.js');
@@ -447,6 +454,17 @@ class LiteraryTemplatesPlugin extends Plugin {
             maxTokens: 2000,
             temperature: 0.7
         };
+        
+        // Инициализируем сервисы для работы с временными слоями
+        try {
+            this.timelineService = new TimelineService(this);
+            this.temporalEntityService = new TemporalEntityService(this);
+            this.temporalContextService = new TemporalContextService(this);
+            this.migrationService = new MigrationService(this);
+            this.temporalAPI = new TemporalAPI(this);
+        } catch (e) {
+            console.warn('Ошибка инициализации сервисов временных слоев:', e);
+        }
         
         // console.log('LiteraryTemplatesPlugin constructor completed');
     }
@@ -1384,6 +1402,43 @@ class LiteraryTemplatesPlugin extends Plugin {
             callback: () => (window.createSocialInstitution ? window.createSocialInstitution(this, '') : null),
         });
         
+        // Команды для работы с эпохами и произведениями
+        this.addCommand({
+            id: 'select-epoch',
+            name: 'Выбрать эпоху',
+            callback: async () => {
+                const { EpochSelectorModal } = require('./creators/EpochSelectorModal');
+                const modal = new EpochSelectorModal(this.app, this);
+                modal.open();
+            },
+        });
+        
+        this.addCommand({
+            id: 'create-work',
+            name: 'Создать произведение',
+            callback: async () => {
+                try {
+                    if (typeof window.createWork === 'function') {
+                        await window.createWork(this);
+                    } else {
+                        new Notice('Функция создания произведения недоступна. Перезагрузите плагин.');
+                    }
+                } catch (error) {
+                    console.error('Ошибка создания произведения:', error);
+                    new Notice('Ошибка создания произведения: ' + error.message);
+                }
+            },
+        });
+        
+        this.addCommand({
+            id: 'migrate-existing-content',
+            name: 'Мигрировать существующий контент',
+            callback: async () => {
+                const { migrateExistingContent } = require('./creators/migrateExistingContent');
+                await migrateExistingContent(this);
+            },
+        });
+        
         // Команда 'Управление AI ключами' регистрируется ниже, удалён дубликат
         
         this.addCommand({
@@ -1707,6 +1762,15 @@ class LiteraryTemplatesPlugin extends Plugin {
         window.generateFromTemplate = generateFromTemplate;
         window.ensureEntityInfrastructure = ensureEntityInfrastructure;
         window.safeCreateFile = safeCreateFile;
+        
+        // Делаем сервисы временных слоев доступными глобально
+        window.timelineService = this.timelineService;
+        window.temporalEntityService = this.temporalEntityService;
+        window.temporalContextService = this.temporalContextService;
+        window.migrationService = this.migrationService;
+        window.temporalAPI = this.temporalAPI;
+        
+        // Делаем модальные окна доступными глобально
         
         // Делаем методы шаблонизатора доступными в глобальной области видимости
         window.processConditionalBlocks = this.processConditionalBlocks.bind(this);
@@ -2760,6 +2824,7 @@ ${JSON.stringify(facts, null, 2)}
                     await this.app.vault.adapter.mkdir(pluginDir);
                     // console.log('Папка для логов создана:', pluginDir);
                 } catch (mkdirError) {
+                     
                     // console.log('Папка для логов уже существует или ошибка создания:', mkdirError.message);
                 }
                 
@@ -2905,6 +2970,29 @@ planned | started | writing | done | abandoned
         this.logDebug(`Статус: ${chosen}`);
     }
 
+    // Добавляем команду для управления эпохами
+    registerTemporalCommands() {
+        this.addCommand({
+            id: 'run-temporal-tests',
+            name: 'Запустить тесты временных слоев',
+            callback: async () => {
+                try {
+                    const { runTemporalTests } = require('./test/temporal_test.js');
+                    const result = await runTemporalTests(this);
+                    
+                    if (result.success) {
+                        new Notice(result.message);
+                    } else {
+                        new Notice('Тесты не пройдены: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('Ошибка запуска тестов:', error);
+                    new Notice('Ошибка запуска тестов: ' + error.message);
+                }
+            }
+        });
+    }
+
     registerCommands() {
         // console.log('Регистрация команд начата');
         
@@ -2929,6 +3017,9 @@ planned | started | writing | done | abandoned
             console.error('Ошибка регистрации команд:', error);
             // Продолжаем работу плагина даже если команды не зарегистрированы
         }
+        
+        // Регистрируем команды для работы с временными слоями
+        this.registerTemporalCommands();
     }
 
     addContextMenu(menu, target) {
@@ -3349,9 +3440,11 @@ planned | started | writing | done | abandoned
                             }
                         });
                 });
-            });
-        });
-    }
+               
+
+           });
+       });
+   }
 
 
     // --- Вспомогательные методы для модальных окон ---
@@ -3647,6 +3740,7 @@ planned | started | writing | done | abandoned
                 return;
             }
             
+             
             const content = await this.app.vault.read(file);
             
             // Определяем тип сущности по frontmatter или названию файла
@@ -3984,6 +4078,7 @@ planned | started | writing | done | abandoned
                         injectedContent = file ? await this.app.vault.read(file) : '';
                     }
                 } catch (e) {
+                     
                     injectedContent = '';
                 }
 
@@ -4556,7 +4651,7 @@ async function loadSettingsFromFile(app) {
     try {
         const data = await app.vault.adapter.read(SETTINGS_PATH);
         return JSON.parse(data);
-    // eslint-disable-next-line no-unused-vars
+     
     } catch (e) {
         // Если файла нет — просто возвращаем дефолтные настройки
         // Не пытаемся создавать файл при первой загрузке, чтобы избежать ошибок
@@ -4888,6 +4983,7 @@ class PromptSelectorModal extends HtmlWizardModal {
         list.createEl('div', { cls: 'lt-prompt-separator' });
         // Далее — обычные промпты
         this.prompts.forEach((prompt, idx) => {
+             
             const item = list.createEl('div', {
                 cls: 'lt-prompt-item',
                 text: prompt.tags.title,

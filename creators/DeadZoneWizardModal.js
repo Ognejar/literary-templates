@@ -432,7 +432,7 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 
 

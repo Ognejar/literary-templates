@@ -512,6 +512,6 @@ var FactoryWizardModal = class extends EntityWizardBase {
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 module.exports = { FactoryWizardModal };

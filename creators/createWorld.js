@@ -467,6 +467,6 @@ var createWorld = async function(plugin, startPath = '', options = {}) {
         new Notice('Ошибка при создании проекта: ' + error.message);
         console.error('Ошибка создания проекта:', error);
     }
-}
+};
 
 module.exports = { createWorld };

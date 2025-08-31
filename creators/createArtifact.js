@@ -73,7 +73,7 @@ var createArtifact = async function(plugin, projectRoot, options = {}) {
         await plugin.logDebug(`Error in createArtifact: ${error.message}`);
         new Notice('Ошибка при создании артефакта: ' + error.message);
     }
-}
+};
 
 
 

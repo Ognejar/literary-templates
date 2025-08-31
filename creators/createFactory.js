@@ -155,6 +155,6 @@ var createFactory = async function(plugin, projectRoot, options = {}) {
         new Notice('Ошибка при создании завода: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createFactory };

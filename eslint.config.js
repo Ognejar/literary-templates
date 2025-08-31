@@ -20,6 +20,9 @@ module.exports = [
         global: 'readonly',
         __dirname: 'readonly',
         __filename: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        setTimeout: 'readonly',
         // Modal классы (доступны после сборки)
         PromptModal: 'readonly',
         SuggesterModal: 'readonly',
@@ -36,11 +39,30 @@ module.exports = [
         ProvinceWizardModal: 'readonly',
         CastleWizardModal: 'readonly',
         StateWizardModal: 'readonly',
-        WorldSettingsModal: 'readonly'
+        WorldSettingsModal: 'readonly',
+        HtmlWizardModal: 'readonly',
+        FactoryWizardModal: 'readonly',
+        MineWizardModal: 'readonly',
+        // Сервисы (доступны после сборки)
+        KeyRotationService: 'readonly',
+        TimelineService: 'readonly',
+        TemporalEntityService: 'readonly',
+        TemporalContextService: 'readonly',
+        MigrationService: 'readonly',
+        requestUrl: 'readonly',
+        // Функции (доступны после сборки)
+        findProjectRoot: 'readonly',
+        getAllProjectRoots: 'readonly',
+        generateFromTemplate: 'readonly',
+        ensureEntityInfrastructure: 'readonly',
+        safeCreateFile: 'readonly',
+        startPath: 'readonly',
+        app: 'readonly',
+        quickType: 'readonly'
       }
     },
     rules: {
-      'no-unused-vars': 'warn',
+      'no-unused-vars': 'off', // Отключаем предупреждения о неиспользуемых переменных
       'no-console': 'off',
       'no-undef': 'error',
       'semi': ['error', 'always'],

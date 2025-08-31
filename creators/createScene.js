@@ -226,6 +226,6 @@ var createScene = async function(plugin, startPath = '') {
         new Notice('Ошибка при создании сцены: ' + error.message);
         await plugin.logDebug('Ошибка: ' + error.message);
     }
-}
+};
 
 module.exports = { createScene };

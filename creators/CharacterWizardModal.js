@@ -522,6 +522,6 @@ var CharacterWizardModal = class extends EntityWizardBase {
         this.close();
         if (this.onFinish) this.onFinish();
     }
-}
+};
 
 module.exports = { CharacterWizardModal };

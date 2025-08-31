@@ -508,6 +508,6 @@ var CastleWizardModal = class extends EntityWizardBase {
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 module.exports = { CastleWizardModal };

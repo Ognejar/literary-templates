@@ -518,6 +518,6 @@ var FarmWizardModal = class extends EntityWizardBase {
         let { contentEl } = this;
         contentEl.empty();
     }
-}
+};
 
 module.exports = { FarmWizardModal };

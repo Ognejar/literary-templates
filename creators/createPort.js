@@ -41,6 +41,6 @@ var createPort = async function(plugin, startPath = '', options = {}) {
         new Notice('Ошибка при создании порта: ' + error.message);
         try { await plugin.logDebug('createPort error: ' + error.message); } catch {}
     }
-}
+};
 
 module.exports = { createPort };

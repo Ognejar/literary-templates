@@ -157,6 +157,6 @@ var AIAnalysisResultModal = class extends Modal {
             this.open();
         });
     }
-}
+};
 
 module.exports = { PromptModal, SuggesterModal, AIAnalysisResultModal };

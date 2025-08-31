@@ -87,4 +87,9 @@ class HtmlWizardModal extends Modal {
 
 module.exports = { HtmlWizardModal };
 
+// Делаем класс доступным глобально
+if (typeof window !== 'undefined') {
+    window.HtmlWizardModal = HtmlWizardModal;
+}
+
 
