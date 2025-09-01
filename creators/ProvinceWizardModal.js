@@ -35,7 +35,9 @@ var ProvinceWizardModal = class extends EntityWizardBase {
             villages: [],
             deadZones: [],
             ports: [],
-            castles: []
+            castles: [],
+            history: [], // Новый массив для истории
+            populationHistory: [] // Новый массив для истории населения
         };
     }
 
@@ -249,32 +251,42 @@ tags: [place, государство]
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 6:
-                this.titleEl.setText('Создание новой провинции - Шаг 7/12: Описание');
-                this.renderDescription(contentEl);
+                this.titleEl.setText('Создание новой провинции - Шаг 7/12: История');
+                this.renderHistory(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 7:
-                this.titleEl.setText('Создание новой провинции - Шаг 8/12: Города');
-                this.renderRelatedEntities(contentEl, 'cities', 'город');
+                this.titleEl.setText('Создание новой провинции - Шаг 8/12: История населения');
+                this.renderPopulationHistory(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 8:
-                this.titleEl.setText('Создание новой провинции - Шаг 9/12: Деревни');
-                this.renderRelatedEntities(contentEl, 'villages', 'деревню');
+                this.titleEl.setText('Создание новой провинции - Шаг 9/12: Описание');
+                this.renderDescription(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 9:
-                this.titleEl.setText('Создание новой провинции - Шаг 10/12: Мертвые зоны');
-                this.renderRelatedEntities(contentEl, 'deadZones', 'мертвую зону');
+                this.titleEl.setText('Создание новой провинции - Шаг 10/12: Города');
+                this.renderRelatedEntities(contentEl, 'cities', 'город');
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 10:
-                this.titleEl.setText('Создание новой провинции - Шаг 11/12: Порты и замки');
-                this.renderPortsAndCastles(contentEl);
+                this.titleEl.setText('Создание новой провинции - Шаг 11/12: Деревни');
+                this.renderRelatedEntities(contentEl, 'villages', 'деревню');
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 11:
-                this.titleEl.setText('Создание новой провинции - Шаг 12/12: Предпросмотр');
+                this.titleEl.setText('Создание новой провинции - Шаг 12/12: Мертвые зоны');
+                this.renderRelatedEntities(contentEl, 'deadZones', 'мертвую зону');
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 12:
+                this.titleEl.setText('Создание новой провинции - Шаг 13/12: Порты и замки');
+                this.renderPortsAndCastles(contentEl);
+                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
+                break;
+            case 13:
+                this.titleEl.setText('Создание новой провинции - Шаг 14/12: Предпросмотр');
                 this.renderPreview(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
                 break;
@@ -484,6 +496,48 @@ tags: [place, государство]
             });
     }
 
+    renderHistory(contentEl) {
+        new this.Setting(contentEl)
+            .setName('История провинции (каждая строка: "год: событие")')
+            .addTextArea(text => {
+                text.setPlaceholder('История провинции')
+                    .setValue(this.data.history.map(item => `${item.year}: ${item.event}`).join('\n'))
+                    .onChange(value => {
+                        this.data.history = value.split('\n').map(line => {
+                            const [year, event] = line.split(':').map(s => s.trim());
+                            return { year: parseInt(year), event: event };
+                        }).filter(item => !isNaN(item.year) && item.event);
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderPopulationHistory(contentEl) {
+        new this.Setting(contentEl)
+            .setName('История населения провинции (каждая строка: "год: число")')
+            .addTextArea(text => {
+                text.setPlaceholder('История населения провинции')
+                    .setValue(this.data.populationHistory.map(item => `${item.year}: ${item.population}`).join('\n'))
+                    .onChange(value => {
+                        this.data.populationHistory = value.split('\n').map(line => {
+                            const [year, population] = line.split(':').map(s => s.trim());
+                            return { year: parseInt(year), population: parseInt(population) };
+                        }).filter(item => !isNaN(item.year) && !isNaN(item.population));
+                    });
+                // Увеличиваем размер текстового поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
     renderDescription(contentEl) {
         new this.Setting(contentEl)
             .setName('Описание')
@@ -562,6 +616,12 @@ tags: [place, государство]
         if (this.data.description) {
             previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
         }
+        if (this.data.history.length) {
+            previewEl.createEl('p', { text: `**История:** ${this.data.history.map(item => `${item.year}: ${item.event}`).join(', ')}` });
+        }
+        if (this.data.populationHistory.length) {
+            previewEl.createEl('p', { text: `**История населения:** ${this.data.populationHistory.map(item => `${item.year}: ${item.population}`).join(', ')}` });
+        }
         if (this.data.cities.length) {
             previewEl.createEl('p', { text: `**Города:** ${this.data.cities.join(', ')}` });
         }
@@ -638,20 +698,30 @@ tags: [place, государство]
                 }
                 break;
             case 3: // Minor Factions (optional)
-            case 4: // Population (optional)
-            case 5: // Economy (optional)
                 // Nothing to validate, as they are optional
                 break;
-            case 6: // Description
+            case 4: // Population (optional)
+                // Nothing to validate, as it's optional
+                break;
+            case 5: // Economy (optional)
+                // Nothing to validate, as it's optional
+                break;
+            case 6: // History (optional)
+                // Nothing to validate, as it's optional
+                break;
+            case 7: // Population History (optional)
+                // Nothing to validate, as it's optional
+                break;
+            case 8: // Description
                 if (!this.data.description.trim()) {
                     new this.Notice('Пожалуйста, введите описание провинции.');
                     return false;
                 }
                 break;
-            case 7: // Cities (optional)
-            case 8: // Villages (optional)
-            case 9: // Dead Zones (optional)
-            case 10: // Ports and Castles (optional)
+            case 9: // Cities (optional)
+            case 10: // Villages (optional)
+            case 11: // Dead Zones (optional)
+            case 12: // Ports and Castles (optional)
                 // Nothing to validate, as they are optional
                 break;
         }

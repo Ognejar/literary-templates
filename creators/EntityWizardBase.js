@@ -223,21 +223,21 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
             
             try {
                 const content = await this.app.vault.read(provinceFile);
-                console.log(`📄 Содержимое файла ${provinceName}:`, content.substring(0, 200) + '...');
+                // console.log(`📄 Содержимое файла ${provinceName}:`, content.substring(0, 200) + '...');
                 
                 // Ищем фронтматтер в начале файла
                 const fmMatch = content.match(/^---[\s\S]*?---/m);
                 
                 if (fmMatch) {
                     const frontmatter = fmMatch[0];
-                    console.log(`📋 Фронтматтер ${provinceName}:`, frontmatter);
+                    // console.log(`📋 Фронтматтер ${provinceName}:`, frontmatter);
                     
                     // Упрощенный поиск - ищем просто наличие значения в полях state и country
                     const stateFieldMatch = frontmatter.match(/state\s*:\s*(.*)/i);
                     const countryFieldMatch = frontmatter.match(/country\s*:\s*(.*)/i);
                     
-                    console.log(`🏛️ State поле:`, stateFieldMatch ? stateFieldMatch[1] : 'не найдено');
-                    console.log(`🇺🇳 Country поле:`, countryFieldMatch ? countryFieldMatch[1] : 'не найдено');
+                    // console.log(`🏛️ State поле:`, stateFieldMatch ? stateFieldMatch[1] : 'не найдено');
+                    // console.log(`🇺🇳 Country поле:`, countryFieldMatch ? countryFieldMatch[1] : 'не найдено');
                     
                     // Проверяем значения полей на совпадение с любым вариантом
                     const checkFieldValue = (fieldValue) => {
@@ -251,7 +251,7 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
                             const normalizedVariant = variant.trim();
                             const normalizedValue = cleanValue.trim();
                             
-                            console.log(`🔍 Сравниваем: "${normalizedValue}" с "${normalizedVariant}"`);
+                            // console.log(`🔍 Сравниваем: "${normalizedValue}" с "${normalizedVariant}"`);
                             
                             return normalizedValue === normalizedVariant ||
                                    normalizedValue.toLowerCase() === normalizedVariant.toLowerCase();
@@ -259,13 +259,13 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
                     };
                     
                     if (stateFieldMatch && checkFieldValue(stateFieldMatch[1])) {
-                        console.log(`✅ Провинция "${provinceName}" найдена по полю state`);
+                        // console.log(`✅ Провинция "${provinceName}" найдена по полю state`);
                         filteredProvinces.push(provinceName);
                         continue;
                     }
                     
                     if (countryFieldMatch && checkFieldValue(countryFieldMatch[1])) {
-                        console.log(`✅ Провинция "${provinceName}" найдена по полю country`);
+                        // console.log(`✅ Провинция "${provinceName}" найдена по полю country`);
                         filteredProvinces.push(provinceName);
                         continue;
                     }
@@ -279,7 +279,7 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
                         const normalizedVariant = variant.trim();
                         const normalizedLink = linkContent.split('|')[0].trim(); // Берем только часть до |
                         
-                        console.log(`🔗 Сравниваем wiki: "${normalizedLink}" с "${normalizedVariant}"`);
+                        // console.log(`🔗 Сравниваем wiki: "${normalizedLink}" с "${normalizedVariant}"`);
                         
                         return normalizedLink === normalizedVariant ||
                                normalizedLink.toLowerCase() === normalizedVariant.toLowerCase();
@@ -287,10 +287,10 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
                 });
                 
                 if (hasWikiLink) {
-                    console.log(`✅ Провинция "${provinceName}" найдена по wiki-ссылке`);
+                    // console.log(`✅ Провинция "${provinceName}" найдена по wiki-ссылке`);
                     filteredProvinces.push(provinceName);
                 } else {
-                    console.log(`❌ Провинция "${provinceName}" не принадлежит государству "${stateName}"`);
+                    // console.log(`❌ Провинция "${provinceName}" не принадлежит государству "${stateName}"`);
                 }
                 
             } catch (readError) {
@@ -299,11 +299,11 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
             
             // Логируем прогресс
             if (processedCount % 10 === 0) {
-                console.log(`📊 Обработано ${processedCount}/${allProvinces.length} провинций`);
+                // console.log(`📊 Обработано ${processedCount}/${allProvinces.length} провинций`);
             }
         }
         
-        console.log(`🎯 Найдено провинций: ${filteredProvinces.length}`, filteredProvinces);
+        //console.log(`🎯 Найдено провинций: ${filteredProvinces.length}`, filteredProvinces);
         return filteredProvinces;
         
     } catch (error) {

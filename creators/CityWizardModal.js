@@ -84,6 +84,7 @@ var CityWizardModal = class extends EntityWizardBase {
             'Статус города',
             'Климат и фракция',
             'Юрисдикция',
+            'Хронология',
             'Основные отрасли',
             'Районы',
             'Уникальные особенности',
@@ -238,10 +239,11 @@ var CityWizardModal = class extends EntityWizardBase {
             case 1: this.renderStatus(contentEl); break;
             case 2: this.renderClimateFaction(contentEl); break;
             case 3: this.renderJurisdiction(contentEl); break;
-            case 4: this.renderMainIndustries(contentEl); break;
-            case 5: this.renderDistricts(contentEl); break;
-            case 6: this.renderUniqueFeatures(contentEl); break;
-            case 7: this.renderPreview(contentEl); break;
+            case 4: this.renderHistory(contentEl); break; // Added renderHistory
+            case 5: this.renderMainIndustries(contentEl); break;
+            case 6: this.renderDistricts(contentEl); break;
+            case 7: this.renderUniqueFeatures(contentEl); break;
+            case 8: this.renderPreview(contentEl); break;
         }
 
         // Унифицированная навигация
@@ -357,48 +359,13 @@ var CityWizardModal = class extends EntityWizardBase {
     }
 
     renderJurisdiction(contentEl) {
-        // Режим
-        new this.Setting(contentEl)
-            .setName('Режим')
-            .setDesc('Выберите, будет ли город в провинции или только в стране')
-            .addDropdown(d => {
-                d.addOption('province', 'С провинцией');
-                d.addOption('countryOnly', 'Без провинции (только страна)');
-                d.setValue(this.data.jurisdictionMode || 'province');
-                d.onChange(v => { this.data.jurisdictionMode = v; this.render(); });
-                // Увеличиваем размер выпадающего списка
-                d.selectEl.style.minWidth = '300px';
-                d.selectEl.style.fontSize = '14px';
-                d.selectEl.style.padding = '6px';
-            });
-
-        // Провинция (обязательно при режиме province)
-        if ((this.data.jurisdictionMode || 'province') === 'province') {
-            const provinceDesc = this.data.country && this.data.country !== 'manual' 
-                ? `Провинции государства "${this.data.country}"` 
-                : 'Выберите государство для отображения провинций';
-            
-            new this.Setting(contentEl)
-                .setName('Провинция')
-                .setDesc(provinceDesc)
-                .addDropdown(dropdown => {
-                    dropdown.addOption('', 'Выберите провинцию');
-                    this.config.provinces.forEach(province => dropdown.addOption(province, province));
-                    dropdown.setValue(this.data.province || '');
-                    dropdown.onChange(value => this.data.province = value);
-                    // Увеличиваем размер выпадающего списка
-                    dropdown.selectEl.style.minWidth = '320px';
-                    dropdown.selectEl.style.fontSize = '14px';
-                    dropdown.selectEl.style.padding = '6px';
-                });
-        }
-
-        // Страна (обязательна при режиме countryOnly, опционально при province)
+        // Сначала государство (ОБЯЗАТЕЛЬНО)
         const countries = this.config.countries || [];
         new this.Setting(contentEl)
-            .setName('Государство')
+            .setName('Государство *')
+            .setDesc('Выберите государство, в котором находится город')
             .addDropdown(d => {
-                d.addOption('', (this.data.jurisdictionMode === 'countryOnly') ? 'Выберите государство' : 'Выберите государство (опционально)');
+                d.addOption('', 'Выберите государство');
                 countries.forEach(c => d.addOption(c, c));
                 d.addOption('manual', '— Ввести вручную —');
                 d.setValue(this.data.country || '');
@@ -410,8 +377,7 @@ var CityWizardModal = class extends EntityWizardBase {
                         this.config.provinces = []; // Очищаем провинции
                     } else {
                         this.data.state = v;
-                        // Фильтруем провинции по выбранному государству (с полной перезагрузкой allProvinces)
-                        // Перезагружаем список всех провинций из папки на случай, если кэш пуст
+                        // Фильтруем провинции по выбранному государству
                         this.config.allProvinces = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Провинции`, 'Провинции');
                         await this.filterProvincesByCountry(v);
                     }
@@ -423,9 +389,11 @@ var CityWizardModal = class extends EntityWizardBase {
                 d.selectEl.style.padding = '6px';
             });
 
+        // Ручной ввод государства
         if (this.data.country === 'manual') {
             new this.Setting(contentEl)
-                .setName('Государство (ручной ввод)')
+                .setName('Государство (ручной ввод) *')
+                .setDesc('Введите название государства')
                 .addText(t => {
                     t.setValue(this.data.countryManual || '').onChange(v => {
                         this.data.countryManual = v;
@@ -437,8 +405,117 @@ var CityWizardModal = class extends EntityWizardBase {
                     t.inputEl.style.padding = '8px';
                 });
         }
+
+        // Режим (только после выбора государства)
+        if (this.data.country && this.data.country !== '') {
+            new this.Setting(contentEl)
+                .setName('Режим')
+                .setDesc('Выберите, будет ли город в провинции или только в стране')
+                .addDropdown(d => {
+                    d.addOption('province', 'С провинцией');
+                    d.addOption('countryOnly', 'Без провинции (только страна)');
+                    d.setValue(this.data.jurisdictionMode || 'province');
+                    d.onChange(v => { this.data.jurisdictionMode = v; this.render(); });
+                    // Увеличиваем размер выпадающего списка
+                    d.selectEl.style.minWidth = '300px';
+                    d.selectEl.style.fontSize = '14px';
+                    d.selectEl.style.padding = '6px';
+                });
+
+            // Провинция (если выбран режим province)
+            if ((this.data.jurisdictionMode || 'province') === 'province') {
+                const provinceDesc = this.data.country && this.data.country !== 'manual' 
+                    ? `Провинции государства "${this.data.country}"` 
+                    : 'Выберите провинцию';
+                
+                new this.Setting(contentEl)
+                    .setName('Провинция')
+                    .setDesc(provinceDesc)
+                    .addDropdown(dropdown => {
+                        dropdown.addOption('', 'Выберите провинцию (опционально)');
+                        this.config.provinces.forEach(province => dropdown.addOption(province, province));
+                        dropdown.setValue(this.data.province || '');
+                        dropdown.onChange(value => this.data.province = value);
+                        // Увеличиваем размер выпадающего списка
+                        dropdown.selectEl.style.minWidth = '320px';
+                        dropdown.selectEl.style.fontSize = '14px';
+                        dropdown.selectEl.style.padding = '6px';
+                    });
+            }
+        }
     }
 
+    renderHistory(contentEl) {
+        // Секция для событий истории
+        new this.Setting(contentEl)
+            .setName('Исторические события')
+            .setDesc('Добавьте важные события в истории города (год: событие)')
+            .addTextArea(text => {
+                const historyText = this.data.history && this.data.history.length > 0 
+                    ? this.data.history.map(h => `${h.year}: ${h.event}`).join('\n')
+                    : '';
+                text.setPlaceholder('1200: Основан город\n1300: Построена крепость\n1400: Расширение торговли')
+                    .setValue(historyText)
+                    .onChange(value => {
+                        // Парсим текст в массив объектов history
+                        this.data.history = value.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => {
+                                const colonIndex = line.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const year = line.substring(0, colonIndex).trim();
+                                    const event = line.substring(colonIndex + 1).trim();
+                                    if (year && event) {
+                                        return { year: parseInt(year) || year, event: event };
+                                    }
+                                }
+                                return null;
+                            })
+                            .filter(item => item !== null);
+                    });
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+
+        // Секция для истории населения
+        new this.Setting(contentEl)
+            .setName('История населения')
+            .setDesc('Добавьте данные о населении по годам (год: количество)')
+            .addTextArea(text => {
+                const populationText = this.data.population_history && this.data.population_history.length > 0 
+                    ? this.data.population_history.map(p => `${p.year}: ${p.value}`).join('\n')
+                    : '';
+                text.setPlaceholder('1200: 5000\n1300: 15000\n1400: 25000')
+                    .setValue(populationText)
+                    .onChange(value => {
+                        // Парсим текст в массив объектов population_history
+                        this.data.population_history = value.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => {
+                                const colonIndex = line.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const year = line.substring(0, colonIndex).trim();
+                                    const value = line.substring(colonIndex + 1).trim();
+                                    if (year && value) {
+                                        return { year: parseInt(year) || year, value: parseInt(value) || value };
+                                    }
+                                }
+                                return null;
+                            })
+                            .filter(item => item !== null);
+                    });
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
 
 
     renderMainIndustries(contentEl) {
@@ -662,7 +739,22 @@ var CityWizardModal = class extends EntityWizardBase {
                     }
                 }
                 break;
-            case 4: // Описание
+            case 4: // Хронология
+                // Хронология не обязательна, но если добавлена - должна быть корректной
+                if (this.data.history && this.data.history.length > 0) {
+                    const invalidHistory = this.data.history.filter(h => !h.year || !h.event);
+                    if (invalidHistory.length > 0) {
+                        new this.Notice('Пожалуйста, проверьте формат исторических событий (год: событие).');
+                        return false;
+                    }
+                }
+                if (this.data.population_history && this.data.population_history.length > 0) {
+                    const invalidPopulation = this.data.population_history.filter(p => !p.year || !p.value);
+                    if (invalidPopulation.length > 0) {
+                        new this.Notice('Пожалуйста, проверьте формат истории населения (год: количество).');
+                        return false;
+                    }
+                }
                 break;
             case 5: // Основные отрасли
                 // Industries can be empty
@@ -686,10 +778,10 @@ var CityWizardModal = class extends EntityWizardBase {
      */
     validateTemplateMapping() {
         const requiredFields = [
-            'name', 'type', 'climate', 'dominantFaction'
+            'name', 'type', 'climate', 'dominantFaction', 'state'
         ];
         
-        const optionalFields = ['province', 'state'];
+        const optionalFields = ['province'];
         
         // Проверяем обязательные поля
         const missingRequiredFields = requiredFields.filter(field => {
@@ -702,6 +794,16 @@ var CityWizardModal = class extends EntityWizardBase {
             const value = this.data[field];
             return !value || (typeof value === 'string' && !value.trim());
         });
+        
+        // Проверяем новые поля хронологии
+        if (this.data.history && !Array.isArray(this.data.history)) {
+            console.warn('CityWizardModal: history should be an array');
+            return false;
+        }
+        if (this.data.population_history && !Array.isArray(this.data.population_history)) {
+            console.warn('CityWizardModal: population_history should be an array');
+            return false;
+        }
         
         if (missingRequiredFields.length > 0) {
             console.warn('CityWizardModal: Missing required fields for template:', missingRequiredFields);
@@ -720,6 +822,40 @@ var CityWizardModal = class extends EntityWizardBase {
         contentEl.empty();
     }
 
+    async finish() {
+        try {
+            // Добавляем текущую дату
+            this.data.date = window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10);
+            
+            // Добавляем поля для шаблона
+            this.data.name = this.data.cityName; // для совместимости с шаблоном
+            this.data.history = this.data.history || []; // убеждаемся что массив существует
+            this.data.population_history = this.data.population_history || []; // убеждаемся что массив существует
+
+            // Правильно заполняем поле state
+            if (this.data.country === 'manual') {
+                this.data.state = this.data.countryManual || 'Не указано';
+            } else if (this.data.country && this.data.country !== '') {
+                this.data.state = this.data.country;
+            } else {
+                this.data.state = 'Не указано';
+            }
+            
+            // Очищаем пустые поля (только для строк, не для массивов), но НЕ трогаем state
+            Object.keys(this.data).forEach(key => {
+                if (key !== 'state' && this.data[key] === '' && typeof this.data[key] === 'string') {
+                    this.data[key] = 'Не указано';
+                }
+            });
+
+            await this.onFinish(this.data);
+            this.close();
+        } catch (error) {
+            console.error('Ошибка при создании города:', error);
+            new this.Notice('Ошибка при создании города');
+        }
+    }
+
     onFinish() {
         console.log('[DEBUG] CityWizardModal: onFinish вызван');
         console.log('[DEBUG] CityWizardModal: Данные для передачи:', this.data);
@@ -730,14 +866,10 @@ var CityWizardModal = class extends EntityWizardBase {
             return;
         }
         
-        console.log('[DEBUG] CityWizardModal: Валидация пройдена, вызываем onFinish callback');
+        console.log('[DEBUG] CityWizardModal: Валидация пройдена, вызываем finish');
         
-        // Вызываем callback с данными
-        if (this.onFinish) {
-            this.onFinish(this.data);
-        }
-        
-        this.close();
+        // Вызываем finish для подготовки данных
+        this.finish();
     }
 };
 

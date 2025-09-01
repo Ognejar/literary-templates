@@ -105,12 +105,18 @@ async function createWork(plugin, startPath = null) {
     }
 }
 
+// Удаляем функцию generateWorkTemplate
+// Вместо неё используем шаблон с диска
+
 async function createWorkStructure(plugin, projectRoot, workData) {
     try {
         console.log('createWorkStructure: projectRoot:', projectRoot);
         console.log('Создание структуры произведения:', workData);
         
         // Создать папку произведения
+        if (typeof Notice !== 'undefined') {
+            new Notice('Создание папок...', 2000);
+        }
         const workFolder = `${projectRoot}/1_Рукопись/Произведения/${workData.id}`;
         await ensureFolder(workFolder, plugin.app);
         
@@ -121,105 +127,59 @@ async function createWorkStructure(plugin, projectRoot, workData) {
             'Персонажи',
             'Заметки'
         ];
-        
         for (const folder of subfolders) {
             await ensureFolder(`${workFolder}/${folder}`, plugin.app);
         }
         
-        // Создать файл произведения
-        const workFilePath = `${workFolder}/${workData.id}.md`;
-        const workContent = generateWorkTemplate(workData);
-        
-        const workFile = await safeCreateFile(workFilePath, workContent, plugin.app);
-        
-        if (workFile) {
-            console.log('Произведение создано:', workFilePath);
-            
-            // Создать временный контекст
-            await createTemporalContext(plugin, projectRoot, workData);
-            
-            // Открыть файл произведения
-            const file = plugin.app.vault.getAbstractFileByPath(workFilePath);
-            if (file) {
-                plugin.app.workspace.openLinkText(workFilePath, '', true);
+        // Имя файла: Тип_Название.md
+        if (typeof Notice !== 'undefined') {
+            new Notice('Создание файла произведения...', 2000);
+        }
+        const fileBase = buildWorkFileName(workData.title, workData.workType);
+        const workFilePath = `${workFolder}/${fileBase}.md`;
+
+        // Чтение шаблона с диска
+        let templateContent = '';
+        try {
+            // readTemplateFile ищет по названию без расширения
+            templateContent = await plugin.readTemplateFile('Новое_произведение');
+        } catch (e) {
+            console.error('Шаблон "Новое_произведение.md" не найден:', e);
+            if (typeof Notice !== 'undefined') {
+                new Notice('Шаблон "Новое_произведение.md" не найден в templates!', 6000);
             }
+            return;
+        }
+
+        // Подставляем значения
+        const now = new Date();
+        const data = {
+            ...workData,
+            created: now.toISOString().split('T')[0],
+            status: 'в_работе',
+        };
+        const workContent = window.fillTemplate(templateContent, data);
+
+        const createdFile = await safeCreateFile(workFilePath, workContent, plugin.app);
+        
+        if (createdFile) {
+            console.log('Произведение создано:', createdFile.path);
+            // Создать временный контекст
+            if (typeof Notice !== 'undefined') {
+                new Notice('Сохранение временного контекста...', 2000);
+            }
+            await createTemporalContext(plugin, projectRoot, workData);
+            // Открыть файл произведения
+            if (typeof Notice !== 'undefined') {
+                new Notice('Открытие файла...', 1500);
+            }
+            await plugin.app.workspace.getLeaf(true).openFile(createdFile);
         }
         
     } catch (error) {
         console.error('Ошибка при создании структуры произведения:', error);
+        throw error; // Пробрасываем ошибку выше
     }
-}
-
-function generateWorkTemplate(workData) {
-    return `---
-title: "${workData.title}"
-type: произведение
-epoch: "${workData.epoch}"
-year: ${workData.year}
-context: "${workData.context}"
-created: ${new Date().toISOString().split('T')[0]}
-status: в_работе
----
-
-# ${workData.title}
-
-## Описание
-${workData.description}
-
-## Эпоха
-- **Название:** ${workData.epochName}
-- **Год:** ${workData.year}
-- **Период:** ${workData.epochStartYear} - ${workData.epochEndYear}
-
-## Контекст
-${workData.context}
-
-## Структура
-
-### Главы
-\`\`\`dataview
-TABLE title, chapter, status
-FROM "1_Рукопись/Произведения/${workData.id}/Главы"
-SORT chapter ASC
-\`\`\`
-
-### Сцены
-\`\`\`dataview
-TABLE title, chapter, location
-FROM "1_Рукопись/Произведения/${workData.id}/Сцены"
-SORT chapter ASC, file.ctime ASC
-\`\`\`
-
-### Персонажи
-\`\`\`dataview
-TABLE name, role, location
-FROM "1_Рукопись/Произведения/${workData.id}/Персонажи"
-SORT name ASC
-\`\`\`
-
-## Заметки
-\`\`\`dataview
-TABLE title, created
-FROM "1_Рукопись/Произведения/${workData.id}/Заметки"
-SORT file.ctime DESC
-\`\`\`
-
-## Связи с миром
-
-### Локации
-\`\`\`dataview
-TABLE name, state, province
-FROM "Локации/Города"
-WHERE epoch = "${workData.epoch}"
-\`\`\`
-
-### Фракции
-\`\`\`dataview
-TABLE name, type, influence
-FROM "Фракции"
-WHERE epoch = "${workData.epoch}"
-\`\`\`
-`;
 }
 
 async function createTemporalContext(plugin, projectRoot, workData) {
@@ -275,6 +235,25 @@ async function ensureFolder(folderPath, app) {
             console.error('Ошибка при создании папки:', error);
         }
     }
+}
+
+function sanitizeFileName(name) {
+    let s = String(name || '').trim();
+    // Запрещённые для файловой системы символы заменяем на дефис
+    s = s.replace(/[\\/:*?"<>|]/g, '-');
+    // Схлопываем последовательности пробелов
+    s = s.replace(/\s+/g, ' ');
+    // Убираем точки/пробелы на конце
+    s = s.replace(/[ .]+$/g, '');
+    // Если имя пустое — вернём 'Произведение'
+    if (!s) s = 'Произведение';
+    return s;
+}
+
+function buildWorkFileName(title, workType) {
+    const t = sanitizeFileName(title || '');
+    const k = sanitizeFileName(workType || '');
+    return (k ? `${k}_${t}` : t) || 'Произведение';
 }
 
 // Глобализация для работы команды 'Создать произведение'

@@ -125,7 +125,27 @@ async function getAllProjectRoots(app) {
 // --- Вспомогательные функции ---
 
 function fillTemplate(template, data) {
-    return template.replace(/{{(\w+)}}/g, (_, key) => data[key] ?? '');
+    let result = template;
+    
+    // Обработка циклов {{#each arrayName}}...{{/each}}
+    result = result.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, arrayName, content) => {
+        const array = data[arrayName];
+        if (!Array.isArray(array) || array.length === 0) {
+            return ''; // Если массив пустой или не существует, возвращаем пустую строку
+        }
+        
+        return array.map(item => {
+            let itemContent = content;
+            // Заменяем плейсхолдеры внутри цикла
+            itemContent = itemContent.replace(/{{(\w+)}}/g, (_, key) => item[key] ?? '');
+            return itemContent;
+        }).join('');
+    });
+    
+    // Обработка простых плейсхолдеров {{key}}
+    result = result.replace(/{{(\w+)}}/g, (_, key) => data[key] ?? '');
+    
+    return result;
 }
 
 /**
@@ -148,7 +168,31 @@ async function generateFromTemplate(templateName, data, plugin) {
     result = await plugin.processIncludeBlocks(result);
     await plugin.logDebug('Include blocks processed, length: ' + result.length);
     
-    // 2. Подстановка всех известных плейсхолдеров вида {{key}}
+    // 2. Обработка циклов {{#each arrayName}}...{{/each}}
+    await plugin.logDebug('Processing each loops...');
+    await plugin.logDebug('Available data keys: ' + Object.keys(data).join(', '));
+    result = result.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, arrayName, content) => {
+        const array = data[arrayName];
+        plugin.logDebug(`Processing each loop for array: ${arrayName}, array:`, array);
+        if (!Array.isArray(array) || array.length === 0) {
+            plugin.logDebug(`Array ${arrayName} is empty or not an array`);
+            return ''; // Если массив пустой или не существует, возвращаем пустую строку
+        }
+        
+        return array.map(item => {
+            let itemContent = content;
+            plugin.logDebug(`Processing item in ${arrayName}:`, item);
+            // Заменяем плейсхолдеры внутри цикла
+            itemContent = itemContent.replace(/{{(\w+)}}/g, (_, key) => {
+                const value = item[key] ?? '';
+                plugin.logDebug(`Replacing {{${key}}} with: "${value}" in ${arrayName}`);
+                return value;
+            });
+            return itemContent;
+        }).join('');
+    });
+    
+    // 3. Подстановка всех известных плейсхолдеров вида {{key}}
     await plugin.logDebug('Replacing placeholders with data: ' + JSON.stringify(data));
     for (const key of Object.keys(data)) {
         const re = new RegExp(`{{${key}}}`, 'g');
@@ -157,12 +201,12 @@ async function generateFromTemplate(templateName, data, plugin) {
         result = result.replace(re, replacement);
     }
     
-    // 3. Обработка условных блоков {{#if condition}}...{{/if}}
+    // 4. Обработка условных блоков {{#if condition}}...{{/if}}
     await plugin.logDebug('Processing conditional blocks...');
     result = plugin.processConditionalBlocks(result, data);
     await plugin.logDebug('Conditional blocks processed');
     
-    // 4. Финальная очистка: удаляем любые оставшиеся {{...}}
+    // 5. Финальная очистка: удаляем любые оставшиеся {{...}}
     // Это поведение как у fillTemplate: неизвестные ключи заменяются на пустую строку
     const cleanupRegex = /{{\s*([\w.]+)\s*}}/g;
     result = result.replace(cleanupRegex, '');
@@ -2850,6 +2894,45 @@ ${JSON.stringify(facts, null, 2)}
             console.error('logDebug error:', e);
         }
     }
+    // Вспомогательная функция для определения типа контента по имени файла
+    // Используется в aiAnalyzeAndExtendNote и aiBuildLoreContext
+    getContentTypeByName(filename) {
+        const name = filename.toLowerCase();
+        
+        // Карта типов контента и связанных с ними ключевых слов
+        const contentTypeKeywords = {
+            'castle': ['замок', 'крепость', 'форт'],
+            'potion': ['зелье', 'настойка', 'отвар'],
+            'artifact': ['артефакт', 'реликвия', 'сокровище'],
+            'character': ['персонаж', 'герой', 'лицо'],
+            'location': ['локация', 'место', 'точка'],
+            'event': ['событие', 'происшествие'],
+            'organization': ['организация', 'группа', 'союз'],
+            'city': ['город', 'поселение'],
+            'village': ['деревня', 'село'],
+            'province': ['провинция', 'область'],
+            'state': ['государство', 'страна'],
+            'spell': ['заклинание', 'спелл'],
+            'alchemy': ['алхимия', 'рецепт'],
+            'mine': ['шахта', 'рудник'],
+            'factory': ['завод', 'фабрика'],
+            'farm': ['ферма', 'хозяйство'],
+            'port': ['порт', 'гавань'],
+            'people': ['народ', 'раса'],
+            'monster': ['монстр', 'чудовище'],
+            'task': ['задача', 'квест']
+        };
+
+        // Поиск соответствия по ключевым словам
+        for (const [contentType, keywords] of Object.entries(contentTypeKeywords)) {
+            if (keywords.some(keyword => name.includes(keyword))) {
+                return contentType;
+            }
+        }
+
+        // Если тип не определен
+        return '';
+    }
 
     async saveSettings() {
         try {
@@ -3587,53 +3670,9 @@ planned | started | writing | done | abandoned
                 contentType = String(cache.frontmatter.type).toLowerCase();
                 console.log('Тип определен из frontmatter:', contentType);
             } else {
-                // Пробуем по названию файла
-                const name = file.basename.toLowerCase();
-                console.log('Анализируем название файла:', name);
-                
-                // Расширенный список типов сущностей
-                if (name.includes('замок') || name.includes('крепость') || name.includes('форт')) {
-                    contentType = 'castle';
-                } else if (name.includes('зелье') || name.includes('настойка') || name.includes('отвар')) {
-                    contentType = 'potion';
-                } else if (name.includes('артефакт') || name.includes('реликвия') || name.includes('сокровище')) {
-                    contentType = 'artifact';
-                } else if (name.includes('персонаж') || name.includes('герой') || name.includes('лицо')) {
-                    contentType = 'character';
-                } else if (name.includes('локация') || name.includes('место') || name.includes('точка')) {
-                    contentType = 'location';
-                } else if (name.includes('событие') || name.includes('происшествие')) {
-                    contentType = 'event';
-                } else if (name.includes('организация') || name.includes('группа') || name.includes('союз')) {
-                    contentType = 'organization';
-                } else if (name.includes('город') || name.includes('поселение')) {
-                    contentType = 'city';
-                } else if (name.includes('деревня') || name.includes('село')) {
-                    contentType = 'village';
-                } else if (name.includes('провинция') || name.includes('область')) {
-                    contentType = 'province';
-                } else if (name.includes('государство') || name.includes('страна')) {
-                    contentType = 'state';
-                } else if (name.includes('заклинание') || name.includes('спелл')) {
-                    contentType = 'spell';
-                } else if (name.includes('алхимия') || name.includes('рецепт')) {
-                    contentType = 'alchemy';
-                } else if (name.includes('шахта') || name.includes('рудник')) {
-                    contentType = 'mine';
-                } else if (name.includes('завод') || name.includes('фабрика')) {
-                    contentType = 'factory';
-                } else if (name.includes('ферма') || name.includes('хозяйство')) {
-                    contentType = 'farm';
-                } else if (name.includes('порт') || name.includes('гавань')) {
-                    contentType = 'port';
-                } else if (name.includes('народ') || name.includes('раса')) {
-                    contentType = 'people';
-                } else if (name.includes('монстр') || name.includes('чудовище')) {
-                    contentType = 'monster';
-                } else if (name.includes('задача') || name.includes('квест')) {
-                    contentType = 'task';
-                }
-                
+                // Пробуем по названию файла (используем вспомогательную функцию)
+                console.log('Анализируем название файла:', file.basename);
+                contentType = this.getContentTypeByName(file.basename);
                 console.log('Тип определен по названию:', contentType);
             }
             
@@ -3750,50 +3789,8 @@ planned | started | writing | done | abandoned
             if (cache.frontmatter && cache.frontmatter.type) {
                 contentType = String(cache.frontmatter.type).toLowerCase();
             } else {
-                // Пробуем по названию файла (используем ту же логику)
-                const name = file.basename.toLowerCase();
-                
-                if (name.includes('замок') || name.includes('крепость') || name.includes('форт')) {
-                    contentType = 'castle';
-                } else if (name.includes('зелье') || name.includes('настойка') || name.includes('отвар')) {
-                    contentType = 'potion';
-                } else if (name.includes('артефакт') || name.includes('реликвия') || name.includes('сокровище')) {
-                    contentType = 'artifact';
-                } else if (name.includes('персонаж') || name.includes('герой') || name.includes('лицо')) {
-                    contentType = 'character';
-                } else if (name.includes('локация') || name.includes('место') || name.includes('точка')) {
-                    contentType = 'location';
-                } else if (name.includes('событие') || name.includes('происшествие')) {
-                    contentType = 'event';
-                } else if (name.includes('организация') || name.includes('группа') || name.includes('союз')) {
-                    contentType = 'organization';
-                } else if (name.includes('город') || name.includes('поселение')) {
-                    contentType = 'city';
-                } else if (name.includes('деревня') || name.includes('село')) {
-                    contentType = 'village';
-                } else if (name.includes('провинция') || name.includes('область')) {
-                    contentType = 'province';
-                } else if (name.includes('государство') || name.includes('страна')) {
-                    contentType = 'state';
-                } else if (name.includes('заклинание') || name.includes('спелл')) {
-                    contentType = 'spell';
-                } else if (name.includes('алхимия') || name.includes('рецепт')) {
-                    contentType = 'alchemy';
-                } else if (name.includes('шахта') || name.includes('рудник')) {
-                    contentType = 'mine';
-                } else if (name.includes('завод') || name.includes('фабрика')) {
-                    contentType = 'factory';
-                } else if (name.includes('ферма') || name.includes('хозяйство')) {
-                    contentType = 'farm';
-                } else if (name.includes('порт') || name.includes('гавань')) {
-                    contentType = 'port';
-                } else if (name.includes('народ') || name.includes('раса')) {
-                    contentType = 'people';
-                } else if (name.includes('монстр') || name.includes('чудовище')) {
-                    contentType = 'monster';
-                } else if (name.includes('задача') || name.includes('квест')) {
-                    contentType = 'task';
-                }
+                // Пробуем по названию файла (используем вспомогательную функцию)
+                contentType = this.getContentTypeByName(file.basename);
             }
             
             if (!contentType) {

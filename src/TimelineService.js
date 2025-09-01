@@ -351,19 +351,16 @@ class TimelineService {
                 await this.ensureTimelineFolder(projectRoot);
             }
 
-            // Create or update file
-            const file = await this.plugin.app.vault.createNewFile(
-                contextPath,
-                JSON.stringify(contexts, null, 2),
-                'utf-8'
-            );
-
-            if (file) {
-                console.log('Temporal contexts saved successfully');
-                return { success: true };
+            const content = JSON.stringify(contexts, null, 2);
+            const existing = this.plugin.app.vault.getAbstractFileByPath(contextPath);
+            if (existing) {
+                await this.plugin.app.vault.modify(existing, content);
+            } else {
+                await this.plugin.app.vault.create(contextPath, content);
             }
-            
-            return { success: false, error: 'Failed to save temporal contexts' };
+
+            console.log('Temporal contexts saved successfully');
+            return { success: true };
         } catch (error) {
             console.error('Error saving temporal contexts:', error);
             return { success: false, error: error.message };
@@ -378,20 +375,15 @@ class TimelineService {
         const contextPath = `${projectRoot}/_lore/temporal_contexts.json`;
         
         try {
-            const file = await this.plugin.app.vault.getAbstractFileByPath(contextPath);
+            const file = this.plugin.app.vault.getAbstractFileByPath(contextPath);
             
             if (!file) {
                 return [];
             }
 
-            if (!file || typeof file.text !== 'function') {
-                console.error('Invalid file type for temporal contexts');
-                return [];
-            }
-
             try {
-                const content = await file.text();
-                return JSON.parse(content);
+                const content = await this.plugin.app.vault.read(file);
+                return JSON.parse(content || '[]');
             } catch (parseError) {
                 console.error('Failed to parse temporal contexts JSON:', parseError);
                 return [];

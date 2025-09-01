@@ -20,6 +20,7 @@ $files = [
     // Базовые классы для визардов (ПЕРЕД всеми визардами!)
     'creators/HtmlWizardModal.js',
    'creators/EntityWizardBase.js',
+   'creators/EntityFactory.js',
    'creators/LoreAnalysisModal.js',
    'creators/EpochManagerModal.js',
    'creators/EpochSelectorModal.js',
@@ -193,6 +194,7 @@ echo "Восстановлено $countWindowGlobal строк глобализ�
 $main .= "\n// Глобализация TimelineService для работы createWork\n";
 $main .= "window.TimelineService = TimelineService;\n";
 $main .= "window.WorkCreationModal = WorkCreationModal;\n";
+$main .= "window.CityWizardModal = CityWizardModal;\n";
 
 // Добавляем один импорт obsidian в начало (включая MarkdownView и requestUrl)
 $main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView, requestUrl } = require('obsidian');\n\n" . $main;

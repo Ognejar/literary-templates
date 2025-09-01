@@ -39,9 +39,13 @@ class StateWizardModal extends EntityWizardBase {
             traditions: '',
             religion: '',
             festivals: '',
-            mainIndustries: '',
-            tradePartners: '',
-            economicChallenges: '',
+            // Добавляем поддержку хронологии и истории населения
+            history_events: [], // массив событий: [{year: 800, event: "Основано государство"}, ...]
+            population_history: [], // массив значений населения: [{year: 1000, value: 500000}, ...]
+            // Обновляем поля для использования массивов
+            mainIndustries: [],
+            tradePartners: [],
+            economicChallenges: [],
             domesticPolicy: '',
             foreignPolicy: '',
             military: '',
@@ -62,6 +66,7 @@ class StateWizardModal extends EntityWizardBase {
             'Население и языки',
             'География',
             'История и культура',
+            'Хронология',
             'Экономика',
             'Политика',
             'Общество',
@@ -161,10 +166,11 @@ class StateWizardModal extends EntityWizardBase {
             case 2: this.renderPopulationLanguages(contentEl); break;
             case 3: this.renderGeography(contentEl); break;
             case 4: this.renderHistoryCulture(contentEl); break;
-            case 5: this.renderEconomy(contentEl); break;
-            case 6: this.renderPolitics(contentEl); break;
-            case 7: this.renderSociety(contentEl); break;
-            case 8: this.renderPreview(contentEl); break;
+            case 5: this.renderChronology(contentEl); break;
+            case 6: this.renderEconomy(contentEl); break;
+            case 7: this.renderPolitics(contentEl); break;
+            case 8: this.renderSociety(contentEl); break;
+            case 9: this.renderPreview(contentEl); break;
         }
 
         // Унифицированная навигация
@@ -477,65 +483,137 @@ class StateWizardModal extends EntityWizardBase {
             });
     }
 
-    renderEconomy(contentEl) {
-        // Основные отрасли
+    renderChronology(contentEl) {
+        // Секция для событий истории
         new this.Setting(contentEl)
-            .setName('Основные отрасли экономики')
-            .setDesc('Ключевые секторы экономики')
+            .setName('Исторические события')
+            .setDesc('Добавьте важные события в истории государства (год: событие)')
             .addTextArea(text => {
-                text.setValue(this.data.mainIndustries)
-                    .onChange(value => this.data.mainIndustries = value)
-                    .setPlaceholder('Опишите главные отрасли: сельское хозяйство, ремесла, торговля...');
-                text.inputEl.rows = 3;
-                // Унифицированные стили для текстовой области
+                const historyText = this.data.history_events && this.data.history_events.length > 0 
+                    ? this.data.history_events.map(h => `${h.year}: ${h.event}`).join('\n')
+                    : '';
+                text.setPlaceholder('800: Основано государство\n1200: Война с соседями\n1500: Экономический расцвет')
+                    .setValue(historyText)
+                    .onChange(value => {
+                        // Парсим текст в массив объектов history_events
+                        this.data.history_events = value.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => {
+                                const colonIndex = line.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const year = line.substring(0, colonIndex).trim();
+                                    const event = line.substring(colonIndex + 1).trim();
+                                    if (year && event) {
+                                        return { year: parseInt(year) || year, event: event };
+                                    }
+                                }
+                                return null;
+                            })
+                            .filter(item => item !== null);
+                    });
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
                 text.inputEl.style.fontSize = '14px';
                 text.inputEl.style.lineHeight = '1.4';
                 text.inputEl.style.padding = '8px';
-                text.inputEl.style.borderRadius = '4px';
-                text.inputEl.style.border = '1px solid var(--background-modifier-border)';
-                text.inputEl.style.resize = 'vertical';
+            });
+
+        // Секция для истории населения
+        new this.Setting(contentEl)
+            .setName('История населения')
+            .setDesc('Добавьте данные о населении по годам (год: количество)')
+            .addTextArea(text => {
+                const populationText = this.data.population_history && this.data.population_history.length > 0 
+                    ? this.data.population_history.map(p => `${p.year}: ${p.value}`).join('\n')
+                    : '';
+                text.setPlaceholder('1000: 500000\n1500: 1200000\n1800: 2500000')
+                    .setValue(populationText)
+                    .onChange(value => {
+                        // Парсим текст в массив объектов population_history
+                        this.data.population_history = value.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => {
+                                const colonIndex = line.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const year = line.substring(0, colonIndex).trim();
+                                    const value = line.substring(colonIndex + 1).trim();
+                                    if (year && value) {
+                                        return { year: parseInt(year) || year, value: parseInt(value) || value };
+                                    }
+                                }
+                                return null;
+                            })
+                            .filter(item => item !== null);
+                    });
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
+            });
+    }
+
+    renderEconomy(contentEl) {
+        // Основные отрасли
+        new this.Setting(contentEl)
+            .setName('Основные отрасли экономики')
+            .setDesc('Ключевые секторы экономики (каждая с новой строки)')
+            .addTextArea(text => {
+                const industriesText = this.data.mainIndustries && this.data.mainIndustries.length > 0 
+                    ? this.data.mainIndustries.join('\n')
+                    : '';
+                text.setValue(industriesText)
+                    .onChange(value => {
+                        this.data.mainIndustries = value.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+                    })
+                    .setPlaceholder('Сельское хозяйство\nРемесла\nТорговля\nГорнодобывающая промышленность');
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.minHeight = '120px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.lineHeight = '1.4';
+                text.inputEl.style.padding = '8px';
             });
 
         // Торговые партнеры
         new this.Setting(contentEl)
             .setName('Торговые партнеры')
-            .setDesc('Основные торговые связи')
+            .setDesc('Основные торговые связи (каждый с новой строки)')
             .addTextArea(text => {
-                text.setValue(this.data.tradePartners)
-                    .onChange(value => this.data.tradePartners = value)
-                    .setPlaceholder('Опишите, с кем торгует государство, какие товары...');
-                text.inputEl.rows = 3;
-                // Унифицированные стили для текстовой области
+                const partnersText = this.data.tradePartners && this.data.tradePartners.length > 0 
+                    ? this.data.tradePartners.join('\n')
+                    : '';
+                text.setValue(partnersText)
+                    .onChange(value => {
+                        this.data.tradePartners = value.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+                    })
+                    .setPlaceholder('Королевство Эльдария\nТорговая лига Ганзы\nВольные города');
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
                 text.inputEl.style.fontSize = '14px';
                 text.inputEl.style.lineHeight = '1.4';
                 text.inputEl.style.padding = '8px';
-                text.inputEl.style.borderRadius = '4px';
-                text.inputEl.style.border = '1px solid var(--background-modifier-border)';
-                text.inputEl.style.resize = 'vertical';
             });
 
         // Экономические вызовы
         new this.Setting(contentEl)
             .setName('Экономические вызовы')
-            .setDesc('Проблемы и трудности в экономике')
+            .setDesc('Проблемы и трудности в экономике (каждая с новой строки)')
             .addTextArea(text => {
-                text.setValue(this.data.economicChallenges)
-                    .onChange(value => this.data.economicChallenges = value)
-                    .setPlaceholder('Опишите экономические проблемы, недостатки, вызовы...');
-                text.inputEl.rows = 3;
-                // Унифицированные стили для текстовой области
+                const challengesText = this.data.economicChallenges && this.data.economicChallenges.length > 0 
+                    ? this.data.economicChallenges.join('\n')
+                    : '';
+                text.setValue(challengesText)
+                    .onChange(value => {
+                        this.data.economicChallenges = value.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+                    })
+                    .setPlaceholder('Зависимость от импорта зерна\nНехватка квалифицированных ремесленников\nКонкуренция с соседними государствами');
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
                 text.inputEl.style.fontSize = '14px';
                 text.inputEl.style.lineHeight = '1.4';
                 text.inputEl.style.padding = '8px';
-                text.inputEl.style.borderRadius = '4px';
-                text.inputEl.style.border = '1px solid var(--background-modifier-border)';
-                text.inputEl.style.resize = 'vertical';
             });
     }
 
@@ -857,6 +935,23 @@ class StateWizardModal extends EntityWizardBase {
                     return false;
                 }
                 break;
+            case 5: // Хронология
+                // Хронология не обязательна, но если добавлена - должна быть корректной
+                if (this.data.history_events && this.data.history_events.length > 0) {
+                    const invalidHistory = this.data.history_events.filter(h => !h.year || !h.event);
+                    if (invalidHistory.length > 0) {
+                        new this.Notice('Пожалуйста, проверьте формат исторических событий (год: событие).');
+                        return false;
+                    }
+                }
+                if (this.data.population_history && this.data.population_history.length > 0) {
+                    const invalidPopulation = this.data.population_history.filter(p => !p.year || !p.value);
+                    if (invalidPopulation.length > 0) {
+                        new this.Notice('Пожалуйста, проверьте формат истории населения (год: количество).');
+                        return false;
+                    }
+                }
+                break;
         }
         return true;
     }
@@ -866,12 +961,17 @@ class StateWizardModal extends EntityWizardBase {
             // Добавляем текущую дату
             this.data.date = window.moment().format('YYYY-MM-DD');
             
-            // Очищаем пустые поля
+            // Очищаем пустые поля (только для строк, не для массивов)
             Object.keys(this.data).forEach(key => {
-                if (this.data[key] === '') {
+                if (this.data[key] === '' && typeof this.data[key] === 'string') {
                     this.data[key] = 'Не указано';
                 }
             });
+
+            // Добавляем поля для шаблона
+            this.data.name = this.data.stateName; // для совместимости с шаблоном
+            this.data.history = this.data.history_events || []; // переименовываем для шаблона
+            this.data.population_history = this.data.population_history || []; // убеждаемся что массив существует
 
             await this.onFinish(this.data);
             this.close();
