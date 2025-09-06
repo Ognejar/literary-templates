@@ -200,7 +200,7 @@ class FactionWizardModal extends EntityWizardBase {
                         if (window.litSettingsService) {
                             charData.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Персонаж') || '';
                         }
-                    } catch {}
+                    } catch (e) {}
                     
                     const charContent = await window.generateFromTemplate('Новый_персонаж', charData, this.plugin);
                     const charFolder = `${this.projectPath}/Персонажи`;
@@ -243,7 +243,7 @@ class FactionWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Фракция') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новая_фракция', data, this.plugin);
         const folder = `${this.projectPath}/Локации/Фракции`;

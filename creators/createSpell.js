@@ -22,11 +22,18 @@
  */
 var createSpell = async function(plugin, startPath = '', options = {}) {
     try {
-        await plugin.logDebug('=== createSpell вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        plugin.logDebug('=== createSpell вызвана ===');
+        plugin.logDebug('startPath: ' + startPath);
 
+        // Используем резолвер контекста из настроек
         let projectRoot = '';
-        if (startPath) {
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, startPath);
+            projectRoot = ctx.projectRoot || '';
+        }
+        
+        // Fallback: старый способ
+        if (!projectRoot && startPath) {
             projectRoot = findProjectRoot(plugin.app, startPath);
         }
         let project = '';
@@ -38,13 +45,13 @@ var createSpell = async function(plugin, startPath = '', options = {}) {
             const projects = projectFiles.map(f => f.parent.path);
             if (projects.length === 0) {
                 new Notice('Проекты не найдены!');
-                await plugin.logDebug('Проекты не найдены!');
+                plugin.logDebug('Проекты не найдены!');
                 return;
             }
             project = await plugin.selectProject(projects);
             if (!project) return;
         }
-        await plugin.logDebug('project: ' + project);
+        plugin.logDebug('project: ' + project);
 
         const modal = new SpellWizardModal(plugin.app, Modal, Setting, Notice, project, async (spellData) => {
             // Добавляем дату и project в данные для шаблона
@@ -57,7 +64,7 @@ var createSpell = async function(plugin, startPath = '', options = {}) {
                     if (firstTag) tagImage = window.litSettingsService.findTagImage(plugin.app, project, firstTag);
                     if (!tagImage) tagImage = window.litSettingsService.findTagImage(plugin.app, project, 'Заклинание');
                 }
-            } catch {}
+            } catch (e) {}
 
             // Нормализация значений с учётом режима "manual"
             const normalize = (v, manual) => (v === 'manual' ? (manual || '') : (v || ''));
@@ -101,7 +108,7 @@ var createSpell = async function(plugin, startPath = '', options = {}) {
         modal.open();
     } catch (error) {
         new Notice('Ошибка при создании заклинания: ' + error.message);
-        await plugin.logDebug('Ошибка: ' + error.message);
+        plugin.logDebug('Ошибка: ' + error.message);
     }
 };
 

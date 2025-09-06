@@ -28,7 +28,7 @@
           if (typeof v === 'string') return v;
           if (v && typeof v === 'object') {
             if (typeof v.name === 'string') return v.name;
-            try { return JSON.stringify(v); } catch { return ''; }
+            try { return JSON.stringify(v); } catch (e) { return ''; }
           }
           return '';
         })
@@ -65,7 +65,7 @@
         locationTypes: locationTypes.length ? locationTypes : defaults.locationTypes,
         factions: factions.length ? factions : defaults.factions,
       };
-    } catch {
+    } catch (e) {
       return defaults;
     }
   }
@@ -130,7 +130,78 @@
     return '';
   }
 
-  const api = { ensureArray, readWorldSettings, getClimates, getFactions, getLocationTypes, findTagImage, getTagImageBlock };
+  // Хранение текущего контекста (мир/произведение) в файле плагина
+  const CONTEXT_PATH = '.obsidian/plugins/literary-templates/context.json';
+
+  async function readContext(app) {
+    try { const raw = await app.vault.adapter.read(CONTEXT_PATH); return JSON.parse(raw || '{}'); } catch (e) { return {}; }
+  }
+
+  async function writeContext(app, ctx) {
+    try { await app.vault.adapter.write(CONTEXT_PATH, JSON.stringify(ctx || {}, null, 2)); } catch (e) {}
+  }
+
+  async function setCurrentProject(app, projectRoot) {
+    const ctx = await readContext(app); ctx.currentProject = projectRoot || ''; if (!ctx.currentProject) ctx.currentWork = '';
+    await writeContext(app, ctx); return ctx;
+  }
+
+  async function setCurrentWork(app, workName) {
+    const ctx = await readContext(app); ctx.currentWork = workName || ''; await writeContext(app, ctx); return ctx;
+  }
+
+  async function getCurrentProject(app) {
+    const ctx = await readContext(app); return ctx.currentProject || '';
+  }
+
+  async function getCurrentWork(app) {
+    const ctx = await readContext(app); return ctx.currentWork || '';
+  }
+
+  // Универсальный резолвер контекста
+  function findProjectRoot(app, startPath) {
+    try {
+      const parts = String(startPath || '').split('/');
+      for (let i = parts.length; i > 0; i--) {
+        const p = parts.slice(0, i).join('/');
+        const f = app.vault.getAbstractFileByPath(`${p}/Настройки_мира.md`);
+        if (f) return p;
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  async function resolveContext(app, startPath = '') {
+    // 1) явный путь -> проект, 2) сохранённый currentProject, 3) от активного файла, 4) fallback: первый проект в хранилище
+    let projectRoot = '';
+    if (startPath) projectRoot = findProjectRoot(app, startPath) || startPath;
+    if (!projectRoot) projectRoot = await getCurrentProject(app);
+    if (!projectRoot) {
+      const active = app.workspace.getActiveFile();
+      const parent = active && active.parent ? active.parent.path : '';
+      if (parent) projectRoot = findProjectRoot(app, parent) || '';
+    }
+    if (!projectRoot) {
+      const files = app.vault.getMarkdownFiles();
+      const projectFiles = files.filter(f => f.basename === 'Настройки_мира');
+      if (projectFiles.length) projectRoot = projectFiles[0].parent.path;
+    }
+
+    let workName = await getCurrentWork(app);
+    // Если активный файл внутри папки произведения — используем её
+    try {
+      const active = app.workspace.getActiveFile();
+      if (active) {
+        const path = active.path;
+        const m = path.match(/(^|\/)1_Рукопись\/Произведения\/([^\/]+)\//);
+        if (m && m[2]) workName = m[2];
+      }
+    } catch (e) {}
+
+    return { projectRoot, workName };
+  }
+
+  const api = { ensureArray, readWorldSettings, getClimates, getFactions, getLocationTypes, findTagImage, getTagImageBlock, readContext, writeContext, setCurrentProject, setCurrentWork, getCurrentProject, getCurrentWork, resolveContext };
   if (typeof window !== 'undefined') {
     window.litSettingsService = api;
   }

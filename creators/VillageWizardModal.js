@@ -14,9 +14,9 @@ const { Modal, Setting } = require('obsidian');
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
 class VillageWizardModal extends EntityWizardBase {
-    constructor(app, ModalClass, SettingClass, NoticeClass, autocompleteData, onFinish) {
+    constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.autocompleteData = autocompleteData; // { provincesList }
+        this.projectRoot = projectRoot; // Путь к проекту
         this.onFinish = onFinish;
         this.state = {
             step: 0,
@@ -62,12 +62,11 @@ class VillageWizardModal extends EntityWizardBase {
         
         // Загружаем справочники из папок проекта
         try {
-            const projectRoot = this.autocompleteData?.projectRoot;
-            if (projectRoot) {
+            if (this.projectRoot) {
                 // Загружаем климаты и фракции из папок проекта
                 Promise.all([
-                    this.loadClimatesFromProject(projectRoot),
-                    this.loadFactionsFromProject(projectRoot)
+                    this.loadClimatesFromProject(this.projectRoot),
+                    this.loadFactionsFromProject(this.projectRoot)
                 ]).then(async ([climates, factions]) => {
                     this._climates = climates;
                     this._factions = factions;
@@ -345,46 +344,16 @@ class VillageWizardModal extends EntityWizardBase {
             };
         });
         
-        // Фракция
+        // Фракция — теперь свободный ввод
         el.createEl('h3', { text: 'Фракция' });
-        const factions = (this._factions && this._factions.length > 0) ? this._factions : ['Велюградия', 'Галиндия', 'Драконий хребет', 'Краковей', 'Другое'];
-        console.log('🏛️ Доступные фракции:', factions);
-        console.log('🏛️ Источник фракций:', this._factions && this._factions.length > 0 ? 'из папки проекта' : 'по умолчанию');
-        const factionContainer = el.createDiv();
-        factionContainer.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 20px;
-        `;
-        factions.forEach(faction => {
-            const btn = factionContainer.createEl('button', { text: faction });
-            btn.style.cssText = `
-                padding: 8px 16px;
-                margin: 0;
-                background: ${this.state.faction === faction ? 'var(--interactive-accent)' : 'var(--background-secondary)'};
-                color: ${this.state.faction === faction ? 'var(--text-on-accent)' : 'var(--text-normal)'};
-                border: 1px solid var(--background-modifier-border);
-                border-radius: 6px;
-                font-size: 14px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-            `;
-            btn.addEventListener('mouseenter', () => {
-                if (this.state.faction !== faction) {
-                    btn.style.background = 'var(--background-modifier-hover)';
-                }
-            });
-            btn.addEventListener('mouseleave', () => {
-                if (this.state.faction !== faction) {
-                    btn.style.background = 'var(--background-secondary)';
-                }
-            });
-            btn.onclick = () => {
-                this.state.faction = faction;
-                this.render();
-            };
+        const factionInput = el.createEl('input', { type: 'text', placeholder: 'Введите название фракции' });
+        factionInput.value = this.state.faction || '';
+        factionInput.addEventListener('input', (e) => {
+            this.state.faction = e.target.value;
         });
+        factionInput.style.width = '100%';
+        factionInput.style.fontSize = '16px';
+        factionInput.style.padding = '8px';
         
         this.renderNav(el, async () => {
             if (!this.state.climate || !this.state.faction) {
@@ -402,8 +371,7 @@ class VillageWizardModal extends EntityWizardBase {
         
         // Отладочная информация
         console.log('🔍 renderState вызван');
-        console.log('🔍 autocompleteData:', this.autocompleteData);
-        console.log('🔍 projectRoot:', this.autocompleteData?.projectRoot);
+        console.log('🔍 projectRoot:', this.projectRoot);
         header.style.cssText = `
             margin: 20px 0;
             color: var(--text-accent);
@@ -575,7 +543,8 @@ class VillageWizardModal extends EntityWizardBase {
             el.createEl('p', { text: `Для государства "${this.state.state}" не найдено провинций.` });
             
             // Показываем все доступные провинции как fallback
-            if (this.autocompleteData.provincesList && this.autocompleteData.provincesList.length > 0) {
+            const allProvinces = this.loadProvincesList();
+            if (allProvinces && allProvinces.length > 0) {
                 el.createEl('h3', { text: 'Все доступные провинции:' });
                 el.createEl('p', { text: 'Провинции не отфильтрованы по государству. Выберите любую:' });
                 
@@ -586,7 +555,7 @@ class VillageWizardModal extends EntityWizardBase {
                     gap: 8px;
                     margin-bottom: 20px;
                 `;
-                this.autocompleteData.provincesList.forEach(province => {
+                allProvinces.forEach(province => {
                     const btn = fallbackContainer.createEl('button', { text: province });
                     btn.style.cssText = `
                         padding: 8px 16px;
@@ -982,8 +951,7 @@ class VillageWizardModal extends EntityWizardBase {
                 finishBtn.style.background = 'var(--interactive-accent)';
             });
             finishBtn.onclick = () => {
-                this.onFinish(this.state);
-                this.close();
+                this.finish();
             };
         }
     }
@@ -1042,10 +1010,59 @@ class VillageWizardModal extends EntityWizardBase {
     }
     
     /**
+     * Загружает список провинций из папки Локации/Провинции
+     */
+    loadProvincesList() {
+        if (!this.projectRoot) {
+            console.warn('⚠️ projectRoot недоступен для загрузки провинций');
+            return [];
+        }
+        
+        try {
+            // Пробуем разные варианты путей
+            const possiblePaths = [
+                `${this.projectRoot}/Локации/Провинции`,
+                `${this.projectRoot}/Провинции`,
+                'Локации/Провинции',
+                'Провинции'
+            ];
+            
+            console.log('🔍 Возможные пути для провинций:', possiblePaths);
+            
+            for (const provincesFolder of possiblePaths) {
+                console.log(`🔍 Проверяем путь: ${provincesFolder}`);
+                const folder = this.app.vault.getAbstractFileByPath(provincesFolder);
+                
+                if (folder && folder.children && folder.children.length > 0) {
+                    const provinces = folder.children
+                        .filter(f => f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                        .map(f => f.basename);
+                    console.log(`✅ Найдены провинции в ${provincesFolder}:`, provinces);
+                    return provinces;
+                } else {
+                    console.log(`ℹ️ Папка ${provincesFolder} не найдена или пуста`);
+                }
+            }
+            
+            // Fallback на умолчания
+            const defaultProvinces = ['Центральная', 'Северная', 'Южная', 'Восточная', 'Западная'];
+            console.log('🏛️ Используем провинции по умолчанию:', defaultProvinces);
+            return defaultProvinces;
+            
+        } catch (error) {
+            console.error('❌ Ошибка загрузки провинций:', error);
+            // Fallback на умолчания при ошибке
+            const defaultProvinces = ['Центральная', 'Северная', 'Южная', 'Восточная', 'Западная'];
+            console.log('🏛️ Используем провинции по умолчанию из-за ошибки:', defaultProvinces);
+            return defaultProvinces;
+        }
+    }
+
+    /**
      * Загружает список государств из папки Локации/Государства
      */
     loadStatesList() {
-        if (!this.autocompleteData?.projectRoot) {
+        if (!this.projectRoot) {
             console.warn('⚠️ projectRoot недоступен для загрузки государств');
             return [];
         }
@@ -1053,8 +1070,8 @@ class VillageWizardModal extends EntityWizardBase {
         try {
             // Пробуем разные варианты путей
             const possiblePaths = [
-                `${this.autocompleteData.projectRoot}/Локации/Государства`,
-                `${this.autocompleteData.projectRoot}/Государства`,
+                `${this.projectRoot}/Локации/Государства`,
+                `${this.projectRoot}/Государства`,
                 'Локации/Государства',
                 'Государства'
             ];
@@ -1094,13 +1111,13 @@ class VillageWizardModal extends EntityWizardBase {
      * Получает провинции для конкретного государства
      */
     async getProvincesByState(stateName) {
-        if (!stateName || !this.autocompleteData?.projectRoot) {
+        if (!stateName || !this.projectRoot) {
             console.warn('⚠️ Недостаточно данных для поиска провинций');
             return [];
         }
         
         try {
-            const projectRoot = this.autocompleteData.projectRoot;
+            const projectRoot = this.projectRoot;
             
             // Пробуем разные варианты путей для провинций
             const possiblePaths = [
@@ -1196,6 +1213,47 @@ class VillageWizardModal extends EntityWizardBase {
             return [];
         }
     }
-    
 
+    async finish() {
+        try {
+            // Добавляем текущую дату
+            this.data.date = window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10);
+            
+            // Подготавливаем данные для шаблона
+            const data = {
+                name: this.state.villageName,
+                date: this.data.date,
+                climate: this.state.climate,
+                faction: this.state.faction,
+                province: this.state.province,
+                state: this.state.state,
+                status: this.state.status,
+                statusReason: this.state.statusReason,
+                description: this.state.description,
+                population: this.state.population,
+                mainCrops: this.state.mainCrops,
+                crafts: this.state.crafts,
+                features: this.state.features
+            };
+
+            // Очищаем пустые поля
+            Object.keys(data).forEach(key => {
+                if (data[key] === '' && typeof data[key] === 'string') {
+                    data[key] = 'Не указано';
+                }
+            });
+
+            await this.onFinish(data);
+            this.close();
+        } catch (error) {
+            console.error('Ошибка при создании деревни:', error);
+            new this.Notice('Ошибка при создании деревни');
+        }
+    }
+}
+
+module.exports = { VillageWizardModal };
+
+if (typeof window !== 'undefined') {
+    window.VillageWizardModal = VillageWizardModal;
 }

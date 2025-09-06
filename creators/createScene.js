@@ -15,12 +15,18 @@
  */
 var createScene = async function(plugin, startPath = '') {
     try {
-        await plugin.logDebug('=== createScene вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
-        // 1. Найти projectRoot от startPath
+        plugin.logDebug('=== createScene вызвана ===');
+        plugin.logDebug('startPath: ' + startPath);
+        // Используем резолвер контекста из настроек
         let projectRoot = '';
-        if (startPath) {
-            projectRoot = findProjectRoot(app, startPath);
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, startPath);
+            projectRoot = ctx.projectRoot || '';
+        }
+        
+        // Fallback: старый способ
+        if (!projectRoot && startPath) {
+            projectRoot = findProjectRoot(plugin.app, startPath);
         }
         let project = '';
 
@@ -33,14 +39,14 @@ var createScene = async function(plugin, startPath = '') {
             const projects = projectFiles.map(f => f.parent.path);
             if (projects.length === 0) {
                 new Notice('Проекты не найдены!');
-                await plugin.logDebug('Проекты не найдены!');
+                plugin.logDebug('Проекты не найдены!');
                 return;
             }
             project = await plugin.selectProject(projects);
             if (!project) return;
 
         }
-        await plugin.logDebug('project: ' + project);
+        plugin.logDebug('project: ' + project);
         // --- Автозаполнение ---
         // 1. Сюжетные линии
         let plotLinesList = [];
@@ -70,46 +76,46 @@ var createScene = async function(plugin, startPath = '') {
                     }
                 }
             }
-        } catch { plotLinesList = []; }
+        } catch (e) { plotLinesList = []; }
         // 2. Персонажи
         let charactersList = [];
         try {
             const charsFolder = `${project}/Персонажи`;
-            await plugin.logDebug('charsFolder: ' + charsFolder);
+            plugin.logDebug('charsFolder: ' + charsFolder);
             const folder = plugin.app.vault.getAbstractFileByPath(charsFolder);
-            await plugin.logDebug('folder found: ' + (folder ? 'YES' : 'NO'));
+            plugin.logDebug('folder found: ' + (folder ? 'YES' : 'NO'));
             if (folder && folder.children) {
                 charactersList = folder.children
                     .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
                     .map(f => f.basename);
-                await plugin.logDebug('charactersList: ' + charactersList.join(', '));
+                plugin.logDebug('charactersList: ' + charactersList.join(', '));
             } else {
                 charactersList = [];
-                await plugin.logDebug('No characters folder or no children');
+                plugin.logDebug('No characters folder or no children');
             }
         } catch (e) { 
             charactersList = []; 
-            await plugin.logDebug('Error loading characters: ' + e.message);
+            plugin.logDebug('Error loading characters: ' + e.message);
         }
         // 3. Локации
         let locationsList = [];
         try {
             const locsFolder = `${project}/Локации`;
-            await plugin.logDebug('locsFolder: ' + locsFolder);
+            plugin.logDebug('locsFolder: ' + locsFolder);
             const folder = plugin.app.vault.getAbstractFileByPath(locsFolder);
-            await plugin.logDebug('folder found: ' + (folder ? 'YES' : 'NO'));
+            plugin.logDebug('folder found: ' + (folder ? 'YES' : 'NO'));
             if (folder && folder.children) {
                 locationsList = folder.children
                     .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
                     .map(f => f.basename);
-                await plugin.logDebug('locationsList: ' + locationsList.join(', '));
+                plugin.logDebug('locationsList: ' + locationsList.join(', '));
             } else {
                 locationsList = [];
-                await plugin.logDebug('No locations folder or no children');
+                plugin.logDebug('No locations folder or no children');
             }
         } catch (e) { 
             locationsList = []; 
-            await plugin.logDebug('Error loading locations: ' + e.message);
+            plugin.logDebug('Error loading locations: ' + e.message);
         }
         
         // 4. Главы (для выбора существующей главы)
@@ -128,13 +134,13 @@ var createScene = async function(plugin, startPath = '') {
                             path: f.path // <--- добавлено!
                         };
                     });
-                await plugin.logDebug('chapterChoices: ' + JSON.stringify(chapterChoices));
+                plugin.logDebug('chapterChoices: ' + JSON.stringify(chapterChoices));
             } else {
-                await plugin.logDebug('No chapters folder or no children');
+                plugin.logDebug('No chapters folder or no children');
             }
         } catch (e) {
             chapterChoices = [];
-            await plugin.logDebug('Error loading chapters: ' + e.message);
+            plugin.logDebug('Error loading chapters: ' + e.message);
         }
 
         // --- Запуск SceneWizardModal ---
@@ -156,21 +162,21 @@ var createScene = async function(plugin, startPath = '') {
             // --- Генерация имени и пути ---
             // Найти выбранную главу в chapterChoices (используем chapterChoices из замыкания, а не this)
             const selectedChapter = chapterChoices.find(ch => ch.num === sceneData.chapterNum);
-            await plugin.logDebug('selectedChapter: ' + JSON.stringify(selectedChapter));
+            plugin.logDebug('selectedChapter: ' + JSON.stringify(selectedChapter));
             if (!selectedChapter || !selectedChapter.path) {
                 new Notice('Ошибка: не удалось найти папку выбранной главы!');
-                await plugin.logDebug('Ошибка: не удалось найти папку выбранной главы!');
+                plugin.logDebug('Ошибка: не удалось найти папку выбранной главы!');
                 return;
             }
             const chapterFolderPath = selectedChapter.path;
-            await plugin.logDebug('chapterFolderPath: ' + chapterFolderPath);
+            plugin.logDebug('chapterFolderPath: ' + chapterFolderPath);
             
             // Проверяем, существует ли папка главы
             const chapterFolder = plugin.app.vault.getAbstractFileByPath(chapterFolderPath);
-            await plugin.logDebug('chapterFolder exists: ' + (chapterFolder ? 'YES' : 'NO'));
+            plugin.logDebug('chapterFolder exists: ' + (chapterFolder ? 'YES' : 'NO'));
             if (!chapterFolder) {
                 new Notice('Ошибка: папка главы не найдена!');
-                await plugin.logDebug('Ошибка: папка главы не найдена!');
+                plugin.logDebug('Ошибка: папка главы не найдена!');
                 return;
             }
             
@@ -178,7 +184,7 @@ var createScene = async function(plugin, startPath = '') {
             const cleanSceneName = sceneData.sceneName.trim().replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
             const fileName = `Сцена_${sceneNum}_${cleanSceneName}`;
             const targetPath = `${chapterFolderPath}/${fileName}.md`;
-            await plugin.logDebug('targetPath: ' + targetPath);
+            plugin.logDebug('targetPath: ' + targetPath);
             
             // --- Формируем данные для шаблона ---
             const data = {
@@ -197,34 +203,34 @@ var createScene = async function(plugin, startPath = '') {
                 locationsSection: locationsSection,
                 tags: tags
             };
-            await plugin.logDebug('data for template: ' + JSON.stringify(data));
+            plugin.logDebug('data for template: ' + JSON.stringify(data));
 
             // --- Генерируем контент из шаблона ---
-            await plugin.logDebug('Generating content from template...');
+            plugin.logDebug('Generating content from template...');
             const content = await generateFromTemplate('Новая_сцена', data, plugin);
-            await plugin.logDebug('Content generated, length: ' + content.length);
-            await plugin.logDebug('Content preview: ' + content.substring(0, 200) + '...');
+            plugin.logDebug('Content generated, length: ' + content.length);
+            plugin.logDebug('Content preview: ' + content.substring(0, 200) + '...');
             
             // Сохраняем только в существующей папке главы
-            await plugin.logDebug('Creating file...');
+            plugin.logDebug('Creating file...');
             try {
                 const createdFile = await safeCreateFile(targetPath, content, plugin.app);
-                await plugin.logDebug('File created successfully: ' + (createdFile ? 'YES' : 'NO'));
+                plugin.logDebug('File created successfully: ' + (createdFile ? 'YES' : 'NO'));
                 
                 if (createdFile instanceof TFile) {
                     await plugin.app.workspace.getLeaf().openFile(createdFile);
-                    await plugin.logDebug('File opened in workspace');
+                    plugin.logDebug('File opened in workspace');
             }
             new Notice(`Создана сцена: ${fileName}`);
             } catch (createError) {
-                await plugin.logDebug('Error creating file: ' + createError.message);
+                plugin.logDebug('Error creating file: ' + createError.message);
                 new Notice('Ошибка при создании файла: ' + createError.message);
             }
         });
         modal.open();
     } catch (error) {
         new Notice('Ошибка при создании сцены: ' + error.message);
-        await plugin.logDebug('Ошибка: ' + error.message);
+        plugin.logDebug('Ошибка: ' + error.message);
     }
 };
 

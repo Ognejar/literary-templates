@@ -187,7 +187,7 @@ var ConflictWizardModal = class extends HtmlWizardModal {
                 const firstTag = normalizeList(this.data.tags)[0] || 'Конфликт';
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, firstTag) || '';
             }
-        } catch {}
+        } catch (e) {}
 
         const content = await window.generateFromTemplate('Новый_конфликт', data, this.plugin);
         const targetFolder = `${this.projectPath}/Конфликты`;

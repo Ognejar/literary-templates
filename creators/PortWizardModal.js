@@ -178,13 +178,7 @@ var PortWizardModal = class extends EntityWizardBase {
                 d.onChange(v => this.data.climate = v);
             });
         
-        new Setting(this.contentEl)
-            .setName('Доминирующая фракция')
-            .addDropdown(d => {
-                this.config.factions.forEach(faction => d.addOption(faction, faction));
-                d.setValue(this.data.dominantFaction);
-                d.onChange(v => this.data.dominantFaction = v);
-            });
+        this.renderClimateDominantFaction(this.contentEl);
         
         new Setting(this.contentEl)
             .setName('Государство')
@@ -202,6 +196,21 @@ var PortWizardModal = class extends EntityWizardBase {
                 this.config.provinces.forEach(province => d.addOption(province, province));
                 d.setValue(this.data.province);
                 d.onChange(v => this.data.province = v);
+            });
+    }
+
+    renderClimateDominantFaction(contentEl) {
+        // Климат (оставить как есть)
+        // Доминирующая фракция — теперь свободный ввод
+        new this.Setting(contentEl)
+            .setName('Доминирующая фракция')
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции')
+                    .setValue(this.data.dominantFaction || '')
+                    .onChange(value => this.data.dominantFaction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
     }
 
@@ -299,7 +308,7 @@ var PortWizardModal = class extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Порт') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новый_порт', data, this.plugin);
         const folder = `${this.projectPath}/Порты`;

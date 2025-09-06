@@ -20,11 +20,18 @@
  */
 var createPotion = async function(plugin, startPath = '', options = {}) {
     try {
-        await plugin.logDebug('=== createPotion вызвана ===');
-        await plugin.logDebug('startPath: ' + startPath);
+        plugin.logDebug('=== createPotion вызвана ===');
+        plugin.logDebug('startPath: ' + startPath);
 
+        // Используем резолвер контекста из настроек
         let projectRoot = '';
-        if (startPath) {
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, startPath);
+            projectRoot = ctx.projectRoot || '';
+        }
+        
+        // Fallback: старый способ
+        if (!projectRoot && startPath) {
             projectRoot = findProjectRoot(plugin.app, startPath);
         }
         let project = '';
@@ -36,13 +43,13 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
             const projects = projectFiles.map(f => f.parent.path);
             if (projects.length === 0) {
                 new Notice('Проекты не найдены!');
-                await plugin.logDebug('Проекты не найдены!');
+                plugin.logDebug('Проекты не найдены!');
                 return;
             }
             project = await plugin.selectProject(projects);
             if (!project) return;
         }
-        await plugin.logDebug('project: ' + project);
+        plugin.logDebug('project: ' + project);
 
         const modal = new PotionWizardModal(plugin.app, Modal, Setting, Notice, project, async (potionData) => {
             const cleanName = potionData.potionName.trim().replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
@@ -89,7 +96,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
                         tagImage = window.litSettingsService.findTagImage(plugin.app, project, 'Зелье');
                     }
                 }
-            } catch {}
+            } catch (e) {}
 
             // Формируем данные для шаблона
             const data = {
@@ -156,7 +163,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
                         try {
                             const f = plugin.app.vault.getAbstractFileByPath(refFilePath);
                             if (f) current = await plugin.app.vault.read(f);
-                        } catch {}
+                        } catch (e) {}
                         const existing = new Set(current.split('\n').map(s => s.trim()).filter(Boolean));
                         let added = false;
                         ingredientNames.forEach(n => {
@@ -171,7 +178,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
                                 await plugin.app.vault.adapter.write(refFilePath, lines.join('\n'));
                             } else {
                                 // Убедимся, что папка существует
-                                try { await plugin.app.vault.createFolder(base); } catch {}
+                                try { await plugin.app.vault.createFolder(base); } catch (e) {}
                                 await plugin.app.vault.create(refFilePath, lines.join('\n'));
                             }
                         }
@@ -209,7 +216,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
                     if (prepTime) await updateReference(plugin, `${base}/Время_приготовления_зелий.md`, [prepTime]);
                 }
             } catch (e) {
-                await plugin.logDebug('Не удалось обновить справочник ингредиентов: ' + e.message);
+                plugin.logDebug('Не удалось обновить справочник ингредиентов: ' + e.message);
             }
 
             new Notice(`Создано зелье: ${fileName}`);
@@ -217,7 +224,7 @@ var createPotion = async function(plugin, startPath = '', options = {}) {
         modal.open();
     } catch (error) {
         new Notice('Ошибка при создании зелья: ' + error.message);
-        await plugin.logDebug('Ошибка: ' + error.message);
+        plugin.logDebug('Ошибка: ' + error.message);
     }
 };
 
@@ -233,7 +240,7 @@ async function updateReference(plugin, filePath, names) {
     try {
       const f = app.vault.getAbstractFileByPath(filePath);
       if (f) current = await app.vault.read(f);
-    } catch {}
+    } catch (e) {}
     const existing = new Set(current.split('\n').map(s => s.trim()).filter(Boolean));
     let added = false;
     clean.forEach(n => {
@@ -244,10 +251,10 @@ async function updateReference(plugin, filePath, names) {
     if (app.vault.getAbstractFileByPath(filePath)) {
       await app.vault.adapter.write(filePath, lines.join('\n'));
     } else {
-      try { await app.vault.createFolder(base); } catch {}
+      try { await app.vault.createFolder(base); } catch (e) {}
       await app.vault.create(filePath, lines.join('\n'));
     }
   } catch (e) {
-    await plugin.logDebug('updateReference error: ' + e.message);
+    plugin.logDebug('updateReference error: ' + e.message);
   }
 }

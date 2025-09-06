@@ -1,4 +1,5 @@
 ### Города провинции
+
 ```dataview
 LIST FROM ""
 WHERE type = "Город" 

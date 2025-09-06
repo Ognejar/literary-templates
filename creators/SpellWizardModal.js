@@ -75,14 +75,14 @@ class SpellWizardModal extends HtmlWizardModal {
                 if (!f) return [];
                 const text = await this.app.vault.read(f);
                 return text.split('\n').map(x => x.trim()).filter(Boolean);
-            } catch { return []; }
+            } catch (e) { return []; }
         };
         const ensureList = async (file, defaults) => {
             try {
                 const fullPath = `${base}/${file}`;
                 let f = this.app.vault.getAbstractFileByPath(fullPath);
                 if (!f) {
-                    try { await this.app.vault.createFolder(base); } catch {}
+                    try { await this.app.vault.createFolder(base); } catch (e) {}
                     const content = (defaults || []).join('\n');
                     await this.app.vault.create(fullPath, content);
                 } else if (defaults && defaults.length > 0) {
@@ -91,7 +91,7 @@ class SpellWizardModal extends HtmlWizardModal {
                         await this.app.vault.modify(f, defaults.join('\n'));
                     }
                 }
-            } catch {}
+            } catch (e) {}
         };
 
         // Гарантируем наличие базовых справочников

@@ -165,7 +165,7 @@ class CultWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Культ') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новый_культ', data, this.plugin);
         const folder = `${this.projectPath}/Религия/Культы`;

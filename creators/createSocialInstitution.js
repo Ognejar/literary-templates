@@ -16,11 +16,21 @@ var createSocialInstitution = async function(plugin, startPath = '', options = {
     try {
         const activeFile = plugin.app.workspace.getActiveFile();
         const parentPath = startPath || (activeFile && activeFile.parent ? activeFile.parent.path : '');
-        let projectRoot = findProjectRoot(plugin.app, parentPath) || plugin.activeProjectRoot || '';
+        // Используем резолвер контекста из настроек
+        let projectRoot = '';
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, parentPath);
+            projectRoot = ctx.projectRoot || '';
+        }
+        
+        // Fallback: старый способ
         if (!projectRoot) {
-            const roots = await getAllProjectRoots(plugin.app);
-            if (!roots || roots.length === 0) { plugin.logDebug('[ERROR] Проекты не найдены'); return; }
-            projectRoot = roots[0];
+            projectRoot = findProjectRoot(plugin.app, parentPath) || plugin.activeProjectRoot || '';
+            if (!projectRoot) {
+                const roots = await getAllProjectRoots(plugin.app);
+                if (!roots || roots.length === 0) { plugin.logDebug('[ERROR] Проекты не найдены'); return; }
+                projectRoot = roots[0];
+            }
         }
 
         const modal = new SocialInstitutionWizardModal(plugin.app, Modal, Setting, Notice, projectRoot, async (data) => {

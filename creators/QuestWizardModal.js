@@ -258,7 +258,7 @@ class QuestWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Квест') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новый_квест', data, this.plugin);
         const folder = `${this.projectPath}/Квесты`;

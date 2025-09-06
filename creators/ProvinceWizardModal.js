@@ -15,9 +15,10 @@
 const { EntityWizardBase } = require('./EntityWizardBase.js');
 
 var ProvinceWizardModal = class extends EntityWizardBase {
-    constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
+    constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, plugin, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.projectRoot = projectRoot;
+        this.plugin = plugin;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
@@ -36,8 +37,7 @@ var ProvinceWizardModal = class extends EntityWizardBase {
             deadZones: [],
             ports: [],
             castles: [],
-            history: [], // Новый массив для истории
-            populationHistory: [] // Новый массив для истории населения
+            // Убраны поля history и populationHistory - теперь вводятся вручную в шаблоне
         };
     }
 
@@ -57,6 +57,9 @@ var ProvinceWizardModal = class extends EntityWizardBase {
         
         this.contentEl.empty();
         this.titleEl.setText('Создание новой провинции');
+        console.log('[ProvinceWizardModal] projectRoot:', this.projectRoot);
+        this.settingsFilePath = `${this.projectRoot}/Настройки_мира.md`;
+        console.log('[ProvinceWizardModal] settingsFilePath:', this.settingsFilePath);
         await this.loadConfig();
         await this.render();
     }
@@ -221,72 +224,43 @@ tags: [place, государство]
 
         switch (this.step) {
             case 0:
-                this.titleEl.setText('Создание новой провинции - Шаг 1/12: Государство');
+                this.titleEl.setText('Создание новой провинции - Шаг 1/10: Государство');
                 await this.renderStateSelect(contentEl);
                 navButtons = '<button class="mod-cta" id="next">Далее</button>';
                 break;
             case 1:
-                this.titleEl.setText('Создание новой провинции - Шаг 2/12: Название');
+                this.titleEl.setText('Создание новой провинции - Шаг 2/10: Название');
                 this.renderProvinceName(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 2:
-                this.titleEl.setText('Создание новой провинции - Шаг 3/12: Климат, Исторический период, Доминирующая фракция');
+                this.titleEl.setText('Создание новой провинции - Шаг 3/10: Климат, Исторический период, Доминирующая фракция');
                 this.renderClimateHistoricalPeriodDominantFaction(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 3:
-                this.titleEl.setText('Создание новой провинции - Шаг 4/12: Второстепенные фракции');
+                this.titleEl.setText('Создание новой провинции - Шаг 4/10: Второстепенные фракции');
                 this.renderMinorFactions(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 4:
-                this.titleEl.setText('Создание новой провинции - Шаг 5/12: Население');
+                this.titleEl.setText('Создание новой провинции - Шаг 5/10: Население');
                 this.renderPopulation(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 5:
-                this.titleEl.setText('Создание новой провинции - Шаг 6/12: Экономика');
+                this.titleEl.setText('Создание новой провинции - Шаг 6/10: Экономика');
                 this.renderEconomy(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 6:
-                this.titleEl.setText('Создание новой провинции - Шаг 7/12: История');
-                this.renderHistory(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 7:
-                this.titleEl.setText('Создание новой провинции - Шаг 8/12: История населения');
-                this.renderPopulationHistory(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 8:
-                this.titleEl.setText('Создание новой провинции - Шаг 9/12: Описание');
+                this.titleEl.setText('Создание новой провинции - Шаг 7/8: Описание');
                 this.renderDescription(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
-            case 9:
-                this.titleEl.setText('Создание новой провинции - Шаг 10/12: Города');
-                this.renderRelatedEntities(contentEl, 'cities', 'город');
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 10:
-                this.titleEl.setText('Создание новой провинции - Шаг 11/12: Деревни');
-                this.renderRelatedEntities(contentEl, 'villages', 'деревню');
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 11:
-                this.titleEl.setText('Создание новой провинции - Шаг 12/12: Мертвые зоны');
-                this.renderRelatedEntities(contentEl, 'deadZones', 'мертвую зону');
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 12:
-                this.titleEl.setText('Создание новой провинции - Шаг 13/12: Порты и замки');
-                this.renderPortsAndCastles(contentEl);
-                navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
-                break;
-            case 13:
-                this.titleEl.setText('Создание новой провинции - Шаг 14/12: Предпросмотр');
+            case 7:
+                // Убираем шаги со связанными сущностями: на момент создания провинции эти данные неизвестны
+                this.titleEl.setText('Создание новой провинции - Шаг 8/8: Предпросмотр');
                 this.renderPreview(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
                 break;
@@ -400,11 +374,8 @@ tags: [place, государство]
     renderClimateHistoricalPeriodDominantFaction(contentEl) {
         const fallbackClimates = ['Тропический', 'Умеренный', 'Холодный', 'Пустынный', 'Горный', 'Прибрежный', 'Субтропический'];
         const fallbackPeriods = ['Древность', 'Средневековье', 'Ренессанс', 'Новое время', 'Современность', 'Футуристическое'];
-        const fallbackFactions = ['Королевская власть', 'Церковь', 'Торговые гильдии', 'Военные ордена', 'Магические школы', 'Криминальные синдикаты', 'Племенные союзы', 'Демократические советы'];
-
         const climates = this.config.climates.length > 0 ? this.config.climates : fallbackClimates;
         const periods = this.config.historicalPeriods.length > 0 ? this.config.historicalPeriods : fallbackPeriods;
-        const factions = this.config.factions.length > 0 ? this.config.factions : fallbackFactions;
 
         new this.Setting(contentEl)
             .setName('Климат')
@@ -412,7 +383,6 @@ tags: [place, государство]
                 climates.forEach(climate => dropdown.addOption(climate, climate));
                 dropdown.setValue(this.data.climate || climates[0]);
                 dropdown.onChange(value => this.data.climate = value);
-                // Увеличиваем размер выпадающего списка
                 dropdown.selectEl.style.minWidth = '280px';
                 dropdown.selectEl.style.fontSize = '14px';
                 dropdown.selectEl.style.padding = '6px';
@@ -425,22 +395,21 @@ tags: [place, государство]
                 periods.forEach(period => dropdown.addOption(period, period));
                 dropdown.setValue(this.data.historicalPeriod || periods[0]);
                 dropdown.onChange(value => this.data.historicalPeriod = value);
-                // Увеличиваем размер выпадающего списка
                 dropdown.selectEl.style.minWidth = '280px';
                 dropdown.selectEl.style.fontSize = '14px';
                 dropdown.selectEl.style.padding = '6px';
             });
 
+        // Доминирующая фракция — теперь свободный ввод
         new this.Setting(contentEl)
             .setName('Доминирующая фракция')
-            .addDropdown(dropdown => {
-                factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.dominantFaction || factions[0]);
-                dropdown.onChange(value => this.data.dominantFaction = value);
-                // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции')
+                    .setValue(this.data.dominantFaction || '')
+                    .onChange(value => this.data.dominantFaction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
     }
 
@@ -453,7 +422,6 @@ tags: [place, государство]
                     .onChange(value => {
                         this.data.minorFactions = value.split('\n').map(f => f.trim()).filter(f => f.length > 0);
                     });
-                // Увеличиваем размер текстового поля
                 text.inputEl.style.width = '100%';
                 text.inputEl.style.minHeight = '120px';
                 text.inputEl.style.fontSize = '14px';
@@ -496,47 +464,7 @@ tags: [place, государство]
             });
     }
 
-    renderHistory(contentEl) {
-        new this.Setting(contentEl)
-            .setName('История провинции (каждая строка: "год: событие")')
-            .addTextArea(text => {
-                text.setPlaceholder('История провинции')
-                    .setValue(this.data.history.map(item => `${item.year}: ${item.event}`).join('\n'))
-                    .onChange(value => {
-                        this.data.history = value.split('\n').map(line => {
-                            const [year, event] = line.split(':').map(s => s.trim());
-                            return { year: parseInt(year), event: event };
-                        }).filter(item => !isNaN(item.year) && item.event);
-                    });
-                // Увеличиваем размер текстового поля
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.minHeight = '120px';
-                text.inputEl.style.fontSize = '14px';
-                text.inputEl.style.lineHeight = '1.4';
-                text.inputEl.style.padding = '8px';
-            });
-    }
 
-    renderPopulationHistory(contentEl) {
-        new this.Setting(contentEl)
-            .setName('История населения провинции (каждая строка: "год: число")')
-            .addTextArea(text => {
-                text.setPlaceholder('История населения провинции')
-                    .setValue(this.data.populationHistory.map(item => `${item.year}: ${item.population}`).join('\n'))
-                    .onChange(value => {
-                        this.data.populationHistory = value.split('\n').map(line => {
-                            const [year, population] = line.split(':').map(s => s.trim());
-                            return { year: parseInt(year), population: parseInt(population) };
-                        }).filter(item => !isNaN(item.year) && !isNaN(item.population));
-                    });
-                // Увеличиваем размер текстового поля
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.minHeight = '120px';
-                text.inputEl.style.fontSize = '14px';
-                text.inputEl.style.lineHeight = '1.4';
-                text.inputEl.style.padding = '8px';
-            });
-    }
 
     renderDescription(contentEl) {
         new this.Setting(contentEl)
@@ -616,12 +544,7 @@ tags: [place, государство]
         if (this.data.description) {
             previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
         }
-        if (this.data.history.length) {
-            previewEl.createEl('p', { text: `**История:** ${this.data.history.map(item => `${item.year}: ${item.event}`).join(', ')}` });
-        }
-        if (this.data.populationHistory.length) {
-            previewEl.createEl('p', { text: `**История населения:** ${this.data.populationHistory.map(item => `${item.year}: ${item.population}`).join(', ')}` });
-        }
+        // История и история населения теперь вводятся вручную в шаблоне
         if (this.data.cities.length) {
             previewEl.createEl('p', { text: `**Города:** ${this.data.cities.join(', ')}` });
         }
@@ -659,8 +582,12 @@ tags: [place, государство]
             if (this.validateCurrentStep()) {
                 // Сохраняем конфигурацию, если были добавлены новые государства
                 await this.saveConfig();
-                this.onFinish(this.data);
-                this.close();
+                try {
+                    await this.finish();
+                } catch (e) {
+                    console.error('Ошибка при создании провинции:', e);
+                    new this.Notice('Ошибка при создании провинции: ' + (e && e.message ? e.message : e));
+                }
             }
         });
     }
@@ -731,6 +658,56 @@ tags: [place, государство]
     onClose() {
         let { contentEl } = this;
         contentEl.empty();
+    }
+
+    async finish() {
+        const clean = s => String(s || '').trim();
+        const name = clean(this.data.provinceName);
+        if (!name) { new this.Notice('Не указано название провинции'); return; }
+        const cleanName = name.replace(/[^А-Яа-яA-Za-zЁё0-9_\-\.\s]/g, '').replace(/\s+/g, '_');
+        const date = (window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10));
+        const projectName = (this.projectRoot || '').split('/').pop() || '';
+
+        // Преобразуем историю в ожидаемый шаблоном формат
+        const history = []; // Пустой массив - история теперь вводится вручную в шаблоне
+
+        // populationHistory в data хранится с ключом population -> нужно value
+        const population_history = []; // Пустой массив - история населения теперь вводится вручную в шаблоне
+
+        const data = {
+            date,
+            name,
+            projectName,
+            state: clean(this.data.state),
+            climate: clean(this.data.climate),
+            dominantFaction: clean(this.data.dominantFaction),
+            population: clean(this.data.population),
+            history,
+            population_history,
+            epochs: clean(this.data.historicalPeriod || ''),
+            imageBlock: '',
+        };
+
+        const folder = `${this.projectRoot}/Локации/Провинции`;
+        try {
+            await window.ensureEntityInfrastructure(folder, cleanName, this.app);
+            // Получаем правильный объект плагина из глобальной области
+            const plugin = window.app?.plugins?.plugins?.['literary-templates'] || this.plugin;
+            if (!plugin.logDebug) plugin.logDebug = () => {};
+            if (!plugin.readTemplateFile) plugin.readTemplateFile = window.app?.plugins?.plugins?.['literary-templates']?.readTemplateFile;
+            const content = await window.generateFromTemplate('Новая_провинция', data, plugin);
+            const path = `${folder}/${cleanName}.md`;
+            await window.safeCreateFile(path, content, this.app);
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
+            new this.Notice(`Провинция «${name}» создана.`);
+            this.close();
+            // Передаем сформированные данные и содержимое в callback
+            if (this.onFinish) this.onFinish(this.data, content);
+        } catch (e) {
+            console.error('Ошибка генерации провинции:', e);
+            throw e;
+        }
     }
 };
 

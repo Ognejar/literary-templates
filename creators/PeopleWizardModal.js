@@ -30,7 +30,8 @@ var PeopleWizardModal = class extends HtmlWizardModal {
             description: '',
             traditionsInput: '',
             craftsInput: '',
-            featuresInput: ''
+            featuresInput: '',
+            faction: ''
         };
         this.step = 0;
         this.steps = [
@@ -105,6 +106,19 @@ var PeopleWizardModal = class extends HtmlWizardModal {
                 this.config.types.forEach((x) => d.addOption(x, x));
                 d.setValue(this.data.type);
                 d.onChange((v) => this.data.type = v);
+            });
+    }
+
+    renderFaction(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Фракция (опционально)')
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции')
+                    .setValue(this.data.faction || '')
+                    .onChange(value => this.data.faction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
     }
 
@@ -235,7 +249,7 @@ var PeopleWizardModal = class extends HtmlWizardModal {
                 if (window.litSettingsService) {
                     tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Народ');
                 }
-            } catch {}
+            } catch (e) {}
 
             // Формируем фронтматтер
             const fm = [

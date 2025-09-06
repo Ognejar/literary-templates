@@ -14,44 +14,50 @@ const { AlchemyRecipeWizardModal } = require('../AlchemyRecipeWizardModal.js');
 
 var createAlchemyRecipe = async function(plugin, startPath = '', options = {}) {
     try {
-        await plugin.logDebug('=== createAlchemyRecipe: начало ===');
+        plugin.logDebug('=== createAlchemyRecipe: начало ===');
         
-        // 1. Найти projectRoot от startPath
+        // Используем резолвер контекста из настроек
         let projectRoot = '';
-        if (startPath) {
-            await plugin.logDebug(`createAlchemyRecipe: ищем projectRoot от ${startPath}`);
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, startPath);
+            projectRoot = ctx.projectRoot || '';
+        }
+        
+        // Fallback: старый способ
+        if (!projectRoot && startPath) {
+            plugin.logDebug(`createAlchemyRecipe: ищем projectRoot от ${startPath}`);
             projectRoot = window.findProjectRoot(plugin.app, startPath);
-            await plugin.logDebug(`Найденный projectRoot: ${projectRoot}`);
+            plugin.logDebug(`Найденный projectRoot: ${projectRoot}`);
         }
         
         let project = '';
         if (projectRoot) {
             project = projectRoot;
-            await plugin.logDebug(`Используем найденный projectRoot: ${project}`);
+            plugin.logDebug(`Используем найденный projectRoot: ${project}`);
         } else {
             // Fallback: выбор из всех проектов
-            await plugin.logDebug('Ищем все проекты...');
+            plugin.logDebug('Ищем все проекты...');
             const allFiles = plugin.app.vault.getMarkdownFiles();
             const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
             const projects = projectFiles.map(f => f.parent.path);
-            await plugin.logDebug(`Найдено проектов: ${projects.length}`);
+            plugin.logDebug(`Найдено проектов: ${projects.length}`);
             
             if (projects.length === 0) {
-                await plugin.logDebug('Проекты не найдены!');
+                plugin.logDebug('Проекты не найдены!');
                 new Notice('Проекты не найдены!');
                 return;
             }
             
-            await plugin.logDebug('Вызываем selectProject для выбора проекта...');
+            plugin.logDebug('Вызываем selectProject для выбора проекта...');
             project = await plugin.selectProject(projects);
             if (!project) {
-                await plugin.logDebug('Проект не выбран');
+                plugin.logDebug('Проект не выбран');
                 return;
             }
-            await plugin.logDebug(`Выбран проект: ${project}`);
+            plugin.logDebug(`Выбран проект: ${project}`);
         }
 
-        await plugin.logDebug('Проект выбран, открываем модальное окно...');
+        plugin.logDebug('Проект выбран, открываем модальное окно...');
 
         // 2. Открыть модальное окно мастера
         const modal = new AlchemyRecipeWizardModal(
@@ -68,7 +74,7 @@ var createAlchemyRecipe = async function(plugin, startPath = '', options = {}) {
         modal.open();
         
     } catch (error) {
-        await plugin.logDebug(`Error in createAlchemyRecipe: ${error.message}`);
+        plugin.logDebug(`Error in createAlchemyRecipe: ${error.message}`);
         new Notice('Ошибка при создании алхимического рецепта: ' + error.message);
     }
 };

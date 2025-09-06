@@ -24,7 +24,8 @@ class WorkCreationModal extends HtmlWizardModal {
             epochId: '',
             year: '',
             context: '',
-            workType: ''
+            workType: '',
+            author: plugin.settings && plugin.settings.author ? plugin.settings.author : '' // автоподстановка
         };
     }
 
@@ -93,6 +94,11 @@ class WorkCreationModal extends HtmlWizardModal {
                     <label for="work-context">Временной контекст:</label>
                     <textarea id="work-context" placeholder="Описание временного контекста произведения">${this.state.context}</textarea>
                     <small>Что происходит в мире в это время?</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="work-author">Автор:</label>
+                    <input type="text" id="work-author" value="${this.state.author}" placeholder="Имя автора">
                 </div>
                 
                 <div class="form-actions">
@@ -164,6 +170,12 @@ class WorkCreationModal extends HtmlWizardModal {
             this.updateSubmitState();
         });
 
+        this.contentEl.querySelector('#work-author').addEventListener('input', (e) => {
+            this.state.author = e.target.value;
+            this.updatePreview();
+            this.updateSubmitState();
+        });
+
         // Кнопки
         this.contentEl.querySelector('.create-work-btn').addEventListener('click', async () => {
             await this.createWork();
@@ -178,7 +190,9 @@ class WorkCreationModal extends HtmlWizardModal {
         try {
             const btn = this.contentEl.querySelector('.create-work-btn');
             if (btn) btn.disabled = !this.isFormValid();
-        } catch {}
+        } catch (e) {
+            console.error('WorkCreationModal updateSubmitState error:', e);
+        }
     }
 
     normalizeId(raw) {
@@ -191,7 +205,8 @@ class WorkCreationModal extends HtmlWizardModal {
                 .replace(/^_+|_+$/g, '')
                 .substring(0, 64);
             return s;
-        } catch {
+        } catch (e) {
+            console.error('WorkCreationModal normalizeId error:', e);
             // Fallback без Unicode property escapes
             let s = String(raw || '')
                 .toLowerCase()
@@ -252,6 +267,9 @@ class WorkCreationModal extends HtmlWizardModal {
                     <strong>Контекст:</strong> ${this.state.context}
                 </div>
                 <div class="preview-item">
+                    <strong>Автор:</strong> ${this.state.author || '—'}
+                </div>
+                <div class="preview-item">
                     <strong>Папка:</strong> 1_Рукопись/Произведения/${this.state.id}/
                 </div>
             `;
@@ -269,7 +287,8 @@ class WorkCreationModal extends HtmlWizardModal {
                this.state.description.trim() !== '' &&
                this.state.epochId !== '' &&
                this.state.year !== '' &&
-               this.state.context.trim() !== '';
+               this.state.context.trim() !== '' &&
+               this.state.author.trim() !== '';
     }
 
     async createWork() {
@@ -310,7 +329,8 @@ class WorkCreationModal extends HtmlWizardModal {
                 epochEndYear: selectedEpoch.endYear,
                 year: parseInt(this.state.year),
                 context: this.state.context.trim(),
-                workType: this.state.workType.trim()
+                workType: this.state.workType.trim(),
+                author: this.state.author.trim()
             };
 
             console.log('Создание произведения:', workData);

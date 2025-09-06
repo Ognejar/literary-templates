@@ -115,7 +115,7 @@ var CastleWizardModal = class extends EntityWizardBase {
                     this.config.climates = ensureArray(loc.climates);
                     this.config.factions = ensureArray(loc.factions);
                     this.config.locationTypes = ensureArray(loc.locationTypes);
-                } catch {
+                } catch (e) {
                     this.config.climates = [];
                     this.config.factions = [];
                     this.config.locationTypes = [];
@@ -305,14 +305,13 @@ var CastleWizardModal = class extends EntityWizardBase {
 
         new this.Setting(contentEl)
             .setName('Доминирующая фракция')
-            .addDropdown(dropdown => {
-                this.config.factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.dominantFaction || this.config.factions[0]);
-                dropdown.onChange(value => this.data.dominantFaction = value);
-                // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции')
+                    .setValue(this.data.dominantFaction || '')
+                    .onChange(value => this.data.dominantFaction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
     }
 

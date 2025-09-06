@@ -221,7 +221,7 @@ class TradeRouteWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Торговый_путь') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Торговый_путь', data, this.plugin);
         const folder = `${this.projectPath}/Торговые_пути`;

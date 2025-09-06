@@ -11,20 +11,25 @@ $files = [
     'src/KeyRotationService.js',
     'src/AIProviderService.js',
     'src/LoreAnalyzerService.js',
-  // Сервисы для работы с временными слоями
+    // Сервисы для работы с временными слоями
     'src/TimelineService.js',
     'src/TemporalEntityService.js',
     'src/TemporalContextService.js',
     'src/MigrationService.js',
     'src/TemporalAPI.js',
+    // Хелперы и UI-слой (должны быть до визардов)
+    'helpers/lists.js',
+    'helpers/strings.js',
+    'ui/adapters/ObsidianSettingAdapter.js',
+    'ui/WizardUI.js',
     // Базовые классы для визардов (ПЕРЕД всеми визардами!)
     'creators/HtmlWizardModal.js',
-   'creators/EntityWizardBase.js',
-   'creators/EntityFactory.js',
-   'creators/LoreAnalysisModal.js',
-   'creators/EpochManagerModal.js',
-   'creators/EpochSelectorModal.js',
-       
+    'creators/EntityWizardBase.js',
+    'creators/EntityFactory.js',
+    'creators/LoreAnalysisModal.js',
+    'creators/EpochManagerModal.js',
+    'creators/EpochSelectorModal.js',
+
     'creators/TaskWizardModal.js',
     // Все визарды из папки creators
     'creators/AlchemyRecipeWizardModal.js',
@@ -35,6 +40,7 @@ $files = [
     'creators/SpellWizardModal.js',
     'creators/SceneWizardModal.js',
     'creators/VillageWizardModal.js',
+    'creators/WorldWizardModal.js',
     'creators/LocationWizardModal.js',
     'creators/CityWizardModal.js',
     'creators/SocialInstitutionWizardModal.js',
@@ -47,6 +53,7 @@ $files = [
     'creators/FarmWizardModal.js',
     'creators/StateWizardModal.js',
     'creators/CharacterWizardModal.js',
+    'creators/MonsterWizardModal.js',
     'creators/ConflictWizardModal.js',
     'creators/OrganizationWizardModal.js',
     'creators/ReligionWizardModal.js',
@@ -59,6 +66,7 @@ $files = [
     'creators/ArtifactWizardModal.js',
     'creators/BaseWizardModal.js',
     'creators/WorkCreationModal.js',
+    'creators/PluginSettingsModal.js',
     // Включаем creators файлы - они нужны для standalone функций
     'creators/createWorld.js',
     'creators/createVillage.js',
@@ -81,7 +89,7 @@ $files = [
     'creators/createProvince.js',
     'creators/createCharacter.js',
     'creators/createMonster.js',
-	'creators/createTask.js',
+    'creators/createTask.js',
     'creators/createWork.js',
     'creators/createSocialInstitution.js',
     // main.js должен быть последним!
@@ -91,6 +99,12 @@ $files = [
 $out = '';
 $totalSize = 0;
 
+function echoRed($text) {
+    echo "\033[31m$text\033[0m";
+}
+function echoGreen($text) {
+    echo "\033[32m$text\033[0m";
+}
 // Инициализируем счетчики для require('./src/...')
 $countRequireSrc = 0;
 $countRequireAssign = 0;
@@ -112,16 +126,22 @@ echo "Размеры исходных файлов:\n";
 // Опциональная директория с модульными частями основного плагина
 $mainModulesDir = __DIR__ . DIRECTORY_SEPARATOR . 'main_modules';
 if (is_dir($mainModulesDir)) {
-	$moduleFilesAbs = glob($mainModulesDir . DIRECTORY_SEPARATOR . '*.js');
-	if (!empty($moduleFilesAbs)) {
-		sort($moduleFilesAbs, SORT_NATURAL);
-		$moduleFilesRel = array_map(function($p){ return 'main_modules/' . basename($p); }, $moduleFilesAbs);
-		$idx = array_search('main.js', $files, true);
-		if ($idx === false) { $idx = count($files); }
-		$files = array_merge(array_slice($files, 0, $idx), $moduleFilesRel, array_slice($files, $idx));
-		echo "Обнаружены модульные файлы (будут включены перед main.js):\n";
-		foreach ($moduleFilesRel as $mf) { echo "  + $mf\n"; }
-	}
+    $moduleFilesAbs = glob($mainModulesDir . DIRECTORY_SEPARATOR . '*.js');
+    if (!empty($moduleFilesAbs)) {
+        sort($moduleFilesAbs, SORT_NATURAL);
+        $moduleFilesRel = array_map(function ($p) {
+            return 'main_modules/' . basename($p);
+        }, $moduleFilesAbs);
+        $idx = array_search('main.js', $files, true);
+        if ($idx === false) {
+            $idx = count($files);
+        }
+        $files = array_merge(array_slice($files, 0, $idx), $moduleFilesRel, array_slice($files, $idx));
+        echo "Обнаружены модульные файлы (будут включены перед main.js):\n";
+        foreach ($moduleFilesRel as $mf) {
+            echo "  + $mf\n";
+        }
+    }
 }
 foreach ($files as $file) {
     if (file_exists($file)) {
@@ -130,7 +150,7 @@ foreach ($files as $file) {
         echo str_pad($file, 25) . ': ' . str_pad($size, 8, ' ', STR_PAD_LEFT) . " байт\n";
         $out .= "\n// --- $file ---\n" . file_get_contents($file);
     } else {
-        echo "Внимание: файл $file не найден!\n";
+        echoRed ("Внимание: файл $file не найден!\n");
     }
 }
 echo "Суммарный размер всех исходных файлов: $totalSize байт\n";
@@ -195,6 +215,26 @@ $main .= "\n// Глобализация TimelineService для работы crea
 $main .= "window.TimelineService = TimelineService;\n";
 $main .= "window.WorkCreationModal = WorkCreationModal;\n";
 $main .= "window.CityWizardModal = CityWizardModal;\n";
+$main .= "window.MineWizardModal = MineWizardModal;\n";
+$main .= "window.VillageWizardModal = VillageWizardModal;\n";
+$main .= "window.WorldWizardModal = WorldWizardModal;\n";
+$main .= "window.FarmWizardModal = FarmWizardModal;\n";
+$main .= "window.StateWizardModal = StateWizardModal;\n";
+$main .= "window.FactoryWizardModal = FactoryWizardModal;\n";
+$main .= "window.ProvinceWizardModal = ProvinceWizardModal;\n";
+$main .= "window.CastleWizardModal = CastleWizardModal;\n";
+$main .= "window.PortWizardModal = PortWizardModal;\n";
+$main .= "window.DeadZoneWizardModal = DeadZoneWizardModal;\n";
+$main .= "window.LocationWizardModal = LocationWizardModal;\n";
+$main .= "window.SocialInstitutionWizardModal = SocialInstitutionWizardModal;\n";
+$main .= "window.CharacterWizardModal = CharacterWizardModal;\n";
+$main .= "window.PeopleWizardModal = PeopleWizardModal;\n";
+$main .= "window.MonsterWizardModal = MonsterWizardModal;\n";
+$main .= "window.ArtifactWizardModal = ArtifactWizardModal;\n";
+$main .= "window.AlchemyRecipeWizardModal = AlchemyRecipeWizardModal;\n";
+$main .= "window.SpellWizardModal = SpellWizardModal;\n";
+$main .= "window.PotionWizardModal = PotionWizardModal;\n";
+$main .= "window.SceneWizardModal = SceneWizardModal;\n";
 
 // Добавляем один импорт obsidian в начало (включая MarkdownView и requestUrl)
 $main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView, requestUrl } = require('obsidian');\n\n" . $main;
@@ -264,7 +304,7 @@ echo "Осталось строк с './src/': $remainingSrcLines\n";
 
 // Если остались строки с './src/' - выводим их для отладки
 if ($remainingSrcLines > 0) {
-    echo "ВНИМАНИЕ: Остались строки с './src/':\n";
+    echoRed("ВНИМАНИЕ: Остались строки с './src/':\n");
     preg_match_all('/.*\.\/src\/.*\n?/m', $main, $matches);
     foreach ($matches[0] as $match) {
         echo "  " . trim($match) . "\n";
@@ -294,7 +334,8 @@ echo "Удалено $count9 дублированных module.exports\n";
 echo "Проверен экспорт для плагина\n";
 
 // --- АНАЛИЗ ДУБЛИКАТОВ ---
-function analyzeDuplicates($filename) {
+function analyzeDuplicates($filename)
+{
     $code = file_get_contents($filename);
     $lines = explode("\n", $code);
     $signatures = [];
@@ -312,7 +353,9 @@ function analyzeDuplicates($filename) {
     }
     $counts = array_count_values($signatures);
     arsort($counts);
-    $duplicates = array_filter($counts, function($v) { return $v > 1; });
+    $duplicates = array_filter($counts, function ($v) {
+        return $v > 1;
+    });
     if (count($duplicates) > 0) {
         echo "\nТоп-10 дублирующихся сигнатур (function/class):\n";
         $i = 0;
@@ -330,17 +373,18 @@ analyzeDuplicates('main.bundle.js');
 // Копируем результат в папку плагина Obsidian
 $target = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/main.js';
 if (copy('main.bundle.js', $target)) {
-    echo "main.bundle.js скопирован в $target\n";
+    echoGreen ("\n main.bundle.js скопирован в $target\n\n");
 } else {
-    echo "Ошибка копирования main.bundle.js в $target\n";
+    echoRed ("\n Ошибка копирования main.bundle.js в $target\n\n");
 }
 
 // --- КОПИРОВАНИЕ ШАБЛОНОВ ---
-function copyDir($src, $dst) {
+function copyDirR($src, $dst) //Рекурсивное копирование папки
+{
     if (!is_dir($src)) return false;
     if (!is_dir($dst)) mkdir($dst, 0777, true);
     $dir = opendir($src);
-    while(false !== ($file = readdir($dir))) {
+    while (false !== ($file = readdir($dir))) {
         if (($file != '.') && ($file != '..')) {
             if (is_dir($src . '/' . $file)) {
                 copyDir($src . '/' . $file, $dst . '/' . $file);
@@ -352,59 +396,72 @@ function copyDir($src, $dst) {
     closedir($dir);
     return true;
 }
+function copyDir($src, $dst) {//Простое копирование
+    if (!is_dir($src)) {
+        echoRed("Исходная папка не найдена: $src\n");
+        return false;
+    }
 
-$srcTemplates = __DIR__ . '/templates';
-$dstTemplates = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates';
+    if (!is_dir($dst)) {
+        if (!mkdir($dst, 0777, true)) {
+            echoRed("Не удалось создать целевую папку: $dst\n");
+            return false;
+        }
+    }
+
+    $dir = opendir($src);
+    while (false !== ($file = readdir($dir))) {
+        if ($file != '.' && $file != '..') {
+            $srcPath = $src . '/' . $file;
+            $dstPath = $dst . '/' . $file;
+
+            if (is_dir($srcPath)) {
+                if (!copyDir($srcPath, $dstPath)) {
+                    return false;
+                }
+            } else {
+                if (!copy($srcPath, $dstPath)) {
+                    echoRed("Ошибка копирования файла: $srcPath в $dstPath\n");
+                    return false;
+                }
+            }
+        }
+    }
+    closedir($dir);
+    return true;
+}
+$src = __DIR__ . '/templates';
+$dst =  'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates';
+
+$srcTemplates = $src;
+$dstTemplates = $dst;
 if (copyDir($srcTemplates, $dstTemplates)) {
-    echo "Шаблоны скопированы в $dstTemplates\n";
-} else {
-    echo "Ошибка копирования шаблонов в $dstTemplates\n";
+    echoGreen( "Шаблоны скопированы в $dstTemplates\n");
 }
 
 // Копируем секции шаблонов
-$srcSections = __DIR__ . '/templates/sections';
-$dstSections = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates/sections';
-
-// Диагностика исходной папки
-if (!is_dir($srcSections)) {
-    echo "Исходная папка секций не найдена: $srcSections\n";
-} else {
-    echo "Исходная папка секций найдена: $srcSections\n";
-    // Автоматически создаём целевую папку, если её нет
-    if (!is_dir($dstSections)) {
-        if (mkdir($dstSections, 0777, true)) {
-            echo "Целевая папка секций создана: $dstSections\n";
-        } else {
-            echo "Не удалось создать целевую папку секций: $dstSections\n";
-        }
-    }
-}
+$srcSections = $src. '/sections';
+$dstSections = $dst. '/sections';
 if (copyDir($srcSections, $dstSections)) {
-    echo "Секции шаблонов скопированы в $dstSections\n";
-} else {
-    echo "Ошибка копирования секций шаблонов в $dstSections\n";
+    echoGreen( "Секции шаблонов скопированы в $dstSections\n");
+}
+
+// Копируем скрипты
+$srcscripts = $src. '/scripts';
+$dstscripts = $dst. '/scripts';
+if (copyDir($srcscripts, $dstscripts)) {
+    echoGreen( "Скрипты скопированы в $dstscripts\n");
+}
+// Копируем Справочник
+$srcTagImages = $src. '/Справочник';
+$dstTagImages = $dst. '/Справочник';
+if (copyDirR($srcTagImages, $dstTagImages)) {
+    echoGreen( "Справочник скопирован в $dstTagImages\n");
 }
 
 // Копируем теговые картинки
-$srcTagImages = __DIR__ . '/templates/Теговые_картинки';
-$dstTagImages = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/templates/Теговые_картинки';
-
-// Диагностика исходной папки
-if (!is_dir($srcTagImages)) {
-    echo "Исходная папка теговых картинок не найдена: $srcTagImages\n";
-} else {
-    echo "Исходная папка теговых картинок найдена: $srcTagImages\n";
-    // Автоматически создаём целевую папку, если её нет
-    if (!is_dir($dstTagImages)) {
-        if (mkdir($dstTagImages, 0777, true)) {
-            echo "Целевая папка теговых картинок создана: $dstTagImages\n";
-        } else {
-            echo "Не удалось создать целевую папку теговых картинок: $dstTagImages\n";
-        }
-    }
-}
+$srcTagImages = $src. '/Теговые_картинки';
+$dstTagImages = $dst. '/Теговые_картинки';
 if (copyDir($srcTagImages, $dstTagImages)) {
-    echo "Теговые картинки скопированы в $dstTagImages\n";
-} else {
-    echo "Ошибка копирования теговых картинок в $dstTagImages\n";
+    echoGreen( "Теговые картинки скопированы в $dstTagImages\n");
 }

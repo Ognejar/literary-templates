@@ -63,6 +63,19 @@ class EntityFactory {
      * Разрешает проект (SRP: одна ответственность)
      */
     async resolveProject(startPath) {
+        // Используем резолвер контекста из сервиса настроек
+        try {
+            if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+                const ctx = await window.litSettingsService.resolveContext(this.plugin.app, startPath);
+                const resolvedProjectRoot = ctx.projectRoot || '';
+                await this.plugin.logDebug('resolvedProjectRoot from context: ' + resolvedProjectRoot);
+                if (resolvedProjectRoot) return resolvedProjectRoot;
+            }
+        } catch (e) {
+            await this.plugin.logDebug('Context resolver error: ' + e.message);
+        }
+        
+        // Fallback: старый способ
         let resolvedProjectRoot = '';
         if (startPath) {
             resolvedProjectRoot = window.findProjectRoot(this.plugin.app, startPath) || startPath;
@@ -245,7 +258,11 @@ class EntityFactory {
             minorFactionsSection: minorFactionsContent || 'Не указаны',
             citiesSection: citiesContent || 'Не указаны',
             villagesSection: villagesContent || 'Не указаны',
-            imageBlock: this.findTagImage(project, 'Провинция')
+            imageBlock: this.findTagImage(project, 'Провинция'),
+            // --- ДОБАВЛЕНО ---
+            history: entityData.history || baseData.history || [],
+            population_history: entityData.population_history || baseData.population_history || [],
+            // --- КОНЕЦ ДОБАВЛЕНИЯ ---
         };
     }
 

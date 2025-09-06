@@ -10,20 +10,22 @@
  * @docs       docs/project.md
  */
 
+
+
+
 /**
  * Создание города с использованием EntityFactory
  * Применяет принципы DRY, KISS, SRP
  */
-var createCity = async function(plugin, startPath = '', options = {}) {
+// export const createCity = async function(plugin, startPath = '', options = {}) {
+window.createCity = async function(plugin, startPath = '', options = {}) {
     try {
         // Используем универсальную фабрику
         const factory = new window.EntityFactory(plugin);
         await factory.createEntity('City', startPath, options);
     } catch (error) {
         new Notice('Ошибка при создании города: ' + error.message);
-        await plugin.logDebug('Ошибка: ' + error.message);
+        plugin.logDebug('Ошибка: ' + error.message);
         console.error('Ошибка в createCity:', error);
     }
 };
-
-module.exports = { createCity };

@@ -236,4 +236,8 @@ var AIProviderService = class AIProviderService {
     }
 };
 
+if (typeof window !== 'undefined') {
+    window.AIProviderService = AIProviderService;
+}
+
 module.exports = { AIProviderService };

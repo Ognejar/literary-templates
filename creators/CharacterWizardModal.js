@@ -410,6 +410,7 @@ var CharacterWizardModal = class extends EntityWizardBase {
             name,
             date,
             created: date,
+            // world is the project name; do not write it into character YAML
             age: clean(this.data.age),
             gender: this.data.gender,
             race: this.data.race,
@@ -431,14 +432,48 @@ var CharacterWizardModal = class extends EntityWizardBase {
             artifactsContent: list(this.data.artifacts).map(x => `[[${x}]]`).join(', '),
             otherCharactersContent: list(this.data.otherCharacters).map(x => `[[${x}]]`).join(', '),
             tagsContent: list(this.data.tags).join(', '),
-            tagImage: ''
+            tagImage: '',
+            scope: '',
+            workName: '',
+            workLink: ''
         };
         
         try {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Персонаж') || '';
             }
-        } catch {}
+        } catch (e) {}
+
+        // Выбор области персонажа: глобальный или для произведения
+        let chosenWork = '';
+        let targetFolder = '';
+        try {
+            const scopeOptions = ['Глобальный персонаж (во весь мир)', 'Персонаж произведения'];
+            const scopeChoice = await this.plugin.suggester(scopeOptions, scopeOptions, 'Область персонажа');
+            if (!scopeChoice) { this.Notice('Область не выбрана'); return; }
+            if (scopeChoice === scopeOptions[0]) {
+                data.scope = 'global';
+                targetFolder = `${this.projectPath}/Персонажи`;
+            } else {
+                data.scope = 'work';
+                const worksRoot = `${this.projectPath}/1_Рукопись/Произведения`;
+                const worksFolder = this.app.vault.getAbstractFileByPath(worksRoot);
+                let workChoices = [];
+                if (worksFolder && worksFolder.children) {
+                    workChoices = worksFolder.children.filter(ch => ch && ch.children).map(ch => ch.name);
+                }
+                if (workChoices.length === 0) {
+                    new this.Notice('Произведения не найдены. Сначала создайте произведение.');
+                    this.close();
+                    return;
+                }
+                chosenWork = await this.plugin.suggester(workChoices, workChoices, 'Выберите произведение для персонажа');
+                if (!chosenWork) { this.Notice('Произведение не выбрано'); return; }
+                data.workName = chosenWork;
+                data.workLink = `[[${chosenWork}]]`;
+                targetFolder = `${this.projectPath}/1_Рукопись/Произведения/${data.workName}/Персонажи`;
+            }
+        } catch (e) {}
 
         // Обработка профессий: если нет в настройках, создаём справочник
         try {
@@ -488,7 +523,7 @@ var CharacterWizardModal = class extends EntityWizardBase {
                 const fullImage = `${this.projectPath}/Персонаж.jpg`; // not used, keep vault-style path below
                 const existingFolder = this.app.vault.getAbstractFileByPath(tagFolder);
                 if (!existingFolder) {
-                    try { await this.app.vault.createFolder(tagFolder); } catch {}
+                    try { await this.app.vault.createFolder(tagFolder); } catch (e) {}
                 }
                 const targetPath = `${tagFolder}/Персонаж.jpg`;
                 if (!this.app.vault.getAbstractFileByPath(targetPath)) {
@@ -496,16 +531,16 @@ var CharacterWizardModal = class extends EntityWizardBase {
                     try {
                         const bytes = await this.app.vault.adapter.readBinary(pluginImage);
                         await this.app.vault.adapter.writeBinary(targetPath, bytes);
-                    } catch {}
+                    } catch (e) {}
                 }
                 if (this.app.vault.getAbstractFileByPath(targetPath)) {
                     data.tagImage = relImage;
                 }
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новый_персонаж', data, this.plugin);
-        const folder = `${this.projectPath}/Персонажи`;
+        const folder = targetFolder || `${this.projectPath}/Персонажи`;
         
         if (this.options.targetFile instanceof TFile) {
             await this.app.vault.modify(this.options.targetFile, content);

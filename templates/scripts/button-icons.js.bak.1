@@ -1,0 +1,52 @@
+// button-icons.js
+console.log('CustomJS: button-icons.js загружен! ***************');
+class ButtonIconManager {
+    constructor() {
+        this.initialized = false;
+    }
+console.log('CustomJS: button-icons.js загружен! ***************');
+    // Инициализация менеджера иконок
+    async init() {
+        if (this.initialized) return;
+        
+        console.log('ButtonIconManager initialized');
+        this.replaceButtonIcons();
+        this.initialized = true;
+    }
+
+    // Замена текста кнопок на иконки
+    replaceButtonIcons() {
+        setTimeout(() => {
+            const buttons = document.querySelectorAll('.custom-world-button');
+            
+            buttons.forEach(button => {
+                if (button.querySelector('img')) return; // Уже обработана
+                
+                const icon = document.createElement('img');
+                // Используем относительный путь от корня vault
+                icon.src = '/.obsidian/plugins/literary-templates/templates/icons/world.svg';
+				icon.style.width = '20px';
+                icon.style.height = '20px';
+                icon.alt = 'Создать мир';
+                icon.onerror = () => {
+                    console.error('Не удалось загрузить иконку для кнопки');
+                    button.textContent = '🌍'; // Fallback на emoji
+                };
+                
+                button.innerHTML = '';
+                button.appendChild(icon);
+                button.style.padding = '5px';
+            });
+        }, 1000);
+    }
+
+    // Деструктор для очистки
+    deconstructor() {
+        console.log('ButtonIconManager deinitialized');
+        this.initialized = false;
+    }
+}
+
+// Создаем экземпляр и автоматически инициализируем
+const buttonIconManager = new ButtonIconManager();
+buttonIconManager.init();

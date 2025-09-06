@@ -665,7 +665,7 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
                         tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Алхимия');
                     }
                 }
-            } catch {}
+            } catch (e) {}
 
             // Данные для шаблона
             const data = {
@@ -725,7 +725,7 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
                 if (tags.length) {
                     await updateReference(this.plugin, `${base}/Теги_алхимии.md`, tags);
                 }
-            } catch {}
+            } catch (e) {}
 
             new this.Notice(`Алхимический рецепт "${data.name}" создан!`);
             this.close();
@@ -762,7 +762,7 @@ async function updateReference(plugin, filePath, names) {
         try {
             const f = app.vault.getAbstractFileByPath(filePath);
             if (f) current = await app.vault.read(f);
-        } catch {}
+        } catch (e) {}
         const existing = new Set(current.split('\n').map((s) => s.trim()).filter(Boolean));
         let added = false;
         clean.forEach((n) => {
@@ -773,10 +773,10 @@ async function updateReference(plugin, filePath, names) {
         if (app.vault.getAbstractFileByPath(filePath)) {
             await app.vault.adapter.write(filePath, lines.join('\n'));
         } else {
-            try { await app.vault.createFolder(base); } catch {}
+            try { await app.vault.createFolder(base); } catch (e) {}
             await app.vault.create(filePath, lines.join('\n'));
         }
     } catch (e) {
-        try { await plugin.logDebug('updateReference (alchemy) error: ' + e.message); } catch {}
+        try { plugin.logDebug('updateReference (alchemy) error: ' + e.message); } catch (e) {}
     }
 }

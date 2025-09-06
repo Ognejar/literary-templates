@@ -30,7 +30,8 @@ class OrganizationWizardModal extends EntityWizardBase {
             goals: '',
             headquarters: '',
             features: '',
-            tags: ''
+            tags: '',
+            faction: ''
         };
         this.step = 0;
         this.steps = [
@@ -81,6 +82,19 @@ class OrganizationWizardModal extends EntityWizardBase {
         new Setting(this.contentEl)
             .setName('Описание')
             .addTextArea(t => t.setValue(this.data.description).onChange(v => this.data.description = v));
+    }
+
+    renderFaction(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Фракция (опционально)')
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции')
+                    .setValue(this.data.faction || '')
+                    .onChange(value => this.data.faction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
+            });
     }
 
     renderDetails() {
@@ -164,7 +178,7 @@ class OrganizationWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Организация') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новая_организация', data, this.plugin);
         const folder = `${this.projectPath}/Организации`;

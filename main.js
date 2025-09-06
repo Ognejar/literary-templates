@@ -16,28 +16,48 @@ const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView } = require
 // PromptSelectorModal и parsePromptYaml теперь определены в main.js
 
 // Импорт функций создания сущностей
-// const { createWorld } = require('./creators/createWorld.js');
-// const { createChapter } = require('./creators/createChapter.js');
-// const { createCity } = require('./creators/createCity.js');
-// const { createLocation } = require('./creators/createLocation.js');
-// const { createScene } = require('./creators/createScene.js');
-// const { createVillage } = require('./creators/createVillage.js');
-// const { createDeadZone } = require('./creators/createDeadZone.js');
-// const { createPort } = require('./creators/createPort.js');
-// const { createCastle } = require('./creators/createCastle.js');
-// const { createMine } = require('./creators/createMine.js');
-// const { createFactory } = require('./creators/createFactory.js');
-// const { createFarm } = require('./creators/createFarm.js');
-// const { createPotion } = require('./creators/createPotion.js');
-// const { createSpell } = require('./creators/createSpell.js');
-// const { createPeople } = require('./creators/createPeople.js');
-// const { createMonster } = require('./creators/createMonster.js');
-// const { createTask } = require('./creators/createTask.js');
-// const { createArtifact } = require('./creators/createArtifact.js');
-// const { createAlchemyRecipe } = require('./creators/createAlchemyRecipe.js');
-// const { createState } = require('./creators/createState.js');
-// const { createProvince } = require('./creators/createProvince.js');
-// const { createCharacter } = require('./creators/createCharacter.js');
+const { createWorld } = require('./creators/createWorld.js');
+const { createChapter } = require('./creators/createChapter.js');
+const { createCity } = require('./creators/createCity.js');
+const { createLocation } = require('./creators/createLocation.js');
+const { createScene } = require('./creators/createScene.js');
+const { createVillage } = require('./creators/createVillage.js');
+const { createDeadZone } = require('./creators/createDeadZone.js');
+const { createPort } = require('./creators/createPort.js');
+const { createCastle } = require('./creators/createCastle.js');
+const { createPotion } = require('./creators/createPotion.js');
+const { createSpell } = require('./creators/createSpell.js');
+const { createArtifact } = require('./creators/createArtifact.js');
+const { createAlchemyRecipe } = require('./creators/createAlchemyRecipe.js');
+const { createProvince } = require('./creators/createProvince.js');
+const { createState } = require('./creators/createState.js');
+const { createFactory } = require('./creators/createFactory.js');
+const { createFarm } = require('./creators/createFarm.js');
+const { createPeople } = require('./creators/createPeople.js');
+const { createTask } = require('./creators/createTask.js');
+const { createMonster } = require('./creators/createMonster.js');
+const { createWork } = require('./creators/createWork.js');
+const { createSocialInstitution } = require('./creators/createSocialInstitution.js');
+
+// Импорт модальных окон
+const { ConflictWizardModal } = require('./creators/ConflictWizardModal.js');
+const { OrganizationWizardModal } = require('./creators/OrganizationWizardModal.js');
+const { ReligionWizardModal } = require('./creators/ReligionWizardModal.js');
+const { CultWizardModal } = require('./creators/CultWizardModal.js');
+const { TradeRouteWizardModal } = require('./creators/TradeRouteWizardModal.js');
+const { FactionWizardModal } = require('./creators/FactionWizardModal.js');
+const { QuestWizardModal } = require('./creators/QuestWizardModal.js');
+const { EventWizardModal } = require('./creators/EventWizardModal.js');
+const { HtmlWizardModal } = require('./creators/HtmlWizardModal.js');
+const { PotionWizardModal } = require('./creators/PotionWizardModal.js');
+const { VillageWizardModal } = require('./creators/VillageWizardModal.js');
+const { StateWizardModal } = require('./creators/StateWizardModal.js');
+const { LocationWizardModal } = require('./creators/LocationWizardModal.js');
+const { SceneWizardModal } = require('./creators/SceneWizardModal.js');
+const { WorldSettingsModal } = require('./creators/WorldSettingsModal.js');
+const { ProjectSelectorModal } = require('./creators/ProjectSelectorModal.js');
+const { ChapterSelectorModal } = require('./creators/ChapterSelectorModal.js');
+const { PluginSettingsModal } = require('./creators/PluginSettingsModal.js');
 
 // Импорт сервисов для работы с временными слоями
 const { TimelineService } = require('./src/TimelineService.js');
@@ -156,21 +176,21 @@ function fillTemplate(template, data) {
  */
 async function generateFromTemplate(templateName, data, plugin) {
     // Функция для загрузки шаблона из файла (асинхронно)
-    await plugin.logDebug('Reading template: ' + templateName);
+    plugin.logDebug('Reading template: ' + templateName);
     const template = await plugin.readTemplateFile(templateName);
-    await plugin.logDebug('Template loaded, length: ' + template.length);
-    await plugin.logDebug('Template preview: ' + template.substring(0, 200) + '...');
+    plugin.logDebug('Template loaded, length: ' + template.length);
+    plugin.logDebug('Template preview: ' + template.substring(0, 200) + '...');
     
     let result = template;
     
     // 1. Сначала обрабатываем include-блоки (собираем полный шаблон)
-    await plugin.logDebug('Processing include blocks...');
+    plugin.logDebug('Processing include blocks...');
     result = await plugin.processIncludeBlocks(result);
-    await plugin.logDebug('Include blocks processed, length: ' + result.length);
+    plugin.logDebug('Include blocks processed, length: ' + result.length);
     
     // 2. Обработка циклов {{#each arrayName}}...{{/each}}
-    await plugin.logDebug('Processing each loops...');
-    await plugin.logDebug('Available data keys: ' + Object.keys(data).join(', '));
+    plugin.logDebug('Processing each loops...');
+    plugin.logDebug('Available data keys: ' + Object.keys(data).join(', '));
     result = result.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, arrayName, content) => {
         const array = data[arrayName];
         plugin.logDebug(`Processing each loop for array: ${arrayName}, array:`, array);
@@ -193,24 +213,24 @@ async function generateFromTemplate(templateName, data, plugin) {
     });
     
     // 3. Подстановка всех известных плейсхолдеров вида {{key}}
-    await plugin.logDebug('Replacing placeholders with data: ' + JSON.stringify(data));
+    plugin.logDebug('Replacing placeholders with data: ' + JSON.stringify(data));
     for (const key of Object.keys(data)) {
         const re = new RegExp(`{{${key}}}`, 'g');
         const replacement = data[key] ?? '';
-        await plugin.logDebug(`Replacing {{${key}}} with: "${replacement}"`);
+        plugin.logDebug(`Replacing {{${key}}} with: "${replacement}"`);
         result = result.replace(re, replacement);
     }
     
     // 4. Обработка условных блоков {{#if condition}}...{{/if}}
-    await plugin.logDebug('Processing conditional blocks...');
+    plugin.logDebug('Processing conditional blocks...');
     result = plugin.processConditionalBlocks(result, data);
-    await plugin.logDebug('Conditional blocks processed');
+    plugin.logDebug('Conditional blocks processed');
     
     // 5. Финальная очистка: удаляем любые оставшиеся {{...}}
     // Это поведение как у fillTemplate: неизвестные ключи заменяются на пустую строку
     const cleanupRegex = /{{\s*([\w.]+)\s*}}/g;
     result = result.replace(cleanupRegex, '');
-    await plugin.logDebug('Final result length: ' + result.length);
+    plugin.logDebug('Final result length: ' + result.length);
     return result;
 }
 
@@ -243,8 +263,71 @@ async function ensureEntityInfrastructure(folderPath, _entityName, app) {
         }
     }
     
-    // Индексные файлы больше не используются
-    // console.log(`[DEBUG] ensureEntityInfrastructure завершена успешно (без индексных файлов)`);
+    // Создаем управляющий индекс в категории локаций (если применимо)
+    try {
+        // Ожидаемый вид пути: <projectRoot>/Локации/<Категория>
+        const parts = folderPath.split('/');
+        const category = parts[parts.length - 1] || '';
+        const locIdx = parts.lastIndexOf('Локации');
+        if (locIdx !== -1 && parts.length >= locIdx + 2) {
+            const projectRoot = parts.slice(0, locIdx).join('/');
+            const projectName = projectRoot.split('/').pop() || '';
+            // Имя индексного файла = имя папки
+            const indexFileName = `${category}.md`;
+            const indexPath = `${folderPath}/${indexFileName}`;
+            const existing = app.vault.getAbstractFileByPath(indexPath);
+            if (!existing) {
+                // Контент по категориям
+                const header = `---\nproject: "${projectName}"\ntype: "Индекс"\n---\n\n# ${category} проекта\n\n`;
+                const commonFilter = `AND (project = this.project OR contains(file.path, this.project))\nAND file.name != this.file.name\n`;
+                let body = '';
+                switch (category) {
+                    case 'Города':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Город", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n\n';
+                        body += '## Города без провинций\n\n```dataview\nTABLE WITHOUT ID file.link AS "Город", state AS "Государство"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'AND (province = null OR province = "")\nSORT state ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Государства':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Государство", governmentType AS "Правление", capital AS "Столица"\nFROM ""\nWHERE tags AND contains(tags, "государство")\n' + commonFilter + 'SORT file.name ASC\n```\n\n';
+                        body += '## Провинции по государствам\n\n```dataview\nTABLE state AS "Государство", rows.file.link AS "Провинции"\nFROM ""\nWHERE tags AND contains(tags, "провинция")\n' + commonFilter + 'GROUP BY state\n```\n';
+                        break;
+                    case 'Провинции':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Провинция", state AS "Государство"\nFROM ""\nWHERE tags AND contains(tags, "провинция")\n' + commonFilter + 'SORT state ASC, file.name ASC\n```\n\n';
+                        body += '## Города по провинциям\n\n```dataview\nTABLE province AS "Провинция", rows.file.link AS "Города"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'GROUP BY province\n```\n\n';
+                        body += '## Деревни по провинциям\n\n```dataview\nTABLE province AS "Провинция", rows.file.link AS "Деревни"\nFROM ""\nWHERE tags AND contains(tags, "деревня")\n' + commonFilter + 'GROUP BY province\n```\n';
+                        break;
+                    case 'Деревни':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Деревня", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "деревня")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Порты':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Порт", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "порт")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Замки':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Фортификация", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "фортификация")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Мёртвые_зоны':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Мёртвая зона", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "мёртвая_зона")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Фермы':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Ферма", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "ферма")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Шахты':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Шахта", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "шахта")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    case 'Заводы':
+                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Завод", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "завод")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
+                        break;
+                    default:
+                        body = '';
+                }
+                const indexContent = header + body;
+                if (indexContent.trim().length > 0) {
+                    try { await app.vault.create(indexPath, indexContent); } catch (e) {}
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[ensureEntityInfrastructure] Не удалось создать индексный файл:', e?.message);
+    }
 }
 /**
  * Безопасно создает файл, проверяя его существование
@@ -255,30 +338,15 @@ async function ensureEntityInfrastructure(folderPath, _entityName, app) {
  */
 async function safeCreateFile(filePath, content, app) {
     try {
-        // Если файл существует — автонумерация: Имя -> Имя_2, Имя_3, ...
-        let finalPath = filePath;
-        let existingFile = app.vault.getAbstractFileByPath(finalPath);
+        // Если файл существует — возвращаем null
+        let existingFile = app.vault.getAbstractFileByPath(filePath);
         if (existingFile) {
-            // Разбираем путь
-            const parts = String(filePath).split('/');
-            const fileWithExt = parts.pop();
-            const folderPath = parts.join('/');
-            const dotIdx = fileWithExt.lastIndexOf('.');
-            const base = dotIdx !== -1 ? fileWithExt.slice(0, dotIdx) : fileWithExt;
-            const ext = dotIdx !== -1 ? fileWithExt.slice(dotIdx) : '';
-            let attempt = 1;
-            let candidate;
-            do {
-                attempt += 1;
-                candidate = `${folderPath}/${base}_${attempt}${ext}`;
-                existingFile = app.vault.getAbstractFileByPath(candidate);
-            } while (existingFile);
-            finalPath = candidate;
-            console.warn(`[DEBUG] Файл уже существовал, используем имя: ${finalPath}`);
+            console.warn(`[DEBUG] Файл уже существует: ${filePath}`);
+            return null;
         }
-        // Создаем файл с уникальным именем
-        const newFile = await app.vault.create(finalPath, content);
-        console.log(`[DEBUG] Файл успешно создан: ${finalPath}`);
+        // Создаем файл
+        const newFile = await app.vault.create(filePath, content);
+        console.log(`[DEBUG] Файл успешно создан: ${filePath}`);
         return newFile;
     } catch (error) {
         console.error(`[DEBUG] Ошибка создания файла ${filePath}: ${error.message}`);
@@ -296,7 +364,7 @@ async function loadFacts(app, projectRoot) {
         const raw = await app.vault.read(f);
         const parsed = JSON.parse(raw || '[]');
         return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
         return [];
     }
 }
@@ -304,7 +372,7 @@ async function loadFacts(app, projectRoot) {
 async function saveFacts(app, projectRoot, facts) {
     const dir = `${projectRoot}/Лор-контекст`;
     const path = `${dir}/Факты.json`;
-    try { if (!app.vault.getAbstractFileByPath(dir)) await app.vault.createFolder(dir); } catch {}
+    try { if (!app.vault.getAbstractFileByPath(dir)) await app.vault.createFolder(dir); } catch (e) {}
     const data = JSON.stringify(facts || [], null, 2);
     const existing = app.vault.getAbstractFileByPath(path);
     if (existing instanceof TFile) await app.vault.modify(existing, data); else await app.vault.create(path, data);
@@ -418,7 +486,7 @@ function computeFactSignature(fact) {
               )
             : '';
         return `${type}|${id}|${name}|${attrs}|${rels}`;
-    } catch { return Math.random().toString(36).slice(2); }
+    } catch (e) { return Math.random().toString(36).slice(2); }
 }
 
 async function mergeFactsIntoProject(app, projectRoot, incomingFacts) {
@@ -440,7 +508,7 @@ async function mergeFactsIntoProject(app, projectRoot, incomingFacts) {
                 if (f['источник']) nf['источник'] = f['источник'];
                 map.set(sig, nf);
                 updatedCount++;
-            } catch {}
+            } catch (e) {}
         }
     }
     // Добавляем болванки по ссылкам
@@ -476,7 +544,6 @@ function cleanJsonInput(text) {
 
     return s.trim();
 }
-
 // --- Modal классы определяются в других файлах при сборке ---
 // PromptModal, SuggesterModal - в modals.js
 // ProjectSelectorModal, ChapterSelectorModal - в отдельных файлах
@@ -496,7 +563,8 @@ class LiteraryTemplatesPlugin extends Plugin {
             aiProvider: 'openrouter', // openrouter, anthropic, openai
             defaultModel: 'openrouter/mistralai/mistral-7b-instruct', // Бесплатная модель
             maxTokens: 2000,
-            temperature: 0.7
+            temperature: 0.7,
+            author: '' // <--- новое поле
         };
         
         // Инициализируем сервисы для работы с временными слоями
@@ -525,7 +593,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                 if (view && view.editor) return view.editor;
             }
          
-        } catch {}
+        } catch (e) {}
         // Фолбэк: через активный лист
         const leaf = ws.getMostRecentLeaf ? ws.getMostRecentLeaf() : ws.activeLeaf;
         const view = leaf && leaf.view ? leaf.view : null;
@@ -534,6 +602,24 @@ class LiteraryTemplatesPlugin extends Plugin {
         }
         if (view && view.editor) return view.editor;
         return null;
+    }
+
+    // Вспомогательная функция для определения стартового пути из target
+    // Используется в addContextMenu, registerCommands и других местах
+    getStartPath(target) {
+        if (target instanceof TFile) return target.parent.path;
+        if (target instanceof TFolder) return target.path;
+        if (target && target.path) return target.path;
+        return '';
+    }
+
+    // Вспомогательная функция для определения стартового пути из target
+    // Используется в addContextMenu, registerCommands и других местах
+    getStartPath(target) {
+        if (target instanceof TFile) return target.parent.path;
+        if (target instanceof TFolder) return target.path;
+        if (target && target.path) return target.path;
+        return '';
     }
 
     async insertTodoAtCursor() {
@@ -666,42 +752,42 @@ class LiteraryTemplatesPlugin extends Plugin {
     // Вспомогательные методы для модальных окон
     async prompt(header, initialValue) {
         // console.log(`[DEBUG] prompt вызван с header: "${header}", initialValue: "${initialValue}"`);
-        await this.logDebug(`[DEBUG] prompt вызван с header: "${header}", initialValue: "${initialValue}"`);
+        this.logDebug(`[DEBUG] prompt вызван с header: "${header}", initialValue: "${initialValue}"`);
         
         try {
             // console.log('[DEBUG] Создаем PromptModal...');
-            await this.logDebug('[DEBUG] Создаем PromptModal...');
+            this.logDebug('[DEBUG] Создаем PromptModal...');
             const modal = new PromptModal(this.app, Modal, Setting, Notice, header, initialValue);
             // console.log('[DEBUG] PromptModal создан, вызываем openAndGetValue...');
-            await this.logDebug('[DEBUG] PromptModal создан, вызываем openAndGetValue...');
+            this.logDebug('[DEBUG] PromptModal создан, вызываем openAndGetValue...');
             const result = await modal.openAndGetValue();
             // console.log(`[DEBUG] prompt вернул: "${result}"`);
-            await this.logDebug(`[DEBUG] prompt вернул: "${result}"`);
+            this.logDebug(`[DEBUG] prompt вернул: "${result}"`);
             return result;
         } catch (error) {
             console.error('[DEBUG] Ошибка в prompt:', error);
-            await this.logDebug(`[DEBUG] Ошибка в prompt: ${error.message}`);
+            this.logDebug(`[DEBUG] Ошибка в prompt: ${error.message}`);
             throw error;
         }
     }
 
     async suggester(items, display, placeholder) {
         // console.log(`[DEBUG] suggester вызван с items: ${items.length}, display: ${display.length}, placeholder: "${placeholder}"`);
-        await this.logDebug(`[DEBUG] suggester вызван с items: ${items.length}, display: ${display.length}, placeholder: "${placeholder}"`);
+        this.logDebug(`[DEBUG] suggester вызван с items: ${items.length}, display: ${display.length}, placeholder: "${placeholder}"`);
         
         try {
             // console.log('[DEBUG] Создаем SuggesterModal...');
-            await this.logDebug('[DEBUG] Создаем SuggesterModal...');
+            this.logDebug('[DEBUG] Создаем SuggesterModal...');
             const modal = new SuggesterModal(this.app, Modal, Setting, Notice, items, display, placeholder);
             // console.log('[DEBUG] SuggesterModal создан, вызываем openAndGetValue...');
-            await this.logDebug('[DEBUG] SuggesterModal создан, вызываем openAndGetValue...');
+            this.logDebug('[DEBUG] SuggesterModal создан, вызываем openAndGetValue...');
             const result = await modal.openAndGetValue();
             // console.log(`[DEBUG] suggester вернул: "${result}"`);
-            await this.logDebug(`[DEBUG] suggester вернул: "${result}"`);
+            this.logDebug(`[DEBUG] suggester вернул: "${result}"`);
             return result;
         } catch (error) {
             console.error('[DEBUG] Ошибка в suggester:', error);
-            await this.logDebug(`[DEBUG] Ошибка в suggester: ${error.message}`);
+            this.logDebug(`[DEBUG] Ошибка в suggester: ${error.message}`);
             throw error;
         }
     }
@@ -729,12 +815,12 @@ class LiteraryTemplatesPlugin extends Plugin {
         try {
             // @ts-ignore
             const pluginTemplatePath = '.obsidian/plugins/literary-templates/templates/' + templateName + '.md';
-            await this.logDebug(`Пробуем прочитать относительный путь: ${pluginTemplatePath}`);
+            this.logDebug(`Пробуем прочитать относительный путь: ${pluginTemplatePath}`);
             const content = await this.app.vault.adapter.read(pluginTemplatePath);
-            await this.logDebug(`Шаблон найден в папке плагина, длина: ${content.length}`);
+            this.logDebug(`Шаблон найден в папке плагина, длина: ${content.length}`);
             return content;
         } catch (error) {
-            await this.logDebug(`Ошибка чтения из папки плагина: ${error.message}`);
+            this.logDebug(`Ошибка чтения из папки плагина: ${error.message}`);
             // Файл не найден в папке плагина, пробуем vault
         }
         
@@ -743,7 +829,7 @@ class LiteraryTemplatesPlugin extends Plugin {
         let templateFile = this.app.vault.getAbstractFileByPath(userTemplatePath);
         
         if (!(templateFile instanceof TFile)) {
-            await this.logDebug(`Шаблон не найден и в vault по пути: ${userTemplatePath}`);
+            this.logDebug(`Шаблон не найден и в vault по пути: ${userTemplatePath}`);
             throw new Error(`Template file not found: ${templateName}.md (searched in plugin templates and ${userTemplatePath})`);
         }
         
@@ -806,7 +892,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                 const file = this.app.vault.getAbstractFileByPath(filePath);
                 return file !== null;
              
-            } catch {
+            } catch (e) {
                 return false;
             }
         }
@@ -819,7 +905,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                 const file = this.app.vault.getAbstractFileByPath(imagePath);
                 return file !== null;
              
-            } catch {
+            } catch (e) {
                 return false;
             }
         }
@@ -929,7 +1015,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                             return content;
                         }
                      
-                    } catch {
+                    } catch (e) {
                         // Игнорируем ошибки файловой системы
                     }
                     
@@ -945,7 +1031,6 @@ class LiteraryTemplatesPlugin extends Plugin {
         // Не загружаем CSS до полной инициализации плагина
         return Promise.resolve();
     }
-
     async onload() {
         // console.log('Literary Templates plugin onload started');
         // console.log('Текущее время:', new Date().toISOString());
@@ -1017,7 +1102,8 @@ class LiteraryTemplatesPlugin extends Plugin {
             aiEnabled: true,
             defaultModel: 'openrouter/mistralai/mistral-7b-instruct',
             maxTokens: 2000,
-            temperature: 0.7
+            temperature: 0.7,
+            author: '' // <--- новое поле
         };
         
         // Теперь можно безопасно работать с vault - загружаем настройки
@@ -1071,6 +1157,8 @@ class LiteraryTemplatesPlugin extends Plugin {
                 // console.log('Базовый manifest создан:', this.manifest);
             }
         }
+
+
         // ... остальная инициализация ...
         // console.log('Literary Templates plugin loading...');
         this.activeProjectRoot = null;
@@ -1124,6 +1212,9 @@ class LiteraryTemplatesPlugin extends Plugin {
         if (data && typeof data.temperature === 'number') {
             this.settings.temperature = data.temperature;
         }
+        if (data && data.author) {
+            this.settings.author = data.author;
+        }
 
         this.registerCommands();
 
@@ -1153,7 +1244,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                     if (file.basename !== 'Редактор_настроек') return;
                     const parentPath = file.parent ? file.parent.path : '';
                     const projectRoot = findProjectRoot(this.app, parentPath) || parentPath;
-                    await this.logDebug('Auto-open WorldSettings editor for: ' + projectRoot);
+                    this.logDebug('Auto-open WorldSettings editor for: ' + projectRoot);
                     await this.editWorldSettings(projectRoot);
                     // Автозакрытие вкладки с файлом редактора, чтобы не мешал
                     window.setTimeout(() => {
@@ -1171,12 +1262,12 @@ class LiteraryTemplatesPlugin extends Plugin {
                                     }
                                 }
                             }
-                        } catch {
+                        } catch (e) {
                             // ignore
                         }
                     }, 50);
                 } catch (e) {
-                    await this.logDebug('file-open handler error: ' + e.message);
+                    this.logDebug('file-open handler error: ' + e.message);
                 }
             })
         );
@@ -1201,7 +1292,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                             isEmpty = !String(text || '').trim();
                         }
                      
-                    } catch {}
+                    } catch (e) {}
                     if (!isEmpty) return;
                     // Относительный путь от projectRoot
                     const rel = abstractFile.path.startsWith(projectRoot + '/')
@@ -1253,7 +1344,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                             break;
                     }
                 } catch (e) {
-                    await this.logDebug('create event handler error: ' + (e && e.message ? e.message : String(e)));
+                    this.logDebug('create event handler error: ' + (e && e.message ? e.message : String(e)));
                 }
             })
         );
@@ -1338,112 +1429,203 @@ class LiteraryTemplatesPlugin extends Plugin {
                             await this.app.vault.create(managementFilePath, content);
                             this.logDebug(`Создан файл управления для папки "${folderName}"`);
                         } catch (e) {
-                            await this.logDebug('Ошибка создания файла управления: ' + (e && e.message ? e.message : String(e)));
+                            this.logDebug('Ошибка создания файла управления: ' + (e && e.message ? e.message : String(e)));
                         }
                     } else {
-                        await this.logDebug(`Файл управления уже существует: ${managementFilePath}`);
+                        this.logDebug(`Файл управления уже существует: ${managementFilePath}`);
                     }
                 } catch (e) {
-                    await this.logDebug('folder create event handler error: ' + (e && e.message ? e.message : String(e)));
+                    this.logDebug('folder create event handler error: ' + (e && e.message ? e.message : String(e)));
                 }
             })
         );
+
+        const activeFile = this.app.workspace.getActiveFile();
+        const startPath = activeFile ? this.getStartPath(activeFile) : '';
+await this.loadButtonIconsScript();
+
+
+        // Команды для управления контекстом
+        this.addCommand({
+            id: 'set-current-project',
+            name: 'Установить текущий проект',
+            callback: async () => {
+                const allFiles = this.app.vault.getMarkdownFiles();
+                const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
+                const projects = projectFiles.map(f => f.parent.path);
+                if (projects.length === 0) {
+                    new Notice('Проекты не найдены!');
+                    return;
+                }
+                const selected = await this.selectProject(projects);
+                if (selected && window.litSettingsService) {
+                    await window.litSettingsService.setCurrentProject(this.app, selected);
+                    new Notice(`Текущий проект: ${selected.split('/').pop()}`);
+                }
+            },
+        });
+        this.addCommand({
+            id: 'set-current-work',
+            name: 'Установить текущее произведение',
+            callback: async () => {
+                if (!window.litSettingsService) return;
+                const currentProject = await window.litSettingsService.getCurrentProject(this.app);
+                if (!currentProject) {
+                    new Notice('Сначала установите текущий проект');
+                    return;
+                }
+                const worksRoot = `${currentProject}/1_Рукопись/Произведения`;
+                const worksFolder = this.app.vault.getAbstractFileByPath(worksRoot);
+                if (!worksFolder || !worksFolder.children) {
+                    new Notice('Произведения не найдены');
+                    return;
+                }
+                const works = worksFolder.children.filter(ch => ch && ch.children).map(ch => ch.name);
+                if (works.length === 0) {
+                    new Notice('Произведения не найдены');
+                    return;
+                }
+                const selected = await this.suggester(works, works, 'Выберите произведение');
+                if (selected) {
+                    await window.litSettingsService.setCurrentWork(this.app, selected);
+                    new Notice(`Текущее произведение: ${selected}`);
+                }
+            },
+        });
+
         this.addCommand({
             id: 'create-artifact',
-            name: 'Создать артефакт (минишаблонизатор)',
-            callback: () => createArtifact(this, ''),
+            name: 'Создать артефакт',
+            callback: () => createArtifact(this, startPath),
         });
         this.addCommand({
             id: 'create-conflict',
             name: 'Создать конфликт (мастер)',
-            callback: () => createConflictWizard(this, ''),
+            callback: () => createConflictWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-chapter',
-            name: 'Создать главу (минишаблонизатор)',
-            callback: () => createChapter(this, ''),
+            name: 'Создать главу',
+            callback: () => createChapter(this, startPath),
         });
         this.addCommand({
             id: 'create-scene',
-            name: 'Создать сцену (минишаблонизатор)',
-            callback: () => createScene(this, ''),
+            name: 'Создать сцену',
+            callback: () => createScene(this, startPath),
         });
         this.addCommand({
             id: 'create-village',
-            name: 'Создать деревню (минишаблонизатор)',
-            callback: () => createVillage(this, ''),
+            name: 'Создать деревню',
+            callback: () => createVillage(this, startPath),
         });
         this.addCommand({
             id: 'create-mine',
-            name: 'Создать шахту (минишаблонизатор)',
-            callback: () => createMine(this, ''),
+            name: 'Создать шахту',
+            callback: () => createMine(this, startPath),
         });
         this.addCommand({
             id: 'create-factory',
-            name: 'Создать завод (минишаблонизатор)',
-            callback: () => createFactory(this, ''),
+            name: 'Создать завод',
+            callback: () => createFactory(this, startPath),
         });
         this.addCommand({
             id: 'create-farm',
-            name: 'Создать ферму (минишаблонизатор)',
-            callback: () => createFarm(this, ''),
+            name: 'Создать ферму',
+            callback: () => createFarm(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-city',
+            name: 'Создать город',
+            callback: () => window.createCity(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-province',
+            name: 'Создать провинцию',
+            callback: () => createProvince(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-state',
+            name: 'Создать государство',
+            callback: () => window.createState(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-castle',
+            name: 'Создать замок (мастер)',
+            callback: () => createCastle(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-dead-zone',
+            name: 'Создать мертвую зону (мастер)',
+            callback: () => createDeadZone(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-location',
+            name: 'Создать общую локацию',
+            callback: () => createLocation(this, startPath),
+        });
+        this.addCommand({
+            id: 'create-port',
+            name: 'Создать порт (мастер)',
+            callback: () => {
+                this.logDebug('Функция createPort временно недоступна');
+            },
         });
         this.addCommand({
             id: 'create-potion',
-            name: 'Создать зелье (минишаблонизатор)',
-            callback: () => window.createPotion(this, ''),
+            name: 'Создать зелье',
+            callback: () => window.createPotion(this, startPath),
         });
         this.addCommand({
             id: 'create-people',
-            name: 'Создать народ (минишаблонизатор)',
-            callback: () => createPeople(this, ''),
+            name: 'Создать народ',
+            callback: () => createPeople(this, startPath),
         });
         this.addCommand({
             id: 'create-religion',
             name: 'Создать религию (мастер)',
-            callback: () => createReligionWizard(this, ''),
+            callback: () => createReligionWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-cult',
             name: 'Создать культ (мастер)',
-            callback: () => createCultWizard(this, ''),
+            callback: () => createCultWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-trade-route',
             name: 'Создать торговый путь (мастер)',
-            callback: () => createTradeRouteWizard(this, ''),
+            callback: () => createTradeRouteWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-faction',
             name: 'Создать фракцию (мастер)',
-            callback: () => createFactionWizard(this, ''),
+            callback: () => createFactionWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-quest',
             name: 'Создать квест (мастер)',
-            callback: () => createQuestWizard(this, ''),
+            callback: () => createQuestWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-event',
             name: 'Создать событие (мастер)',
-            callback: () => createEventWizard(this, ''),
+            callback: () => createEventWizard(this, startPath),
         });
         this.addCommand({
             id: 'create-task',
             name: 'Создать задачу (мастер)',
-            callback: () => createTask(this, ''),
+            callback: () => createTask(this, startPath),
         });
         this.addCommand({
             id: 'create-organization',
             name: 'Создать организацию (мастер)',
-            callback: () => createOrganizationWizard(this, ''),
+            callback: () => createOrganizationWizard(this, startPath),
         });
 
         // Социальные учреждения (единый мастер)
         this.addCommand({
             id: 'create-social-institution',
             name: 'Создать социальный объект (мастер)',
-            callback: () => (window.createSocialInstitution ? window.createSocialInstitution(this, '') : null),
+            callback: () => (window.createSocialInstitution ? window.createSocialInstitution(this, startPath) : null),
         });
         
         // Команды для работы с эпохами и произведениями
@@ -1500,7 +1682,7 @@ class LiteraryTemplatesPlugin extends Plugin {
         this.addCommand({
             id: 'create-new-spell-wizard',
             name: 'Создать новое заклинание (мастер)',
-            callback: () => createSpell(this, ''),
+            callback: () => createSpell(this, startPath),
         });
         this.addCommand({
             id: 'insert-todo',
@@ -1683,16 +1865,12 @@ class LiteraryTemplatesPlugin extends Plugin {
                     // Создаем тестовый лог-файл
                     const logPath = '.obsidian/plugins/literary-templates/log.md';
                     const testContent = `# Лог плагина Literary Templates
-
 Создан: ${new Date().toISOString()}
-
 ## Тестовая запись
 Лог-файл создан принудительно через команду.
-
 ---
 `;
-                    
-                    try {
+                     try {
                         await this.app.vault.adapter.write(logPath, testContent);
                         console.log('Лог-файл создан успешно:', logPath);
                         this.logDebug('Лог файл создан успешно');
@@ -1719,25 +1897,33 @@ class LiteraryTemplatesPlugin extends Plugin {
         });
         this.addCommand({
             id: 'create-monster',
-            name: 'Создать монстра (минишаблонизатор)',
-            callback: () => createMonster(this, ''),
+            name: 'Создать монстра',
+            callback: () => createMonster(this, startPath),
         });
         this.addCommand({
             id: 'create-world',
             name: 'Создать новый мир/проект',
             callback: async () => {
                 try {
+                    if (typeof window.WorldWizardModal !== 'function') {
+                        console.error('[ERROR] WorldWizardModal недоступен');
+                        new Notice('Ошибка: WorldWizardModal не загружен');
+                        return;
+                    }
+                    
                     // Выбираем родительскую папку для проекта
                     const parentFolder = await this._selectProjectParentFolder();
                     if (!parentFolder) {
-                        this.logDebug('Создание мира отменено: не выбрана родительская папка');
+                        console.log('Создание мира отменено: не выбрана родительская папка');
                         return;
                     }
-                    this.logDebug(`Выбрана родительская папка для создания мира: ${parentFolder}`);
-                    await createWorld(this, parentFolder);
+                    console.log(`Выбрана родительская папка для создания мира: ${parentFolder}`);
+                    
+                    const modal = new window.WorldWizardModal(this.app, this, parentFolder);
+                    modal.open();
                 } catch (error) {
-                    this.logDebug(`Ошибка при выборе папки для создания мира: ${error.message}`);
-                    this.logDebug('Ошибка при создании мира: ' + error.message);
+                    console.error('Ошибка при создании мира:', error);
+                    new Notice('Ошибка при создании мира: ' + error.message);
                 }
             },
         });
@@ -1754,12 +1940,12 @@ class LiteraryTemplatesPlugin extends Plugin {
                 if (action === 'edit-settings') {
                     const path = params.path ? decodeURIComponent(params.path) : '';
                     // Если передан vault и он не совпадает — просто продолжаем, Obsidian сам проверит соответствие
-                    await this.logDebug('Protocol edit-settings for path: ' + path);
+                    this.logDebug('Protocol edit-settings for path: ' + path);
                     await this.editWorldSettings(path);
                 }
             });
         } catch (e) {
-            await this.logDebug('Protocol handler error: ' + e.message);
+            this.logDebug('Protocol handler error: ' + e.message);
         }
         
         // Делаем функции create* доступными в глобальной области видимости
@@ -1805,6 +1991,8 @@ class LiteraryTemplatesPlugin extends Plugin {
         window.fillTemplate = fillTemplate;
         window.generateFromTemplate = generateFromTemplate;
         window.ensureEntityInfrastructure = ensureEntityInfrastructure;
+        // Экспортируем правильную версию safeCreateFile, которая НЕ создает файлы с номерами
+        // Версия с автонумерацией находится в main_modules/fileUtils.js под именем safeCreateFileWithNumbering
         window.safeCreateFile = safeCreateFile;
         
         // Делаем сервисы временных слоев доступными глобально
@@ -1950,7 +2138,7 @@ class LiteraryTemplatesPlugin extends Plugin {
         // Финальная проверка - создаем тестовый лог
         try {
             if (this.app && this.app.vault && this.app.vault.adapter) {
-                await this.logDebug('Плагин успешно загружен - финальная проверка');
+                this.logDebug('Плагин успешно загружен - финальная проверка');
                 // Тихая отложенная проверка AI сервисов (через 3 секунды после возможного retry)
                 window.setTimeout(() => {
                     const ok = !!(window.keyRotationService && window.aiProviderService && window.loreAnalyzerService);
@@ -2230,7 +2418,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                         try {
                             const roots = await getAllProjectRoots(this.app);
                             if (roots && roots.length > 0) projectRoot = roots[0];
-                        } catch {}
+                        } catch (e) {}
                     }
                     this.logDebug('projectRoot: ' + projectRoot);
                     if (!projectRoot) {
@@ -2376,7 +2564,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                         try {
                             const roots = await getAllProjectRoots(this.app);
                             if (roots && roots.length > 0) projectRoot = roots[0];
-                        } catch {}
+                        } catch (e) {}
                     }
                     this.logDebug('projectRoot: ' + projectRoot);
                     if (!projectRoot) {
@@ -2452,7 +2640,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                         try {
                             const roots = await getAllProjectRoots(this.app);
                             if (roots && roots.length > 0) projectRoot = roots[0];
-                        } catch {}
+                        } catch (e) {}
                     }
                     
                     if (!projectRoot) {
@@ -2469,16 +2657,13 @@ class LiteraryTemplatesPlugin extends Plugin {
 
                     // Создаём временный файл для просмотра
                     const content = `# База фактов проекта: ${projectRoot}
-
 ## Статистика
 - Всего фактов: ${facts.length}
 - Типы: ${[...new Set(facts.map(f => f['тип'] || 'неизвестно'))].join(', ')}
-
 ## Все факты
 \`\`\`json
 ${JSON.stringify(facts, null, 2)}
 \`\`\`
-
 ---
 *Создано автоматически для просмотра базы фактов*
 `;
@@ -2504,8 +2689,29 @@ ${JSON.stringify(facts, null, 2)}
 
         // === Глобализация сервисов для доступа через window ===
         // Пропускаем прямую глобализацию классов сервисов: классы становятся доступными глобально после сборки
+        
+        // Проверяем наличие CustomJS и запускаем наши скрипты
+        this.initializeCustomJS();
+
     }
     
+    // Инициализация интеграции с CustomJS
+    initializeCustomJS() {
+        // Ждем загрузки CustomJS
+        const checkCustomJS = setInterval(() => {
+            if (window.customJS) {
+                clearInterval(checkCustomJS);
+                console.log('CustomJS detected, initializing integration');
+                this.setupCustomJSIntegration();
+            }
+        }, 1000);
+    }
+
+    // Настройка интеграции с CustomJS
+    setupCustomJSIntegration() {
+        // Здесь можно добавить дополнительную логику интеграции
+        // Например, вызов методов ваших скриптов через customJS
+    }
     async quickInitializationCheck() {
         // console.log('=== Quick Initialization Check (1 сек) ===');
         try {
@@ -2528,7 +2734,7 @@ ${JSON.stringify(facts, null, 2)}
         try {
             if (this.app && this.app.vault && this.app.vault.adapter) {
                 // console.log('Delayed check: все компоненты доступны');
-                await this.logDebug('Delayed check: плагин работает корректно');
+                this.logDebug('Delayed check: плагин работает корректно');
             } else {
                 console.error('Delayed check: некоторые компоненты недоступны');
                 console.error('this.app:', !!this.app);
@@ -2663,7 +2869,7 @@ ${JSON.stringify(facts, null, 2)}
 
     async editWorldSettings(startPath = '') {
         try {
-            await this.logDebug('=== editWorldSettings вызвана ===');
+            this.logDebug('=== editWorldSettings вызвана ===');
             // Определить корень проекта
             let projectRoot = '';
             const activeFile = this.app.workspace.getActiveFile();
@@ -2678,13 +2884,13 @@ ${JSON.stringify(facts, null, 2)}
                 const projects = projectFiles.map(f => f.parent.path);
                 if (projects.length === 0) {
                     this.logDebug(`[ERROR] Проекты не найдены!`);
-                    await this.logDebug('Проекты не найдены!');
+                    this.logDebug('Проекты не найдены!');
                     return;
                 }
                 projectRoot = await this.selectProject(projects);
                 if (!projectRoot) return;
             }
-            await this.logDebug('projectRoot: ' + projectRoot);
+            this.logDebug('projectRoot: ' + projectRoot);
 
             // Прочитать JSON
             const jsonPath = `${projectRoot}/Настройки_мира.json`;
@@ -2693,7 +2899,7 @@ ${JSON.stringify(facts, null, 2)}
                 const raw = await this.app.vault.adapter.read(jsonPath);
                 settings = JSON.parse(raw);
             } catch (e) {
-                await this.logDebug('Не удалось прочитать JSON, создаем пустой: ' + e.message);
+                this.logDebug('Не удалось прочитать JSON, создаем пустой: ' + e.message);
                 settings = { projectName: projectRoot.split('/').pop(), date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10) };
             }
 
@@ -2707,9 +2913,9 @@ ${JSON.stringify(facts, null, 2)}
                     } else {
                         await this.app.vault.create(jsonPath, newRaw);
                     }
-                    await this.logDebug('Настройки сохранены в JSON');
+                    this.logDebug('Настройки сохранены в JSON');
                 } catch (e) {
-                    await this.logDebug('Ошибка сохранения JSON: ' + e.message);
+                    this.logDebug('Ошибка сохранения JSON: ' + e.message);
                 }
 
                 // Перегенерировать Настройки_мира.md из шаблона
@@ -2722,15 +2928,15 @@ ${JSON.stringify(facts, null, 2)}
                     } else {
                         await this.app.vault.create(mdPath, md);
                     }
-                    await this.logDebug('Настройки_мира.md перегенерирован');
+                    this.logDebug('Настройки_мира.md перегенерирован');
                 } catch (e) {
-                    await this.logDebug('Ошибка генерации Настройки_мира.md: ' + e.message);
+                    this.logDebug('Ошибка генерации Настройки_мира.md: ' + e.message);
                 }
             });
             modal.open();
         } catch (error) {
             this.logDebug('Ошибка при редактировании настроек: ' + error.message);
-            await this.logDebug('Ошибка editWorldSettings: ' + error.message);
+            this.logDebug('Ошибка editWorldSettings: ' + error.message);
         }
     }
 
@@ -2875,7 +3081,7 @@ ${JSON.stringify(facts, null, 2)}
                 // Пытаемся прочитать существующий лог
             try {
                 prev = await this.app.vault.adapter.read(logPath);
-            } catch {
+            } catch (e) {
                 prev = '';
             }
                 
@@ -2893,6 +3099,14 @@ ${JSON.stringify(facts, null, 2)}
              
             console.error('logDebug error:', e);
         }
+    }
+    // Вспомогательная функция для определения стартового пути из target
+    // Используется в addContextMenu, registerCommands и других местах
+    getStartPath(target) {
+        if (target instanceof TFile) return target.parent.path;
+        if (target instanceof TFolder) return target.path;
+        if (target && target.path) return target.path;
+        return '';
     }
     // Вспомогательная функция для определения типа контента по имени файла
     // Используется в aiAnalyzeAndExtendNote и aiBuildLoreContext
@@ -2983,7 +3197,6 @@ ${JSON.stringify(facts, null, 2)}
                 `---\n`;
             const hub = fm('Справочник писателя') +
 `# Справочник писателя
-
 > [!tip] Навигация
 > - [[Справочник/Сюжет_и_персонажи|Сюжет и персонажи]]
 > - [[Справочник/Мир_и_экология|Мир и экология]]
@@ -2991,10 +3204,8 @@ ${JSON.stringify(facts, null, 2)}
 > - [[Справочник/Геополитика_и_экономика|Геополитика и экономика]]
 > - [[Справочник/Технологии_и_инфраструктура|Технологии и инфраструктура]]
 > - [[Справочник/Социальное_и_психологическое|Социальное и психологическое]]
-
 ## Статусы
 planned | started | writing | done | abandoned
-
 ## Вкладки
 - [[Справочник/Сюжет_и_персонажи]]
 - [[Справочник/Мир_и_экология]]
@@ -3528,10 +3739,339 @@ planned | started | writing | done | abandoned
            });
        });
    }
+    // --- Вспомогательные методы для оптимизации контекстного меню ---
+
+    /**
+     * Добавляет категорию в контекстное меню
+     * @param {Menu} parentMenu - Родительское меню
+     * @param {Object} config - Конфигурация категории
+     * @param {string} config.title - Заголовок категории
+     * @param {string} config.icon - Иконка категории
+     * @param {Function} config.builder - Функция для построения подменю
+     * @param {Object} target - Целевой объект (файл/папка), передается в builder
+     */
+    _addMenuCategory(parentMenu, config, target) {
+        parentMenu.addItem((item) => {
+            item.setTitle(config.title).setIcon(config.icon);
+            const subMenu = item.setSubmenu();
+            // Передаем target в builder для возможности использования в подменю
+            config.builder(subMenu, target, this);
+        });
+    }
+   // --- Вспомогательные методы для оптимизации контекстного меню ---
+    /**
+     * Добавляет простой пункт меню
+     * @param {Menu} parentMenu - Родительское меню
+     * @param {Object} config - Конфигурация пункта меню
+     * @param {string} config.title - Заголовок пункта меню
+     * @param {string} config.icon - Иконка пункта меню
+     * @param {Function} config.onClick - Обработчик клика
+     * @param {Object} target - Целевой объект (файл/папка)
+     */
+    _addMenuItem(parentMenu, config, target) {
+        parentMenu.addItem((item) => {
+            item.setTitle(config.title).setIcon(config.icon).onClick(() => {
+                // Определяем startPath для onClick
+                let startPath = '';
+                if (target instanceof TFile) startPath = target.parent.path;
+                else if (target instanceof TFolder) startPath = target.path;
+                else if (target && target.path) startPath = target.path;
+                
+                config.onClick(startPath);
+            });
+        });
+    }
+
+    /**
+     * Создает и возвращает конфигурацию для контекстного меню
+     * @returns {Array} Массив конфигураций категорий меню
+     */
+    _getContextMenuConfig() {
+        const self = this; // Сохраняем ссылку на this для использования внутри builder
+        return [
+            // 1. Сюжет и главы
+            {
+                title: '📚 Сюжет и главы',
+                icon: 'book',
+                builder: (subMenu, target) => {
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать главу',
+                        icon: 'book',
+                        onClick: (startPath) => createChapter(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать сцену',
+                        icon: 'film',
+                        onClick: (startPath) => createScene(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать конфликт',
+                        icon: 'flame',
+                        onClick: (startPath) => createConflictWizard(self, startPath)
+                    }, target);
+                }
+            },
+            
+            // 2. Локации
+            {
+                title: '🗺️ Локации',
+                icon: 'map-pin',
+                builder: (subMenu, target) => {
+                    // Жильё
+                    subMenu.addItem((locItem) => {
+                        locItem.setTitle('🏠 Жильё').setIcon('home');
+                        const housingSubMenu = locItem.setSubmenu();
+                        
+                        self._addMenuItem(housingSubMenu, {
+                            title: 'Создать государство',
+                            icon: 'crown',
+                            onClick: (startPath) => window.createState(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(housingSubMenu, {
+                            title: 'Создать провинцию',
+                            icon: 'map',
+                            onClick: (startPath) => createProvince(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(housingSubMenu, {
+                            title: 'Создать город',
+                            icon: 'building',
+                            onClick: (startPath) => createCity(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(housingSubMenu, {
+                            title: 'Создать деревню',
+                            icon: 'home',
+                            onClick: (startPath) => createVillage(self, startPath)
+                        }, target);
+                    });
+                    
+                    // Фортификация
+                    self._addMenuItem(subMenu, {
+                        title: '🏰 Фортификация (мастер)',
+                        icon: 'fortress',
+                        onClick: (startPath) => createCastle(self, startPath)
+                    }, target);
+                    
+                    // Социальные учреждения
+                    self._addMenuItem(subMenu, {
+                        title: '🏛️ Социальные учреждения (мастер)',
+                        icon: 'library',
+                        onClick: async () => {
+                            try {
+                                await self.app.commands.executeCommandById('create-social-institution');
+                            } catch (e) {
+                                self.logDebug('Ошибка запуска мастера социальных объектов: ' + e.message);
+                            }
+                        }
+                    }, target);
+                    
+                    // Прочее
+                    subMenu.addItem((locItem) => {
+                        locItem.setTitle('📍 Прочее').setIcon('map-pin');
+                        const otherSubMenu = locItem.setSubmenu();
+                        
+                        self._addMenuItem(otherSubMenu, {
+                            title: 'Создать мертвую зону',
+                            icon: 'skull',
+                            onClick: (startPath) => createDeadZone(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(otherSubMenu, {
+                            title: 'Создать общую локацию',
+                            icon: 'map-pin',
+                            onClick: (startPath) => createLocation(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(otherSubMenu, {
+                            title: 'Создать монстра',
+                            icon: 'skull',
+                            onClick: (startPath) => createMonster(self, startPath)
+                        }, target);
+                    });
+                }
+            },
+            
+            // 3. Народы
+            {
+                title: '👥 Народы',
+                icon: 'users',
+                builder: (subMenu, target) => {
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать народ',
+                        icon: 'users',
+                        onClick: (startPath) => createPeople(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать организацию',
+                        icon: 'users',
+                        onClick: (startPath) => createOrganizationWizard(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать религию',
+                        icon: 'book',
+                        onClick: (startPath) => createReligionWizard(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать культ (религ.)',
+                        icon: 'flame',
+                        onClick: (startPath) => createCultWizard(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать фракцию',
+                        icon: 'flag',
+                        onClick: (startPath) => createFactionWizard(self, startPath)
+                    }, target);
+                }
+            },
+            
+            // 4. Экономика
+            {
+                title: '💰 Экономика',
+                icon: 'factory',
+                builder: (subMenu, target) => {
+                    // Производство
+                    subMenu.addItem((ecoItem) => {
+                        ecoItem.setTitle('🏭 Производство').setIcon('factory');
+                        const prod = ecoItem.setSubmenu();
+                        
+                        self._addMenuItem(prod, {
+                            title: 'Создать шахту',
+                            icon: 'pickaxe',
+                            onClick: (startPath) => createMine(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(prod, {
+                            title: 'Создать ферму',
+                            icon: 'wheat',
+                            onClick: (startPath) => createFarm(self, startPath)
+                        }, target);
+                        
+                        self._addMenuItem(prod, {
+                            title: 'Создать завод',
+                            icon: 'factory',
+                            onClick: (startPath) => createFactory(self, startPath)
+                        }, target);
+                    });
+                    
+                    // Торговля
+                    subMenu.addItem((ecoItem) => {
+                        ecoItem.setTitle('🧾 Торговля').setIcon('map');
+                        const trade = ecoItem.setSubmenu();
+                        
+                        self._addMenuItem(trade, {
+                            title: 'Создать торговый путь',
+                            icon: 'map',
+                            onClick: (startPath) => createTradeRouteWizard(self, startPath)
+                        }, target);
+                    });
+                    
+                    // Логистика
+                    subMenu.addItem((ecoItem) => {
+                        ecoItem.setTitle('🚚 Логистика').setIcon('map-pin');
+                        const logi = ecoItem.setSubmenu();
+                        
+                        self._addMenuItem(logi, {
+                            title: 'Создать порт',
+                            icon: 'anchor',
+                            onClick: () => {
+                                self.logDebug('Функция createPort временно недоступна');
+                            }
+                        }, target);
+                    });
+                }
+            },
+            
+            // 5. Магия
+            {
+                title: '✨ Магия',
+                icon: 'sparkles',
+                builder: (subMenu, target) => {
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать зелье',
+                        icon: 'potion',
+                        onClick: (startPath) => window.createPotion(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать заклинание',
+                        icon: 'sparkles',
+                        onClick: (startPath) => createSpell(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать алхимический рецепт',
+                        icon: 'flask',
+                        onClick: (startPath) => window.createAlchemyRecipe(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать артефакт',
+                        icon: 'sword',
+                        onClick: (startPath) => window.createArtifact(self, startPath)
+                    }, target);
+                }
+            },
+            
+            // 6. Персонажи
+            {
+                title: '👤 Персонажи',
+                icon: 'user',
+                builder: (subMenu, target) => {
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать персонажа',
+                        icon: 'user',
+                        onClick: (startPath) => window.createCharacter(self, startPath)
+                    }, target);
+                }
+            },
+            
+            // 7. События
+            {
+                title: '📅 События',
+                icon: 'calendar',
+                builder: (subMenu, target) => {
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать квест',
+                        icon: 'target',
+                        onClick: (startPath) => createQuestWizard(self, startPath)
+                    }, target);
+                    
+                    self._addMenuItem(subMenu, {
+                        title: 'Создать событие',
+                        icon: 'calendar',
+                        onClick: (startPath) => createEventWizard(self, startPath)
+                    }, target);
+                }
+            }
+        ];
+    }
 
 
     // --- Вспомогательные методы для модальных окон ---
 
+async loadButtonIconsScript() {
+    try {
+        const scriptPath = '.obsidian/plugins/literary-templates/scripts/button-icons.js';
+        const content = await this.app.vault.adapter.read(scriptPath);
+        
+        // СОЗДАЕМ ЭЛЕМЕНТ SCRIPT ПРАВИЛЬНО
+        const scriptEl = document.createElement('script');
+        scriptEl.textContent = content; // Загружаем содержимое файла
+        document.head.appendChild(scriptEl); // Добавляем в DOM
+        
+        console.log('Скрипт button-icons.js загружен напрямую');
+    } catch (error) {
+        console.error('Ошибка загрузки скрипта:', error);
+    }
+}
 
     onunload() {
         // console.log('Literary Templates plugin unloaded');
@@ -3542,29 +4082,29 @@ planned | started | writing | done | abandoned
 
     async _selectProjectParentFolder() {
         try {
-            await this.logDebug('=== _selectProjectParentFolder вызвана ===');
+            this.logDebug('=== _selectProjectParentFolder вызвана ===');
             
             // 1. Сначала ищем существующие папки проектов
             const existingProjectFolders = await getAllProjectFolders(this.app);
-            await this.logDebug(`Найдено существующих папок проектов: ${existingProjectFolders.length}: ${existingProjectFolders.join(', ')}`);
+            this.logDebug(`Найдено существующих папок проектов: ${existingProjectFolders.length}: ${existingProjectFolders.join(', ')}`);
             
             // 2. Получаем все папки первого уровня (корня)
             const allFiles = this.app.vault.getAllLoadedFiles();
             const allFolders = allFiles.filter(f => f instanceof TFolder);
             const vaultRoot = this.app.vault.getRoot();
             let rootFolders = allFolders.filter(f => f.parent === vaultRoot);
-            await this.logDebug(`Найдено папок первого уровня: ${rootFolders.length}: ${rootFolders.map(f => f.name).join(', ')}`);
-            await this.logDebug(`Из них папки проектов: ${existingProjectFolders.length}: ${existingProjectFolders.join(', ')}`);
+            this.logDebug(`Найдено папок первого уровня: ${rootFolders.length}: ${rootFolders.map(f => f.name).join(', ')}`);
+            this.logDebug(`Из них папки проектов: ${existingProjectFolders.length}: ${existingProjectFolders.join(', ')}`);
             
             // 3. Ищем "Мои Проекты" среди папок первого уровня
             let myProjects = rootFolders.find(f => f.name === 'Мои Проекты');
             
             // 4. Если "Мои Проекты" не найдена, создаем её
             if (!myProjects) {
-                await this.logDebug('Папка "Мои Проекты" не найдена, создаем...');
+                this.logDebug('Папка "Мои Проекты" не найдена, создаем...');
                 try {
                     myProjects = await this.app.vault.createFolder('Мои Проекты');
-                    await this.logDebug('Создана папка "Мои Проекты"');
+                    this.logDebug('Создана папка "Мои Проекты"');
                     
                     // Создаем файл-маркер в папке проектов
                     try {
@@ -3574,28 +4114,72 @@ planned | started | writing | done | abandoned
                                 date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10)
                             });
                             await safeCreateFile('Мои Проекты/Проекты.md', filledContent, this.app);
-                            await this.logDebug('Создан файл-маркер Проекты.md в папке "Мои Проекты"');
+                            this.logDebug('Создан файл-маркер Проекты.md в папке "Мои Проекты"');
                         } else {
                             // Fallback если шаблон не найден
                             const fallbackContent = `# Папка проектов
-
 Эта папка предназначена для хранения всех ваших литературных проектов и миров.
-
 ---
 *Создано автоматически плагином Literary Templates*`;
                             await safeCreateFile('Мои Проекты/Проекты.md', fallbackContent, this.app);
-                            await this.logDebug('Создан файл-маркер Проекты.md (fallback) в папке "Мои Проекты"');
+                            this.logDebug('Создан файл-маркер Проекты.md в папке "Мои Проекты"');
                         }
+                        
+                        this.logDebug('Создана папка "Мои Проекты" для хранения проектов.');
                     } catch (e) {
-                        await this.logDebug(`Ошибка создания файла-маркера: ${e.message}`);
-                        // Продолжаем без файла-маркера
+                        this.logDebug(`Ошибка создания папки "Мои Проекты": ${e.message}`);
+                        this.logDebug('Ошибка создания папки проектов: ' + e.message);
+                        return null;
                     }
-                    await this.logDebug('Создан файл-маркер Проекты.md в папке "Мои Проекты"');
                     
-                    this.logDebug('Создана папка "Мои Проекты" для хранения проектов.');
-                } catch (e) {
-                    await this.logDebug(`Ошибка создания папки "Мои Проекты": ${e.message}`);
-                    this.logDebug('Ошибка создания папки проектов: ' + e.message);
+                    // 5. Формируем список папок для выбора
+                    let folderList = [];
+                    
+                    // Сначала добавляем существующие папки проектов
+                    for (const projectFolderPath of existingProjectFolders) {
+                        const projectFolder = this.app.vault.getAbstractFileByPath(projectFolderPath);
+                        if (projectFolder && projectFolder instanceof TFolder) {
+                            folderList.push(projectFolder);
+                        }
+                    }
+                    
+                    // Затем добавляем "Мои Проекты" если её еще нет в списке
+                    if (!folderList.find(f => f.path === myProjects.path)) {
+                        folderList.unshift(myProjects); // Добавляем в начало
+                    }
+                    
+                    // НЕ добавляем остальные папки первого уровня - только папки проектов
+                    // folderList уже содержит только папки проектов и "Мои Проекты"
+                    
+                    const folderPaths = folderList.map(f => f.path);
+                    this.logDebug(`Итоговый список папок для выбора (только папки проектов): ${folderPaths.length}: ${folderPaths.join(', ')}`);
+                    
+                    // 6. Показываем список пользователю
+                    let selectedPath = null;
+                    if (typeof window !== 'undefined' && window.app && window.app.plugins) {
+                        selectedPath = await this.suggester(
+                            folderPaths,
+                            folderPaths,
+                            'Выберите папку для нового мира/проекта:'
+                        );
+                    } else if (typeof window !== 'undefined' && window.suggester) {
+                        selectedPath = await window.suggester(folderPaths, folderPaths, 'Выберите папку для нового мира/проекта:');
+                    } else {
+                        selectedPath = folderPaths[0]; // По умолчанию первая папка
+                    }
+                    
+                    // 7. Проверяем результат выбора
+                    if (selectedPath === undefined || selectedPath === null) {
+                        this.logDebug('Выбор папки отменён пользователем');
+                        return null;
+                    }
+                    
+                    this.logDebug(`Выбрана папка: ${selectedPath}`);
+                    return selectedPath;
+                    
+                } catch (error) {
+                    this.logDebug(`Ошибка в _selectProjectParentFolder: ${error.message}`);
+                    this.logDebug('Ошибка при выборе папки проектов: ' + error.message);
                     return null;
                 }
             }
@@ -3620,7 +4204,7 @@ planned | started | writing | done | abandoned
             // folderList уже содержит только папки проектов и "Мои Проекты"
             
             const folderPaths = folderList.map(f => f.path);
-            await this.logDebug(`Итоговый список папок для выбора (только папки проектов): ${folderPaths.length}: ${folderPaths.join(', ')}`);
+            this.logDebug(`Итоговый список папок для выбора (только папки проектов): ${folderPaths.length}: ${folderPaths.join(', ')}`);
             
             // 6. Показываем список пользователю
             let selectedPath = null;
@@ -3638,15 +4222,15 @@ planned | started | writing | done | abandoned
             
             // 7. Проверяем результат выбора
             if (selectedPath === undefined || selectedPath === null) {
-                await this.logDebug('Выбор папки отменён пользователем');
+                this.logDebug('Выбор папки отменён пользователем');
                 return null;
             }
             
-            await this.logDebug(`Выбрана папка: ${selectedPath}`);
+            this.logDebug(`Выбрана папка: ${selectedPath}`);
             return selectedPath;
             
         } catch (error) {
-            await this.logDebug(`Ошибка в _selectProjectParentFolder: ${error.message}`);
+            this.logDebug(`Ошибка в _selectProjectParentFolder: ${error.message}`);
             this.logDebug('Ошибка при выборе папки проектов: ' + error.message);
             return null;
         }
@@ -3656,7 +4240,7 @@ planned | started | writing | done | abandoned
         try {
             const file = this.app.workspace.getActiveFile();
             if (!file) {
-                await this.logDebug('Нет активного файла для AI анализа');
+                this.logDebug('Нет активного файла для AI анализа');
                 return;
             }
             
@@ -3677,7 +4261,7 @@ planned | started | writing | done | abandoned
             }
             
             if (!contentType) {
-                await this.logDebug('Не удалось определить тип сущности для AI анализа. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
+                this.logDebug('Не удалось определить тип сущности для AI анализа. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
                 return;
             }
             
@@ -3745,7 +4329,7 @@ planned | started | writing | done | abandoned
                         const insertText = '\n\n' + resultText + '\n';
                         editor.replaceRange(insertText, cursor);
                         this.logDebug('✅ Результат AI анализа вставлен в заметку');
-                        await this.logDebug('Результат AI анализа вставлен в заметку');
+                        this.logDebug('Результат AI анализа вставлен в заметку');
                     } else {
                         this.logDebug(`[ERROR] Не удалось вставить результат: редактор недоступен`);
                     }
@@ -3767,7 +4351,7 @@ planned | started | writing | done | abandoned
             
         } catch (e) {
             console.error('Ошибка AI анализа:', e);
-            await this.logDebug('Ошибка AI анализа: ' + e.message);
+            this.logDebug('Ошибка AI анализа: ' + e.message);
         }
     }
 
@@ -3775,7 +4359,7 @@ planned | started | writing | done | abandoned
         try {
             const file = this.app.workspace.getActiveFile();
             if (!file) {
-                await this.logDebug('Нет активного файла для AI сбора лора');
+                this.logDebug('Нет активного файла для AI сбора лора');
                 return;
             }
             
@@ -3794,7 +4378,7 @@ planned | started | writing | done | abandoned
             }
             
             if (!contentType) {
-                await this.logDebug('Не удалось определить тип сущности для сбора лора. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
+                this.logDebug('Не удалось определить тип сущности для сбора лора. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
                 return;
             }
             
@@ -3838,7 +4422,7 @@ planned | started | writing | done | abandoned
             
         } catch (e) {
             console.error('Ошибка AI сбора лора:', e);
-            await this.logDebug('Ошибка AI сбора лора: ' + e.message);
+            this.logDebug('Ошибка AI сбора лора: ' + e.message);
         }
     }
 
@@ -3863,7 +4447,7 @@ planned | started | writing | done | abandoned
                 context = await window.loreAnalyzerService.gatherLoreContext(projectRoot, 'all');
             }
         } catch (e) {
-            await this.logDebug('gatherLoreContext error: ' + e.message);
+            this.logDebug('gatherLoreContext error: ' + e.message);
         }
 
         // Формируем разделы с безопасными фолбэками
@@ -3889,7 +4473,7 @@ planned | started | writing | done | abandoned
                 parts.push('—');
             }
             parts.push('');
-        } catch {}
+        } catch (e) {}
         parts.push('## Сводка');
         parts.push(summaryText || '—');
         parts.push('');
@@ -3954,7 +4538,7 @@ planned | started | writing | done | abandoned
         parts.push('```json');
         try {
             parts.push(JSON.stringify(context || {}, null, 2));
-        } catch {
+        } catch (e) {
             parts.push('{}');
         }
         parts.push('```');
@@ -3968,7 +4552,7 @@ planned | started | writing | done | abandoned
             if (!folder) {
                 await this.app.vault.createFolder(loreDir);
             }
-        } catch {}
+        } catch (e) {}
 
         try {
             const existing = this.app.vault.getAbstractFileByPath(loreFilePath);
@@ -4054,7 +4638,7 @@ planned | started | writing | done | abandoned
                     try {
                         const roots = await getAllProjectRoots(this.app);
                         if (roots && roots.length > 0) projectRoot = roots[0];
-                    } catch {}
+                    } catch (e) {}
                 }
                 const projectName = projectRoot ? projectRoot.split('/').pop() : (file?.basename || '');
                 const projectType = '';
@@ -4161,7 +4745,7 @@ planned | started | writing | done | abandoned
         try {
             const folder = this.app.vault.getAbstractFileByPath(loreDir);
             if (!folder) await this.app.vault.createFolder(loreDir);
-        } catch {}
+        } catch (e) {}
 
         // Получаем содержимое заметки и лёгкий анализ
         const content = await this.app.vault.read(file);
@@ -4171,7 +4755,7 @@ planned | started | writing | done | abandoned
             if (cache.frontmatter && cache.frontmatter.type) {
                 contentType = String(cache.frontmatter.type).toLowerCase();
             }
-        } catch {}
+        } catch (e) {}
 
         let quickSummary = '';
         try {
@@ -4179,7 +4763,7 @@ planned | started | writing | done | abandoned
                 const analysis = await window.loreAnalyzerService.analyzeContent(content, contentType || 'unknown', projectRoot);
                 if (analysis && analysis.summary) quickSummary = String(analysis.summary);
             }
-        } catch {}
+        } catch (e) {}
 
         const base = file.basename;
         const noteSection = [];
@@ -4249,11 +4833,10 @@ planned | started | writing | done | abandoned
             this.logDebug('Ошибка обновления файла лора: ' + e.message);
         }
     }
-    
     // Тест AI подключения
     async testAIConnection() {
         try {
-            await this.logDebug('=== Тест AI подключения ===');
+            this.logDebug('=== Тест AI подключения ===');
             
             // Собираем полную диагностику
             const diagnostics = {
@@ -4281,7 +4864,7 @@ planned | started | writing | done | abandoned
                 }
             };
             
-            await this.logDebug('Диагностика собрана: ' + JSON.stringify(diagnostics, null, 2));
+            this.logDebug('Диагностика собрана: ' + JSON.stringify(diagnostics, null, 2));
             
             // Проверяем настройки
             if (!this.settings.aiKeys || this.settings.aiKeys.length === 0) {
@@ -4303,7 +4886,7 @@ planned | started | writing | done | abandoned
             // Тестируем простой запрос
             try {
                 const testPrompt = 'Скажи "Привет, мир!" на русском языке.';
-                await this.logDebug(`Отправляем тестовый запрос: ${testPrompt}`);
+                this.logDebug(`Отправляем тестовый запрос: ${testPrompt}`);
                 
                 // Проверяем доступность метода generateText
                 if (typeof window.aiProviderService.generateText !== 'function') {
@@ -4338,7 +4921,7 @@ planned | started | writing | done | abandoned
                 }
                 
             } catch (aiError) {
-                await this.logDebug(`Ошибка AI запроса: ${aiError.message}`);
+                this.logDebug(`Ошибка AI запроса: ${aiError.message}`);
                 console.error('AI тест ошибка:', aiError);
                 
                 // Анализируем тип ошибки
@@ -4371,10 +4954,9 @@ planned | started | writing | done | abandoned
         } catch (e) {
             console.error('Ошибка теста AI:', e);
             this.logDebug('❌ Ошибка теста AI: ' + e.message);
-            await this.logDebug('Ошибка теста AI: ' + e.message);
+            this.logDebug('Ошибка теста AI: ' + e.message);
         }
     }
-    
     // Показывает детальную диагностику
     async showDiagnostics(title, diagnostics, advice) {
         const diagnosticText = `# ${title}\n\n` +
@@ -4584,7 +5166,7 @@ async function createOrganizationWizard(plugin, projectPath, options = {}) {
         const active = plugin.app.workspace.getActiveFile();
         const parentPath = projectPath || (active && active.parent ? active.parent.path : '');
         root = (typeof findProjectRoot === 'function' ? (findProjectRoot(plugin.app, parentPath) || '') : '') || plugin.activeProjectRoot || projectPath || '';
-    } catch {}
+    } catch (e) {}
     const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, root, () => {}, options);
     modal.open();
 }
@@ -4616,6 +5198,85 @@ async function createFactionWizard(plugin, projectPath, options = {}) {
 async function createQuestWizard(plugin, projectPath, options = {}) {
     const { QuestWizardModal } = require('./creators/QuestWizardModal.js');
     const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+}
+
+async function createEventWizard(plugin, projectPath, options = {}) {
+    const { EventWizardModal } = require('./creators/EventWizardModal.js');
+    const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+async function createHtmlWizard(plugin, projectPath, options = {}) {
+    const { HtmlWizardModal } = require('./creators/HtmlWizardModal.js');
+    const modal = new HtmlWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+}
+
+// Делаем функции create* доступными в глобальной области видимости
+window.createWorld = createWorld;
+window.createChapter = createChapter;
+window.createCity = createCity;
+window.createLocation = createLocation;
+window.createScene = createScene;
+window.createVillage = createVillage;
+window.createDeadZone = createDeadZone;
+window.createPort = createPort;
+window.createCastle = createCastle;
+window.createPotion = createPotion; // оставляем, функции должны быть глобализованы сборщиком
+window.createSpell = createSpell;
+window.createArtifact = createArtifact;
+window.createAlchemyRecipe = createAlchemyRecipe;
+window.createProvince = createProvince;
+window.createState = createState;
+window.createFactory = createFactory;
+window.createFarm = createFarm;
+window.createPeople = createPeople;
+window.createTask = createTask;
+window.createCharacter = createCharacter;
+window.createMonster = createMonster;
+window.createWork = createWork;
+window.createSocialInstitution = createSocialInstitution;
+        
+        // Функции для wizard'ов
+        window.createConflictWizard = async (plugin, projectPath, options = {}) => {
+            const modal = new ConflictWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+            modal.open();
+        };
+
+window.createOrganizationWizard = async (plugin, projectPath, options = {}) => {
+    // Гарантируем, что в модал уходит именно корень проекта
+    let root = projectPath || '';
+    try {
+        const active = plugin.app.workspace.getActiveFile();
+        const parentPath = projectPath || (active && active.parent ? active.parent.path : '');
+        root = (typeof findProjectRoot === 'function' ? (findProjectRoot(plugin.app, parentPath) || '') : '') || plugin.activeProjectRoot || projectPath || '';
+    } catch (e) {}
+    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, root, () => {}, options);
+    modal.open();
+};
+        
+window.createReligionWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new ReligionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+        
+window.createCultWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new CultWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+        
+window.createTradeRouteWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new TradeRouteWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+        
+window.createFactionWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new FactionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+        
+window.createQuestWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
     modal.open();
 }
 
@@ -4624,6 +5285,42 @@ async function createEventWizard(plugin, projectPath, options = {}) {
     const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
     modal.open();
 }
+
+window.createHtmlWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new HtmlWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createPotionWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new PotionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createVillageWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new VillageWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createStateWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new StateWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createLocationWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new LocationWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createSceneWizard = async (plugin, projectPath, options = {}) => {
+    const modal = new SceneWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
+
+window.createCharacter = async (plugin, projectPath, options = {}) => {
+    const { CharacterWizardModal } = require('./creators/CharacterWizardModal.js');
+    const modal = new CharacterWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+    modal.open();
+};
 
 // === НАЧАЛО: Новый способ хранения настроек ===
 const SETTINGS_PATH = '.obsidian/plugins/literary-templates/settings.json';
@@ -4642,12 +5339,13 @@ async function loadSettingsFromFile(app) {
         aiProvider: 'openrouter', // openrouter, anthropic, openai
         defaultModel: 'openrouter/mistralai/mistral-7b-instruct', // Бесплатная модель
             maxTokens: 2000,
-            temperature: 0.7
+            temperature: 0.7,
+            author: '' // <--- новое поле
         };
     
     try {
         const data = await app.vault.adapter.read(SETTINGS_PATH);
-        return JSON.parse(data);
+        return { ...defaultSettings, ...JSON.parse(data) };
      
     } catch (e) {
         // Если файла нет — просто возвращаем дефолтные настройки
@@ -4691,7 +5389,6 @@ async function openSettingsFile(app) {
         this.logDebug('Файл настроек не найден');
     }
 }
-
 // === Класс для управления AI ключами ===
 class AIKeysManagerModal extends Modal {
     constructor(app, Modal, Setting, Notice, settings, onSave) {
@@ -5013,5 +5710,3 @@ class FallbackAIProviderService {
 }
 
 module.exports = LiteraryTemplatesPlugin; 
-
-

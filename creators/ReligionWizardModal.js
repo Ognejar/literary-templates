@@ -11,6 +11,7 @@
  */
 
 const { EntityWizardBase } = require('./EntityWizardBase.js');
+const { WizardUI } = require('../ui/WizardUI.js');
 
 class ReligionWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
@@ -21,6 +22,7 @@ class ReligionWizardModal extends EntityWizardBase {
         this.projectPath = projectPath;
         this.onFinish = onFinish;
         this.options = options || {};
+        this.ui = new WizardUI({ SettingClass: SettingClass });
         this.data = {
             name: '',
             description: '',
@@ -55,9 +57,8 @@ class ReligionWizardModal extends EntityWizardBase {
 
     render() {
         this.contentEl.empty();
-        const progress = this.contentEl.createEl('div', { cls: 'lt-progress' });
-        const fill = progress.createEl('div', { cls: 'lt-progress__fill' });
-        fill.style.width = `${((this.step + 1) / this.steps.length) * 100}%`;
+        // Унифицированный прогресс через UI-слой
+        this.ui.progress(this.contentEl, this.step, this.steps.length);
         
         this.steps[this.step]();
         
@@ -65,70 +66,31 @@ class ReligionWizardModal extends EntityWizardBase {
     }
 
     renderBasic() {
-        const h = this.contentEl.createEl('h2', { text: 'Основная информация' });
-        h.classList.add('lt-header');
+        this.ui.header(this.contentEl, 'Основная информация');
         
-        new Setting(this.contentEl)
-            .setName('Название религии')
-            .addText(t => t.setValue(this.data.name).onChange(v => this.data.name = v));
-        
-        new Setting(this.contentEl)
-            .setName('Описание')
-            .addTextArea(t => t.setValue(this.data.description).onChange(v => this.data.description = v));
-        
-        new Setting(this.contentEl)
-            .setName('Связи с миром (через запятую)')
-            .addText(t => t.setValue(this.data.connections).onChange(v => this.data.connections = v));
-        
-        new Setting(this.contentEl)
-            .setName('Теги (через запятую)')
-            .addText(t => t.setValue(this.data.tags).onChange(v => this.data.tags = v));
+        this.ui.settingText(this.contentEl, 'Название религии', () => this.data.name, v => this.data.name = v);
+        this.ui.settingTextArea(this.contentEl, 'Описание', () => this.data.description, v => this.data.description = v);
+        this.ui.settingText(this.contentEl, 'Связи с миром (через запятую)', () => this.data.connections, v => this.data.connections = v);
+        this.ui.settingText(this.contentEl, 'Теги (через запятую)', () => this.data.tags, v => this.data.tags = v);
     }
 
     renderBeliefs() {
-        const h = this.contentEl.createEl('h2', { text: 'Верования и практики' });
-        h.classList.add('lt-header');
+        this.ui.header(this.contentEl, 'Верования и практики');
         
-        new Setting(this.contentEl)
-            .setName('Доктрины (через запятую)')
-            .addTextArea(t => t.setValue(this.data.doctrines).onChange(v => this.data.doctrines = v));
-        
-        new Setting(this.contentEl)
-            .setName('Пантеон (через запятую)')
-            .addTextArea(t => t.setValue(this.data.pantheon).onChange(v => this.data.pantheon = v));
-        
-        new Setting(this.contentEl)
-            .setName('Ритуалы (через запятую)')
-            .addTextArea(t => t.setValue(this.data.rituals).onChange(v => this.data.rituals = v));
-        
-        new Setting(this.contentEl)
-            .setName('Табу (через запятую)')
-            .addTextArea(t => t.setValue(this.data.taboos).onChange(v => this.data.taboos = v));
-        
-        new Setting(this.contentEl)
-            .setName('Праздники (через запятую)')
-            .addTextArea(t => t.setValue(this.data.holidays).onChange(v => this.data.holidays = v));
-        
-        new Setting(this.contentEl)
-            .setName('Символы (через запятую)')
-            .addTextArea(t => t.setValue(this.data.symbols).onChange(v => this.data.symbols = v));
+        this.ui.settingTextArea(this.contentEl, 'Доктрины (через запятую)', () => this.data.doctrines, v => this.data.doctrines = v);
+        this.ui.settingTextArea(this.contentEl, 'Пантеон (через запятую)', () => this.data.pantheon, v => this.data.pantheon = v);
+        this.ui.settingTextArea(this.contentEl, 'Ритуалы (через запятую)', () => this.data.rituals, v => this.data.rituals = v);
+        this.ui.settingTextArea(this.contentEl, 'Табу (через запятую)', () => this.data.taboos, v => this.data.taboos = v);
+        this.ui.settingTextArea(this.contentEl, 'Праздники (через запятую)', () => this.data.holidays, v => this.data.holidays = v);
+        this.ui.settingTextArea(this.contentEl, 'Символы (через запятую)', () => this.data.symbols, v => this.data.symbols = v);
     }
 
     renderStructure() {
-        const h = this.contentEl.createEl('h2', { text: 'Структура и история' });
-        h.classList.add('lt-header');
+        this.ui.header(this.contentEl, 'Структура и история');
         
-        new Setting(this.contentEl)
-            .setName('Структура (через запятую)')
-            .addTextArea(t => t.setValue(this.data.structure).onChange(v => this.data.structure = v));
-        
-        new Setting(this.contentEl)
-            .setName('Храмы и святилища (через запятую)')
-            .addTextArea(t => t.setValue(this.data.shrines).onChange(v => this.data.shrines = v));
-        
-        new Setting(this.contentEl)
-            .setName('История развития (через запятую)')
-            .addTextArea(t => t.setValue(this.data.timeline).onChange(v => this.data.timeline = v));
+        this.ui.settingTextArea(this.contentEl, 'Структура (через запятую)', () => this.data.structure, v => this.data.structure = v);
+        this.ui.settingTextArea(this.contentEl, 'Храмы и святилища (через запятую)', () => this.data.shrines, v => this.data.shrines = v);
+        this.ui.settingTextArea(this.contentEl, 'История развития (через запятую)', () => this.data.timeline, v => this.data.timeline = v);
     }
 
     renderPreview() {
@@ -182,7 +144,7 @@ class ReligionWizardModal extends EntityWizardBase {
             if (window.litSettingsService) {
                 data.tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Религия') || '';
             }
-        } catch {}
+        } catch (e) {}
         
         const content = await window.generateFromTemplate('Новая_религия', data, this.plugin);
         const folder = `${this.projectPath}/Религия`;

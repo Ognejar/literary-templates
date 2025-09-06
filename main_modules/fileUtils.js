@@ -10,7 +10,7 @@
  * @param {App} app - экземпляр Obsidian App
  * @returns {Promise<TFile|null>} - созданный файл или null если файл уже существует
  */
-async function safeCreateFile(filePath, content, app) {
+async function safeCreateFileWithNumbering(filePath, content, app) {
     try {
         // Если файл существует — автонумерация: Имя -> Имя_2, Имя_3, ...
         let finalPath = filePath;
@@ -222,7 +222,7 @@ async function deleteFile(filePath, app) {
 // Экспортируем функции в глобальную область видимости для совместимости с текущей сборкой
 if (typeof window !== 'undefined') {
     window.fileUtils = {
-        safeCreateFile,
+        safeCreateFileWithNumbering,
         generateUniqueFileName,
         fileExists,
         folderExists,

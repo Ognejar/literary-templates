@@ -23,6 +23,9 @@ module.exports = [
         document: 'readonly',
         navigator: 'readonly',
         setTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+
         // Modal классы (доступны после сборки)
         PromptModal: 'readonly',
         SuggesterModal: 'readonly',

@@ -112,7 +112,7 @@ class PotionWizardModal extends Modal {
                 const fullPath = `${base}/${file}`;
                 let f = this.app.vault.getAbstractFileByPath(fullPath);
                 if (!f) {
-                    try { await this.app.vault.createFolder(base); } catch {}
+                    try { await this.app.vault.createFolder(base); } catch (e) {}
                     const content = (defaults || []).join('\n');
                     f = await this.app.vault.create(fullPath, content);
                     console.log('[DEBUG] Создан справочник:', fullPath);
@@ -124,7 +124,7 @@ class PotionWizardModal extends Modal {
                             await this.app.vault.modify(f, defaults.join('\n'));
                             console.log('[DEBUG] Заполнен пустой справочник:', fullPath);
                         }
-                    } catch {}
+                    } catch (e) {}
                 }
             } catch (e) {
                 console.warn('[DEBUG] ensureList error for', file, e.message);

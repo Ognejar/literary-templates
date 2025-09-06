@@ -39,9 +39,6 @@ class StateWizardModal extends EntityWizardBase {
             traditions: '',
             religion: '',
             festivals: '',
-            // Добавляем поддержку хронологии и истории населения
-            history_events: [], // массив событий: [{year: 800, event: "Основано государство"}, ...]
-            population_history: [], // массив значений населения: [{year: 1000, value: 500000}, ...]
             // Обновляем поля для использования массивов
             mainIndustries: [],
             tradePartners: [],
@@ -66,7 +63,6 @@ class StateWizardModal extends EntityWizardBase {
             'Население и языки',
             'География',
             'История и культура',
-            'Хронология',
             'Экономика',
             'Политика',
             'Общество',
@@ -166,11 +162,10 @@ class StateWizardModal extends EntityWizardBase {
             case 2: this.renderPopulationLanguages(contentEl); break;
             case 3: this.renderGeography(contentEl); break;
             case 4: this.renderHistoryCulture(contentEl); break;
-            case 5: this.renderChronology(contentEl); break;
-            case 6: this.renderEconomy(contentEl); break;
-            case 7: this.renderPolitics(contentEl); break;
-            case 8: this.renderSociety(contentEl); break;
-            case 9: this.renderPreview(contentEl); break;
+            case 5: this.renderEconomy(contentEl); break;
+            case 6: this.renderPolitics(contentEl); break;
+            case 7: this.renderSociety(contentEl); break;
+            case 8: this.renderPreview(contentEl); break;
         }
 
         // Унифицированная навигация
@@ -483,77 +478,6 @@ class StateWizardModal extends EntityWizardBase {
             });
     }
 
-    renderChronology(contentEl) {
-        // Секция для событий истории
-        new this.Setting(contentEl)
-            .setName('Исторические события')
-            .setDesc('Добавьте важные события в истории государства (год: событие)')
-            .addTextArea(text => {
-                const historyText = this.data.history_events && this.data.history_events.length > 0 
-                    ? this.data.history_events.map(h => `${h.year}: ${h.event}`).join('\n')
-                    : '';
-                text.setPlaceholder('800: Основано государство\n1200: Война с соседями\n1500: Экономический расцвет')
-                    .setValue(historyText)
-                    .onChange(value => {
-                        // Парсим текст в массив объектов history_events
-                        this.data.history_events = value.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0)
-                            .map(line => {
-                                const colonIndex = line.indexOf(':');
-                                if (colonIndex > 0) {
-                                    const year = line.substring(0, colonIndex).trim();
-                                    const event = line.substring(colonIndex + 1).trim();
-                                    if (year && event) {
-                                        return { year: parseInt(year) || year, event: event };
-                                    }
-                                }
-                                return null;
-                            })
-                            .filter(item => item !== null);
-                    });
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.minHeight = '120px';
-                text.inputEl.style.fontSize = '14px';
-                text.inputEl.style.lineHeight = '1.4';
-                text.inputEl.style.padding = '8px';
-            });
-
-        // Секция для истории населения
-        new this.Setting(contentEl)
-            .setName('История населения')
-            .setDesc('Добавьте данные о населении по годам (год: количество)')
-            .addTextArea(text => {
-                const populationText = this.data.population_history && this.data.population_history.length > 0 
-                    ? this.data.population_history.map(p => `${p.year}: ${p.value}`).join('\n')
-                    : '';
-                text.setPlaceholder('1000: 500000\n1500: 1200000\n1800: 2500000')
-                    .setValue(populationText)
-                    .onChange(value => {
-                        // Парсим текст в массив объектов population_history
-                        this.data.population_history = value.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0)
-                            .map(line => {
-                                const colonIndex = line.indexOf(':');
-                                if (colonIndex > 0) {
-                                    const year = line.substring(0, colonIndex).trim();
-                                    const value = line.substring(colonIndex + 1).trim();
-                                    if (year && value) {
-                                        return { year: parseInt(year) || year, value: parseInt(value) || value };
-                                    }
-                                }
-                                return null;
-                            })
-                            .filter(item => item !== null);
-                    });
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.minHeight = '120px';
-                text.inputEl.style.fontSize = '14px';
-                text.inputEl.style.lineHeight = '1.4';
-                text.inputEl.style.padding = '8px';
-            });
-    }
 
     renderEconomy(contentEl) {
         // Основные отрасли
@@ -935,23 +859,6 @@ class StateWizardModal extends EntityWizardBase {
                     return false;
                 }
                 break;
-            case 5: // Хронология
-                // Хронология не обязательна, но если добавлена - должна быть корректной
-                if (this.data.history_events && this.data.history_events.length > 0) {
-                    const invalidHistory = this.data.history_events.filter(h => !h.year || !h.event);
-                    if (invalidHistory.length > 0) {
-                        new this.Notice('Пожалуйста, проверьте формат исторических событий (год: событие).');
-                        return false;
-                    }
-                }
-                if (this.data.population_history && this.data.population_history.length > 0) {
-                    const invalidPopulation = this.data.population_history.filter(p => !p.year || !p.value);
-                    if (invalidPopulation.length > 0) {
-                        new this.Notice('Пожалуйста, проверьте формат истории населения (год: количество).');
-                        return false;
-                    }
-                }
-                break;
         }
         return true;
     }
@@ -970,8 +877,6 @@ class StateWizardModal extends EntityWizardBase {
 
             // Добавляем поля для шаблона
             this.data.name = this.data.stateName; // для совместимости с шаблоном
-            this.data.history = this.data.history_events || []; // переименовываем для шаблона
-            this.data.population_history = this.data.population_history || []; // убеждаемся что массив существует
 
             await this.onFinish(this.data);
             this.close();

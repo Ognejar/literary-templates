@@ -50,7 +50,7 @@ class LoreDBService {
 			const raw = await vault.read(file);
 			const parsed = JSON.parse(raw || '{}');
 			return this.normalizeDB(parsed);
-		} catch {
+		} catch (e) {
 			return this.createEmptyDB();
 		}
 	}
@@ -177,13 +177,13 @@ class LoreDBService {
 				const worldContent = await vault.read(ws);
 				db.globals.worldInfo = this.extractWorldInfo(worldContent);
 			}
-		} catch {}
+		} catch (e) {}
 		for (const file of projectFiles) {
 			try {
 				const content = await vault.read(file);
 				const entity = await this.extractEntityFromContent(file, content);
 				db.entities.push(entity);
-			} catch {}
+			} catch (e) {}
 		}
 		await this.saveDB(projectRoot, db);
 		return db;

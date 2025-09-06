@@ -12,36 +12,44 @@
 
 var createMonster = async function(plugin, startPath = '', options = {}) {
     try {
-        await plugin.logDebug('=== createMonster вызвана ===');
+        plugin.logDebug('=== createMonster вызвана ===');
 
-        // 1) Определяем корень проекта
+        // Используем резолвер контекста из настроек
         let projectRoot = '';
-        if (startPath) {
-            try {
-                projectRoot = (typeof findProjectRoot === 'function')
-                    ? findProjectRoot(plugin.app, startPath)
-                    : '';
-            } catch {}
+        if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
+            const ctx = await window.litSettingsService.resolveContext(plugin.app, startPath);
+            projectRoot = ctx.projectRoot || '';
         }
+        
+        // Fallback: старый способ
         if (!projectRoot) {
-            const activeFile = plugin.app.workspace.getActiveFile();
-            if (activeFile) {
+            if (startPath) {
                 try {
                     projectRoot = (typeof findProjectRoot === 'function')
-                        ? findProjectRoot(plugin.app, activeFile.parent.path)
+                        ? findProjectRoot(plugin.app, startPath)
                         : '';
-                } catch {}
+                } catch (e) {}
             }
-        }
-        if (!projectRoot) {
-            const roots = (typeof getAllProjectRoots === 'function')
-                ? await getAllProjectRoots(plugin.app)
-                : [];
-            if (!roots || roots.length === 0) {
-                new Notice('Проект не найден: отсутствует файл "Настройки_мира.md"');
-                return;
+            if (!projectRoot) {
+                const activeFile = plugin.app.workspace.getActiveFile();
+                if (activeFile) {
+                    try {
+                        projectRoot = (typeof findProjectRoot === 'function')
+                            ? findProjectRoot(plugin.app, activeFile.parent.path)
+                            : '';
+                    } catch (e) {}
+                }
             }
-            projectRoot = roots[0];
+            if (!projectRoot) {
+                const roots = (typeof getAllProjectRoots === 'function')
+                    ? await getAllProjectRoots(plugin.app)
+                    : [];
+                if (!roots || roots.length === 0) {
+                    new Notice('Проект не найден: отсутствует файл "Настройки_мира.md"');
+                    return;
+                }
+                projectRoot = roots[0];
+            }
         }
 
         // 2) Сбор данных
@@ -101,7 +109,7 @@ var createMonster = async function(plugin, startPath = '', options = {}) {
                 const f = plugin.app.vault.getAbstractFileByPath(p);
                 if (f) { tagImage = p; break; }
             }
-        } catch {}
+        } catch (e) {}
 
         const data = {
             created,
@@ -144,11 +152,11 @@ var createMonster = async function(plugin, startPath = '', options = {}) {
 		new Notice('Монстр создан: ' + targetPath);
 		try {
 			await plugin.app.workspace.getLeaf(true).openFile(newFile);
-		} catch {}
+		} catch (e) {}
 
     } catch (error) {
         new Notice('Ошибка при создании монстра: ' + error.message);
-        try { await plugin.logDebug('createMonster error: ' + error.message); } catch {}
+        try { plugin.logDebug('createMonster error: ' + error.message); } catch (e) {}
     }
 };
 

@@ -451,7 +451,7 @@ var ArtifactWizardModal = class extends HtmlWizardModal {
                         tagImage = window.litSettingsService.findTagImage(this.app, this.projectPath, 'Артефакт');
                     }
                 }
-            } catch {}
+            } catch (e) {}
             const ownerText = this.data.owner && this.data.owner.trim()
                 ? `**Владелец:** [[${this.data.owner.trim()}]]`
                 : `**Владелец:** Не известно`;
@@ -516,7 +516,7 @@ var ArtifactWizardModal = class extends HtmlWizardModal {
                 }
             } else {
                 // Обычное создание файла
-                try { await this.app.vault.createFolder(targetFolder); } catch {}
+                try { await this.app.vault.createFolder(targetFolder); } catch (e) {}
                 const targetPath = `${targetFolder}/${fileName}.md`;
                 await this.app.vault.create(targetPath, filled);
                 const file = this.app.vault.getAbstractFileByPath(targetPath);

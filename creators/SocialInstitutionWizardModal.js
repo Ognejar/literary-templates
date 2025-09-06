@@ -139,7 +139,7 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
         const submit = btns.createEl('button', { text: 'Создать' });
         submit.onclick = async () => {
             if (!this.data.name) { new this.Notice('Укажите название объекта'); return; }
-            try { await this.onSubmit(this.data); } catch {} finally { this.close(); }
+            try { await this.onSubmit(this.data); } catch (e) {} finally { this.close(); }
         };
         const cancel = btns.createEl('button', { text: 'Отмена' });
         cancel.onclick = () => this.close();
@@ -150,7 +150,7 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
             const folder = `${this.projectRoot}/Локации/Государства`;
             const files = this.app.vault.getMarkdownFiles().filter(f => f.parent && f.parent.path === folder);
             return files.map(f => f.basename).sort((a,b)=>a.localeCompare(b));
-        } catch { return []; }
+        } catch (e) { return []; }
     }
 
     async loadProvincesByState(stateName) {
@@ -164,10 +164,10 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
                     if (new RegExp(`state:\s*"?${stateName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}"?`).test(txt)) {
                         out.push(f.basename);
                     }
-                } catch {}
+                } catch (e) {}
             }
             return out.sort((a,b)=>a.localeCompare(b));
-        } catch { return []; }
+        } catch (e) { return []; }
     }
 
     async loadCities(stateName, provinceName) {
@@ -182,10 +182,10 @@ var SocialInstitutionWizardModal = class SocialInstitutionWizardModal extends Ht
                     const txt = await this.app.vault.read(f);
                     if (provRe && provRe.test(txt)) { out.push(f.basename); continue; }
                     if (!provRe && stateRe && stateRe.test(txt)) { out.push(f.basename); continue; }
-                } catch {}
+                } catch (e) {}
             }
             return out.sort((a,b)=>a.localeCompare(b));
-        } catch { return []; }
+        } catch (e) { return []; }
     }
 };
 

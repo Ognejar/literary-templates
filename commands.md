@@ -8,27 +8,27 @@
 | `create-new-character` | Создать нового персонажа |
 | `create-new-potion` | Создать новое зелье |
 | `create-new-spell-wizard` | Создать новое заклинание (мастер) |
-| `create-artifact` | Создать артефакт (минишаблонизатор) |
-| `create-chapter` | Создать главу (минишаблонизатор) |
+| `create-artifact` | Создать артефакт |
+| `create-chapter` | Создать главу |
 | `create-conflict` | Создать конфликт (мастер) |
 | `create-cult` | Создать культ (мастер) |
 | `create-event` | Создать событие (мастер) |
 | `create-faction` | Создать фракцию (мастер) |
-| `create-factory` | Создать завод (минишаблонизатор) |
-| `create-farm` | Создать ферму (минишаблонизатор) |
+| `create-factory` | Создать завод |
+| `create-farm` | Создать ферму |
 | `create-log-file` | Создать лог файл (принудительно) |
-| `create-mine` | Создать шахту (минишаблонизатор) |
-| `create-monster` | Создать монстра (минишаблонизатор) |
+| `create-mine` | Создать шахту |
+| `create-monster` | Создать монстра |
 | `create-organization` | Создать организацию (мастер) |
-| `create-people` | Создать народ (минишаблонизатор) |
-| `create-potion` | Создать зелье (минишаблонизатор) |
+| `create-people` | Создать народ |
+| `create-potion` | Создать зелье |
 | `create-quest` | Создать квест (мастер) |
 | `create-religion` | Создать религию (мастер) |
-| `create-scene` | Создать сцену (минишаблонизатор) |
+| `create-scene` | Создать сцену |
 | `create-social-institution` | Создать социальный объект (мастер) |
 | `create-task` | Создать задачу (мастер) |
 | `create-trade-route` | Создать торговый путь (мастер) |
-| `create-village` | Создать деревню (минишаблонизатор) |
+| `create-village` | Создать деревню |
 | `create-work` | Создать произведение |
 | `create-world` | Создать новый мир/проект |
 | `edit-world-settings` | Редактировать настройки мира |
@@ -48,4 +48,13 @@
 | `toggle-debug-logging` | Переключить отладку (логирование) |
 | `view-facts-database` | Просмотреть базу фактов |
 | `add-project-overview-block` | Проект: добавить список файлов (2 уровня) |
-| `add-project-tasks-block` | Проект: добавить виджет задач (Dataview) на главную |
+| `add-project-tasks-block` | Проject: добавить виджет задач (Dataview) на главную |
+| `create-alchemy-recipe` | Создать алхимический рецепт |
+| `create-character` | Создать персонажа |
+| `create-castle` | Создать замок |
+| `create-city` | Создать город |
+| `create-dead-zone` | Создать мертвую зону |
+| `create-location` | Создать локацию |
+| `create-port` | Создать порт |
+| `create-province` | Создать провинцию |
+| `create-state` | Создать государство |
