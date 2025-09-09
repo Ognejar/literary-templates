@@ -158,7 +158,7 @@ async function createWorkStructure(plugin, projectRoot, workData) {
             created: now.toISOString().split('T')[0],
             status: 'в_работе',
         };
-        const workContent = window.fillTemplate(templateContent, data);
+        const workContent = await window.fillTemplate(templateContent, data);
 
         const createdFile = await safeCreateFile(workFilePath, workContent, plugin.app);
         

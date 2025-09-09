@@ -66,6 +66,33 @@ const { TemporalContextService } = require('./src/TemporalContextService.js');
 const { MigrationService } = require('./src/MigrationService.js');
 const { TemporalAPI } = require('./src/TemporalAPI.js');
 
+// Импорт новых модулей
+const { CommandRegistry } = require('./src/CommandRegistry.js');
+const { UIHelpers } = require('./src/UIHelpers.js');
+const { TemplateManager } = require('./src/TemplateManager.js');
+const { ProjectManager } = require('./src/ProjectManager.js');
+const { SettingsManager } = require('./src/SettingsManager.js');
+// Доп. модули
+const { PromptSelectorModal } = require('./src/PromptSelectorModal.js');
+const { getAllProjectFolders, getAllProjectRoots } = require('./src/ProjectDiscovery.js');
+// Алиасы обёрток визардов (удалены ранее, но используются ниже)
+const createConflictWizard = (plugin, projectPath, options = {}) => { const modal = new ConflictWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createOrganizationWizard = (plugin, projectPath, options = {}) => { const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createReligionWizard = (plugin, projectPath, options = {}) => { const modal = new ReligionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createCultWizard = (plugin, projectPath, options = {}) => { const modal = new CultWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createTradeRouteWizard = (plugin, projectPath, options = {}) => { const modal = new TradeRouteWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createFactionWizard = (plugin, projectPath, options = {}) => { const modal = new FactionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createQuestWizard = (plugin, projectPath, options = {}) => { const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+const createEventWizard = (plugin, projectPath, options = {}) => { const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options); modal.open(); };
+
+// Временные шимы загрузки/сохранения настроек (заменяют старые функции)
+async function loadSettingsFromFile(app) {
+    try { const mgr = new SettingsManager({ app }); return await (mgr.loadPluginSettings ? mgr.loadPluginSettings() : {}); } catch (e) { return {}; }
+}
+async function saveSettingsToFile(app, settings) {
+    try { const mgr = new SettingsManager({ app }); return await (mgr.savePluginSettings ? mgr.savePluginSettings(settings) : false); } catch (e) { return false; }
+}
+
 // Импорт сервисов
 // const { KeyRotationService } = require('./src/KeyRotationService.js');
 // const { AIProviderService } = require('./src/AIProviderService.js');
@@ -140,114 +167,20 @@ function isProjectFolder(app, folderPath) {
  * @param {App} app - Экземпляр приложения Obsidian
  * @returns {Promise<string[]>} - Массив путей к папкам проектов
  */
-async function getAllProjectFolders(app) {
-    const allFiles = app.vault.getMarkdownFiles();
-    const projectMarkerFiles = allFiles.filter(f => f.basename === 'Проекты');
-    return projectMarkerFiles.map(f => f.parent.path);
-}
+// Функция getAllProjectFolders удалена - не используется
 
 /**
  * Получает список всех корневых папок проектов
  * @param {App} app - Экземпляр приложения Obsidian
  * @returns {Promise<string[]>} - Массив путей к корневым папкам проектов
  */
-async function getAllProjectRoots(app) {
-    const allFiles = app.vault.getMarkdownFiles();
-    const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
-    return projectFiles.map(f => f.parent.path);
-}
+// Функция getAllProjectRoots удалена - не используется
 
 // --- Вспомогательные функции ---
 
-function fillTemplate(template, data) {
-    let result = template;
-    
-    // Обработка циклов {{#each arrayName}}...{{/each}}
-    result = result.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, arrayName, content) => {
-        const array = data[arrayName];
-        if (!Array.isArray(array) || array.length === 0) {
-            return ''; // Если массив пустой или не существует, возвращаем пустую строку
-        }
-        
-        return array.map(item => {
-            let itemContent = content;
-            // Заменяем плейсхолдеры внутри цикла
-            itemContent = itemContent.replace(/{{(\w+)}}/g, (_, key) => item[key] ?? '');
-            return itemContent;
-        }).join('');
-    });
-    
-    // Обработка простых плейсхолдеров {{key}}
-    result = result.replace(/{{(\w+)}}/g, (_, key) => data[key] ?? '');
-    
-    return result;
-}
+// Функция fillTemplate удалена - используется TemplateManager
 
-/**
- * Генерирует Markdown-файл из шаблона с плейсхолдерами {{...}}
- * @param {string} templatePath - Путь к .md-шаблону
- * @param {Object} data - Объект с данными для подстановки
- * @returns {Promise<string>} - Итоговый Markdown
- */
-async function generateFromTemplate(templateName, data, plugin) {
-    // Функция для загрузки шаблона из файла (асинхронно)
-    plugin.logDebug('Reading template: ' + templateName);
-    const template = await plugin.readTemplateFile(templateName);
-    plugin.logDebug('Template loaded, length: ' + template.length);
-    plugin.logDebug('Template preview: ' + template.substring(0, 200) + '...');
-    
-    let result = template;
-    
-    // 1. Сначала обрабатываем include-блоки (собираем полный шаблон)
-    plugin.logDebug('Processing include blocks...');
-    result = await plugin.processIncludeBlocks(result);
-    plugin.logDebug('Include blocks processed, length: ' + result.length);
-    
-    // 2. Обработка циклов {{#each arrayName}}...{{/each}}
-    plugin.logDebug('Processing each loops...');
-    plugin.logDebug('Available data keys: ' + Object.keys(data).join(', '));
-    result = result.replace(/{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g, (match, arrayName, content) => {
-        const array = data[arrayName];
-        plugin.logDebug(`Processing each loop for array: ${arrayName}, array:`, array);
-        if (!Array.isArray(array) || array.length === 0) {
-            plugin.logDebug(`Array ${arrayName} is empty or not an array`);
-            return ''; // Если массив пустой или не существует, возвращаем пустую строку
-        }
-        
-        return array.map(item => {
-            let itemContent = content;
-            plugin.logDebug(`Processing item in ${arrayName}:`, item);
-            // Заменяем плейсхолдеры внутри цикла
-            itemContent = itemContent.replace(/{{(\w+)}}/g, (_, key) => {
-                const value = item[key] ?? '';
-                plugin.logDebug(`Replacing {{${key}}} with: "${value}" in ${arrayName}`);
-                return value;
-            });
-            return itemContent;
-        }).join('');
-    });
-    
-    // 3. Подстановка всех известных плейсхолдеров вида {{key}}
-    plugin.logDebug('Replacing placeholders with data: ' + JSON.stringify(data));
-    for (const key of Object.keys(data)) {
-        const re = new RegExp(`{{${key}}}`, 'g');
-        const replacement = data[key] ?? '';
-        plugin.logDebug(`Replacing {{${key}}} with: "${replacement}"`);
-        result = result.replace(re, replacement);
-    }
-    
-    // 4. Обработка условных блоков {{#if condition}}...{{/if}}
-    plugin.logDebug('Processing conditional blocks...');
-    result = plugin.processConditionalBlocks(result, data);
-    plugin.logDebug('Conditional blocks processed');
-    
-    // 5. Финальная очистка: удаляем любые оставшиеся {{...}}
-    // Это поведение как у fillTemplate: неизвестные ключи заменяются на пустую строку
-    const cleanupRegex = /{{\s*([\w.]+)\s*}}/g;
-    result = result.replace(cleanupRegex, '');
-    plugin.logDebug('Final result length: ' + result.length);
-    return result;
-}
+// Функция generateFromTemplate удалена - используется TemplateManager
 
 /**
  * Проверяет и создаёт инфраструктуру для сущности: папку, индексный файл, ссылку в индексе
@@ -255,95 +188,8 @@ async function generateFromTemplate(templateName, data, plugin) {
  * @param {string} _entityName - имя новой сущности
  * @param {App} app - экземпляр Obsidian App
  */
-async function ensureEntityInfrastructure(folderPath, _entityName, app) {
-    // console.log(`[DEBUG] ensureEntityInfrastructure вызвана с folderPath: "${folderPath}", entityName: "${entityName}"`);
-    
-    // 1. Проверить и создать папку
-    let folder = app.vault.getAbstractFileByPath(folderPath);
-    // console.log(`[DEBUG] Папка найдена: ${folder ? 'Да' : 'Нет'}`);
-    if (folder) {
-        // console.log(`[DEBUG] Тип папки: ${folder.constructor.name}`);
-        // console.log(`[DEBUG] Путь папки: ${folder.path}`);
-    }
-    
-    if (!folder) {
-        // console.log(`[DEBUG] Создаем папку: ${folderPath}`);
-        try {
-            folder = await app.vault.createFolder(folderPath);
-            // console.log(`[DEBUG] Папка успешно создана: ${folderPath}`);
-            // console.log(`[DEBUG] Созданная папка:`, folder);
-        } catch (error) {
-            console.error(`[DEBUG] Ошибка создания папки ${folderPath}:`, error);
-            throw error;
-        }
-    }
-    
-    // Создаем управляющий индекс в категории локаций (если применимо)
-    try {
-        // Ожидаемый вид пути: <projectRoot>/Локации/<Категория>
-        const parts = folderPath.split('/');
-        const category = parts[parts.length - 1] || '';
-        const locIdx = parts.lastIndexOf('Локации');
-        if (locIdx !== -1 && parts.length >= locIdx + 2) {
-            const projectRoot = parts.slice(0, locIdx).join('/');
-            const projectName = projectRoot.split('/').pop() || '';
-            // Имя индексного файла = имя папки
-            const indexFileName = `${category}.md`;
-            const indexPath = `${folderPath}/${indexFileName}`;
-            const existing = app.vault.getAbstractFileByPath(indexPath);
-            if (!existing) {
-                // Контент по категориям
-                const header = `---\nproject: "${projectName}"\ntype: "Индекс"\n---\n\n# ${category} проекта\n\n`;
-                const commonFilter = `AND (project = this.project OR contains(file.path, this.project))\nAND file.name != this.file.name\n`;
-                let body = '';
-                switch (category) {
-                    case 'Города':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Город", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n\n';
-                        body += '## Города без провинций\n\n```dataview\nTABLE WITHOUT ID file.link AS "Город", state AS "Государство"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'AND (province = null OR province = "")\nSORT state ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Государства':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Государство", governmentType AS "Правление", capital AS "Столица"\nFROM ""\nWHERE tags AND contains(tags, "государство")\n' + commonFilter + 'SORT file.name ASC\n```\n\n';
-                        body += '## Провинции по государствам\n\n```dataview\nTABLE state AS "Государство", rows.file.link AS "Провинции"\nFROM ""\nWHERE tags AND contains(tags, "провинция")\n' + commonFilter + 'GROUP BY state\n```\n';
-                        break;
-                    case 'Провинции':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Провинция", state AS "Государство"\nFROM ""\nWHERE tags AND contains(tags, "провинция")\n' + commonFilter + 'SORT state ASC, file.name ASC\n```\n\n';
-                        body += '## Города по провинциям\n\n```dataview\nTABLE province AS "Провинция", rows.file.link AS "Города"\nFROM ""\nWHERE tags AND contains(tags, "город")\n' + commonFilter + 'GROUP BY province\n```\n\n';
-                        body += '## Деревни по провинциям\n\n```dataview\nTABLE province AS "Провинция", rows.file.link AS "Деревни"\nFROM ""\nWHERE tags AND contains(tags, "деревня")\n' + commonFilter + 'GROUP BY province\n```\n';
-                        break;
-                    case 'Деревни':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Деревня", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "деревня")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Порты':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Порт", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "порт")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Замки':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Фортификация", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "фортификация")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Мёртвые_зоны':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Мёртвая зона", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "мёртвая_зона")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Фермы':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Ферма", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "ферма")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Шахты':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Шахта", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "шахта")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    case 'Заводы':
-                        body = '```dataview\nTABLE WITHOUT ID file.link AS "Завод", state AS "Государство", province AS "Провинция"\nFROM ""\nWHERE tags AND contains(tags, "завод")\n' + commonFilter + 'SORT state ASC, province ASC, file.name ASC\n```\n';
-                        break;
-                    default:
-                        body = '';
-                }
-                const indexContent = header + body;
-                if (indexContent.trim().length > 0) {
-                    try { await app.vault.create(indexPath, indexContent); } catch (e) {}
-                }
-            }
-        }
-    } catch (e) {
-        console.warn('[ensureEntityInfrastructure] Не удалось создать индексный файл:', e?.message);
-    }
-}
+// ensureEntityInfrastructure теперь вызывается как window.ensureEntityInfrastructure (алиас на ProjectManager.ensureEntityInfrastructure)1
+
 /**
  * Безопасно создает файл, проверяя его существование
  * @param {string} filePath - путь к файлу
@@ -351,214 +197,10 @@ async function ensureEntityInfrastructure(folderPath, _entityName, app) {
  * @param {App} app - экземпляр Obsidian App
  * @returns {Promise<TFile|null>} - созданный файл или null если файл уже существует
  */
-async function safeCreateFile(filePath, content, app) {
-    try {
-        // Если файл существует — возвращаем null
-        let existingFile = app.vault.getAbstractFileByPath(filePath);
-        if (existingFile) {
-            console.warn(`[DEBUG] Файл уже существует: ${filePath}`);
-            return null;
-        }
-        // Создаем файл
-        const newFile = await app.vault.create(filePath, content);
-        console.log(`[DEBUG] Файл успешно создан: ${filePath}`);
-        return newFile;
-    } catch (error) {
-        console.error(`[DEBUG] Ошибка создания файла ${filePath}: ${error.message}`);
-        throw error;
-    }
-}
+// Функция safeCreateFile удалена - не используется
 
-// === ФАКТЫ: утилиты работы с базой фактов (русская схема ключей) ===
-async function loadFacts(app, projectRoot) {
-    try {
-        const dir = `${projectRoot}/Лор-контекст`;
-        const path = `${dir}/Факты.json`;
-        const f = app.vault.getAbstractFileByPath(path);
-        if (!(f instanceof TFile)) return [];
-        const raw = await app.vault.read(f);
-        const parsed = JSON.parse(raw || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-        return [];
-    }
-}
-
-async function saveFacts(app, projectRoot, facts) {
-    const dir = `${projectRoot}/Лор-контекст`;
-    const path = `${dir}/Факты.json`;
-    try { if (!app.vault.getAbstractFileByPath(dir)) await app.vault.createFolder(dir); } catch (e) {}
-    const data = JSON.stringify(facts || [], null, 2);
-    const existing = app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) await app.vault.modify(existing, data); else await app.vault.create(path, data);
-}
-
-function computeFactsDiagnostics(app, projectRoot) {
-    // Эта функция синхронно формирует предикаты; загрузка/сохранение делается отдельно
-    return {
-        async run() {
-            const facts = await loadFacts(app, projectRoot);
-            const defined = new Set();
-            const referenced = new Set();
-            for (const raw of facts) {
-                const f = normalizeRussianFactKeys(raw);
-                if (f && f.id) defined.add(String(f.id));
-                for (const r of collectReferencedIds(f)) referenced.add(r);
-            }
-            const missing = Array.from(referenced).filter(id => !defined.has(id));
-            return { facts, definedIds: defined, referencedIds: referenced, missingIds: missing };
-        }
-    };
-}
-
-function normalizeRussianFactKeys(factAny) {
-    const f = typeof factAny === 'object' && factAny !== null ? { ...factAny } : {};
-    // Ключи верхнего уровня
-    if (f.type && !f['тип']) { f['тип'] = String(f.type); delete f.type; }
-    if (f.name && !f['имя']) { f['имя'] = String(f.name); delete f.name; }
-    if (f.attrs && !f['атрибуты']) { f['атрибуты'] = f.attrs; delete f.attrs; }
-    if (typeof f.confidence === 'number' && f['достоверность'] == null) { f['достоверность'] = f.confidence; delete f.confidence; }
-    if (f.source && !f['источник']) {
-        const s = { ...f.source };
-        if (s.path && !s['путь']) { s['путь'] = s.path; delete s.path; }
-        f['источник'] = s; delete f.source;
-    }
-    // Отношения
-    if (Array.isArray(f.relations) && !Array.isArray(f['отношения'])) {
-        f['отношения'] = f.relations.map(r => {
-            const rr = { ...r };
-            if (rr.predicate && !rr['связь']) { rr['связь'] = String(rr.predicate); delete rr.predicate; }
-            if (rr.object && !rr['объект']) { rr['объект'] = String(rr.object); delete rr.object; }
-            if (rr.attrs && !rr['атрибуты']) { rr['атрибуты'] = rr.attrs; delete rr.attrs; }
-            return rr;
-        });
-        delete f.relations;
-    }
-    return f;
-}
-
-function collectReferencedIds(fact) {
-    const refs = new Set();
-    const rels = Array.isArray(fact['отношения']) ? fact['отношения'] : [];
-    for (const r of rels) {
-        if (r && typeof r === 'object' && r['объект']) refs.add(String(r['объект']));
-    }
-    return refs;
-}
-
-function parseTypeAndNameFromId(id) {
-    const s = String(id || '');
-    const idx = s.indexOf(':');
-    if (idx === -1) return { тип: '', имя: s.replace(/_/g, ' ') };
-    const typePart = s.slice(0, idx);
-    const namePart = s.slice(idx + 1);
-    return { тип: typePart, имя: namePart.replace(/_/g, ' ') };
-}
-
-function addMissingEntityStubs(facts) {
-    const out = [];
-    const byId = new Map();
-    for (const raw of facts) {
-        const f = normalizeRussianFactKeys(raw);
-        if (f && f.id) byId.set(String(f.id), f);
-        out.push(f);
-    }
-    const referenced = new Set();
-    for (const f of out) {
-        for (const ref of collectReferencedIds(f)) referenced.add(ref);
-    }
-    const added = [];
-    for (const refId of referenced) {
-        if (!byId.has(refId)) {
-            const base = parseTypeAndNameFromId(refId);
-            const stub = {
-                id: refId,
-                'тип': base.тип || 'сущность',
-                'имя': base.имя || '',
-                'атрибуты': {},
-                'отношения': [],
-                'достоверность': 0.2
-            };
-            out.push(stub);
-            byId.set(refId, stub);
-            added.push(refId);
-        }
-    }
-    return { facts: out, addedIds: added };
-}
-
-function computeFactSignature(fact) {
-    try {
-        const id = String(fact.id || '');
-        const type = String(fact['тип'] || '');
-        const name = String(fact['имя'] || '');
-        const attrs = fact['атрибуты'] ? JSON.stringify(fact['атрибуты'], Object.keys(fact['атрибуты']).sort()) : '';
-        const rels = Array.isArray(fact['отношения'])
-            ? JSON.stringify(
-                fact['отношения']
-                    .map(r => ({ связь: r['связь'], объект: r['объект'] }))
-                    .sort((a, b) => (a.связь + a.объект).localeCompare(b.связь + b.объект))
-              )
-            : '';
-        return `${type}|${id}|${name}|${attrs}|${rels}`;
-    } catch (e) { return Math.random().toString(36).slice(2); }
-}
-
-async function mergeFactsIntoProject(app, projectRoot, incomingFacts) {
-    const existing = await loadFacts(app, projectRoot);
-    const normalizedExisting = existing.map(normalizeRussianFactKeys);
-    const map = new Map();
-    for (const f of normalizedExisting) { map.set(computeFactSignature(f), f); }
-    let mergedCount = 0, addedCount = 0, updatedCount = 0;
-    for (const raw of incomingFacts) {
-        mergedCount++;
-        const f = normalizeRussianFactKeys(raw);
-        const sig = computeFactSignature(f);
-        if (!map.has(sig)) { map.set(sig, f); addedCount++; }
-        else {
-            const prev = map.get(sig);
-            try {
-                const nf = { ...prev };
-                if (typeof f['достоверность'] === 'number') nf['достоверность'] = Math.max(prev['достоверность'] || 0, f['достоверность']);
-                if (f['источник']) nf['источник'] = f['источник'];
-                map.set(sig, nf);
-                updatedCount++;
-            } catch (e) {}
-        }
-    }
-    // Добавляем болванки по ссылкам
-    const afterMerge = Array.from(map.values());
-    const withStubs = addMissingEntityStubs(afterMerge).facts;
-    await saveFacts(app, projectRoot, withStubs);
-    return { mergedCount, addedCount, updatedCount };
-}
-
-function cleanJsonInput(text) {
-    let s = String(text || '');
-    // Удаляем BOM и невидимые пробелы
-    s = s.replace(/^\uFEFF/, '');
-    s = s.replace(/[\u00A0\u200B\u200C\u200D]/g, ' ');
-
-    // Построчная очистка: игнорируем комментарии и ограждения
-    const lines = s.split(/\r?\n/).filter(line => {
-        const trimmed = String(line).trim();
-        // Комментарии вида -- ... игнорируем
-        if (/^--\s?/.test(trimmed)) return false;
-        // Игнорируем строки, состоящие из одних бэктиков (``` или ``) или начинающиеся с них
-        if (/^```/.test(trimmed)) return false;
-        if (/^``\s*$/.test(trimmed)) return false;
-        if (/^```json\b/i.test(trimmed)) return false;
-        return true;
-    });
-    s = lines.join('\n');
-
-    // Если остались ограждения в одном блоке
-    if (/^```/.test(s.trim())) {
-        s = s.trim().replace(/^```(?:json)?\s*[\r\n]/, '').replace(/```\s*$/, '');
-    }
-
-    return s.trim();
-}
+// Подключаем сервис фактов (используем именованный доступ без деструктуринга во избежание дублей)
+const { FactsService } = require('./src/FactsService.js');
 // --- Modal классы определяются в других файлах при сборке ---
 // PromptModal, SuggesterModal - в modals.js
 // ProjectSelectorModal, ChapterSelectorModal - в отдельных файлах
@@ -581,6 +223,13 @@ class LiteraryTemplatesPlugin extends Plugin {
             temperature: 0.7,
             author: '' // <--- новое поле
         };
+        
+        // Инициализируем новые модули
+        this.commandRegistry = null;
+        this.uiHelpers = null;
+        this.templateManager = null;
+        this.projectManager = null;
+        this.settingsManager = null;
         
         // Инициализируем сервисы для работы с временными слоями
         try {
@@ -661,6 +310,62 @@ class LiteraryTemplatesPlugin extends Plugin {
     getCurrentProjectRoot() {
         const startPath = this.getCurrentStartPath();
         return startPath ? findProjectRoot(this.app, startPath) : null;
+    }
+
+    /**
+     * Регистрирует команды вручную (fallback)
+     */
+    registerCommandsManually() {
+        // Команды для управления контекстом
+        this.addCommand({
+            id: 'set-current-project',
+            name: 'Установить текущий проект',
+            callback: async () => {
+                const allFiles = this.app.vault.getMarkdownFiles();
+                const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
+                const projects = projectFiles.map(f => f.parent.path);
+                if (projects.length === 0) {
+                    new Notice('Проекты не найдены!');
+                    return;
+                }
+                const selected = await this.selectProject(projects);
+                if (selected && window.litSettingsService) {
+                    await window.litSettingsService.setCurrentProject(this.app, selected);
+                    new Notice(`Текущий проект: ${selected.split('/').pop()}`);
+                }
+            },
+        });
+
+        // Команды создания сущностей
+        const entityCommands = [
+            { id: 'create-artifact', name: 'Создать артефакт', func: createArtifact },
+            { id: 'create-chapter', name: 'Создать главу', func: createChapter },
+            { id: 'create-scene', name: 'Создать сцену', func: createScene },
+            { id: 'create-village', name: 'Создать деревню', func: createVillage },
+            { id: 'create-mine', name: 'Создать шахту', func: createMine },
+            { id: 'create-factory', name: 'Создать завод', func: createFactory },
+            { id: 'create-farm', name: 'Создать ферму', func: createFarm },
+            { id: 'create-city', name: 'Создать город', func: createCity },
+            { id: 'create-province', name: 'Создать провинцию', func: createProvince },
+            { id: 'create-state', name: 'Создать государство', func: createState },
+            { id: 'create-castle', name: 'Создать замок (мастер)', func: createCastle },
+            { id: 'create-dead-zone', name: 'Создать мёртвую зону', func: createDeadZone },
+            { id: 'create-location', name: 'Создать общую локацию', func: createLocation },
+            { id: 'create-port', name: 'Создать порт', func: createPort },
+            { id: 'create-potion', name: 'Создать зелье', func: createPotion },
+            { id: 'create-alchemy-recipe', name: 'Создать алхимический рецепт', func: createAlchemyRecipe },
+            { id: 'create-people', name: 'Создать народ', func: createPeople },
+            { id: 'create-task', name: 'Создать задачу (мастер)', func: createTask },
+            { id: 'create-social-institution', name: 'Создать социальный объект (мастер)', func: createSocialInstitution }
+        ];
+
+        entityCommands.forEach(cmd => {
+            this.addCommand({
+                id: cmd.id,
+                name: cmd.name,
+                callback: this.createEntityCallback(cmd.func)
+            });
+        });
     }
 
     async insertTodoAtCursor() {
@@ -1146,6 +851,17 @@ class LiteraryTemplatesPlugin extends Plugin {
             temperature: 0.7,
             author: '' // <--- новое поле
         };
+
+        // Инициализируем новые модули
+        try {
+            this.settingsManager = new SettingsManager(this);
+            this.templateManager = new TemplateManager(this);
+            this.projectManager = new ProjectManager(this);
+            this.uiHelpers = new UIHelpers();
+            this.commandRegistry = new CommandRegistry(this);
+        } catch (e) {
+            console.warn('Ошибка инициализации новых модулей:', e);
+        }
         
         // Теперь можно безопасно работать с vault - загружаем настройки
         try {
@@ -1262,21 +978,14 @@ class LiteraryTemplatesPlugin extends Plugin {
         // ... далее весь остальной код onload без циклов ожидания и window.setTimeout ...
         // (оставить только логику, которая была после loadData)
         
-        // ТОЛЬКО ПОСЛЕ loadData регистрируем обработчики событий
-        // console.log('Регистрация обработчиков событий');
-        this.registerEvent(
-            this.app.workspace.on('file-menu', (menu, file) => {
-                // console.log('file-menu событие вызвано для:', file);
-                this.addContextMenu(menu, file);
-            })
-        );
-        this.registerEvent(
-            this.app.workspace.on('folder-menu', (menu, folder) => {
-                // console.log('folder-menu событие вызвано для:', folder);
-                this.addContextMenu(menu, folder);
-            })
-        );
-        // console.log('Обработчики событий зарегистрированы');
+        // Регистрируем обработчики контекстного меню через MenuRegistry
+        try {
+            const { MenuRegistry } = require('./src/MenuRegistry.js');
+            this.menuRegistry = new MenuRegistry(this);
+            this.menuRegistry.registerAll();
+        } catch (e) {
+            console.warn('MenuRegistry init failed:', e);
+        }
         // Автозапуск редактора при открытии файла "Редактор_настроек.md"
         this.registerEvent(
             this.app.workspace.on('file-open', async (file) => {
@@ -1485,191 +1194,15 @@ class LiteraryTemplatesPlugin extends Plugin {
 await this.loadButtonIconsScript();
 
 
-        // Команды для управления контекстом
-        this.addCommand({
-            id: 'set-current-project',
-            name: 'Установить текущий проект',
-            callback: async () => {
-                const allFiles = this.app.vault.getMarkdownFiles();
-                const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
-                const projects = projectFiles.map(f => f.parent.path);
-                if (projects.length === 0) {
-                    new Notice('Проекты не найдены!');
-                    return;
-                }
-                const selected = await this.selectProject(projects);
-                if (selected && window.litSettingsService) {
-                    await window.litSettingsService.setCurrentProject(this.app, selected);
-                    new Notice(`Текущий проект: ${selected.split('/').pop()}`);
-                }
-            },
-        });
-        this.addCommand({
-            id: 'set-current-work',
-            name: 'Установить текущее произведение',
-            callback: async () => {
-                if (!window.litSettingsService) return;
-                const currentProject = await window.litSettingsService.getCurrentProject(this.app);
-                if (!currentProject) {
-                    new Notice('Сначала установите текущий проект');
-                    return;
-                }
-                const worksRoot = `${currentProject}/1_Рукопись/Произведения`;
-                const worksFolder = this.app.vault.getAbstractFileByPath(worksRoot);
-                if (!worksFolder || !worksFolder.children) {
-                    new Notice('Произведения не найдены');
-                    return;
-                }
-                const works = worksFolder.children.filter(ch => ch && ch.children).map(ch => ch.name);
-                if (works.length === 0) {
-                    new Notice('Произведения не найдены');
-                    return;
-                }
-                const selected = await this.suggester(works, works, 'Выберите произведение');
-                if (selected) {
-                    await window.litSettingsService.setCurrentWork(this.app, selected);
-                    new Notice(`Текущее произведение: ${selected}`);
-                }
-            },
-        });
+        // Регистрируем все команды через CommandRegistry
+        if (this.commandRegistry) {
+            this.commandRegistry.registerAllCommands();
+        } else {
+            console.warn('CommandRegistry не инициализирован, регистрируем команды вручную');
+            // Fallback: регистрируем команды вручную
+            this.registerCommandsManually();
+        }
 
-        this.addCommand({
-            id: 'create-artifact',
-            name: 'Создать артефакт',
-            callback: this.createEntityCallback(createArtifact),
-        });
-        this.addCommand({
-            id: 'create-conflict',
-            name: 'Создать конфликт (мастер)',
-            callback: this.createEntityCallback(createConflictWizard),
-        });
-        this.addCommand({
-            id: 'create-chapter',
-            name: 'Создать главу',
-            callback: this.createEntityCallback(createChapter),
-        });
-        this.addCommand({
-            id: 'create-scene',
-            name: 'Создать сцену',
-            callback: this.createEntityCallback(createScene),
-        });
-        this.addCommand({
-            id: 'create-village',
-            name: 'Создать деревню',
-            callback: this.createEntityCallback(createVillage),
-        });
-        this.addCommand({
-            id: 'create-mine',
-            name: 'Создать шахту',
-            callback: this.createEntityCallback(createMine),
-        });
-        this.addCommand({
-            id: 'create-factory',
-            name: 'Создать завод',
-            callback: this.createEntityCallback(createFactory),
-        });
-        this.addCommand({
-            id: 'create-farm',
-            name: 'Создать ферму',
-            callback: this.createEntityCallback(createFarm),
-        });
-        this.addCommand({
-            id: 'create-city',
-            name: 'Создать город',
-            callback: this.createEntityCallback(createCity),
-        });
-        this.addCommand({
-            id: 'create-province',
-            name: 'Создать провинцию',
-            callback: this.createEntityCallback(createProvince),
-        });
-        this.addCommand({
-            id: 'create-state',
-            name: 'Создать государство',
-            callback: this.createEntityCallback(createState),
-        });
-        this.addCommand({
-            id: 'create-castle',
-            name: 'Создать замок (мастер)',
-            callback: this.createEntityCallback(createCastle),
-        });
-        this.addCommand({
-            id: 'create-dead-zone',
-            name: 'Создать мёртвую зону',
-            callback: this.createEntityCallback(createDeadZone),
-        });
-        this.addCommand({
-            id: 'create-location',
-            name: 'Создать общую локацию',
-            callback: this.createEntityCallback(createLocation),
-        });
-        this.addCommand({
-            id: 'create-port',
-            name: 'Создать порт',
-            callback: this.createEntityCallback(createPort),
-        });
-        this.addCommand({
-            id: 'create-potion',
-            name: 'Создать зелье',
-            callback: this.createEntityCallback(createPotion),
-        });
-        this.addCommand({
-            id: 'create-alchemy-recipe',
-            name: 'Создать алхимический рецепт',
-            callback: this.createEntityCallback(createAlchemyRecipe),
-        });
-        this.addCommand({
-            id: 'create-people',
-            name: 'Создать народ',
-            callback: this.createEntityCallback(createPeople),
-        });
-        this.addCommand({
-            id: 'create-religion',
-            name: 'Создать религию (мастер)',
-            callback: this.createEntityCallback(createReligionWizard),
-        });
-        this.addCommand({
-            id: 'create-cult',
-            name: 'Создать культ (мастер)',
-            callback: this.createEntityCallback(createCultWizard),
-        });
-        this.addCommand({
-            id: 'create-trade-route',
-            name: 'Создать торговый путь (мастер)',
-            callback: this.createEntityCallback(createTradeRouteWizard),
-        });
-        this.addCommand({
-            id: 'create-faction',
-            name: 'Создать фракцию (мастер)',
-            callback: this.createEntityCallback(createFactionWizard),
-        });
-        this.addCommand({
-            id: 'create-quest',
-            name: 'Создать квест (мастер)',
-            callback: this.createEntityCallback(createQuestWizard),
-        });
-        this.addCommand({
-            id: 'create-event',
-            name: 'Создать событие (мастер)',
-            callback: this.createEntityCallback(createEventWizard),
-        });
-        this.addCommand({
-            id: 'create-task',
-            name: 'Создать задачу (мастер)',
-            callback: this.createEntityCallback(createTask),
-        });
-        this.addCommand({
-            id: 'create-organization',
-            name: 'Создать организацию (мастер)',
-            callback: this.createEntityCallback(createOrganizationWizard),
-        });
-
-        // Социальные учреждения (единый мастер)
-        this.addCommand({
-            id: 'create-social-institution',
-            name: 'Создать социальный объект (мастер)',
-            callback: this.createEntityCallback(createSocialInstitution),
-        });
         
         // Команды для работы с эпохами и произведениями
         this.addCommand({
@@ -2004,6 +1537,7 @@ await this.loadButtonIconsScript();
         window.createArtifact = createArtifact;
         window.createAlchemyRecipe = createAlchemyRecipe;
         window.createCharacter = createCharacter;
+        window.createWork = createWork;
         window.createState = createState;
         window.createProvince = createProvince;
         window.createMine = createMine;
@@ -2021,9 +1555,9 @@ await this.loadButtonIconsScript();
         window.getAllProjectRoots = getAllProjectRoots;
         window.isProjectFolder = isProjectFolder;
         window.getAllProjectFolders = getAllProjectFolders;
-        window.fillTemplate = fillTemplate;
+        window.fillTemplate = async (...args) => { try { const tm = new TemplateManager(this); return await tm.fillTemplate?.(...args); } catch (e) { console.error('fillTemplate shim error:', e); return ''; } };
         window.generateFromTemplate = generateFromTemplate;
-        window.ensureEntityInfrastructure = ensureEntityInfrastructure;
+        // window.ensureEntityInfrastructure теперь задается в src/Globals.js как алиас на ProjectManager.ensureEntityInfrastructure
         // Экспортируем правильную версию safeCreateFile, которая НЕ создает файлы с номерами
         // Версия с автонумерацией находится в main_modules/fileUtils.js под именем safeCreateFileWithNumbering
         window.safeCreateFile = safeCreateFile;
@@ -2041,76 +1575,13 @@ await this.loadButtonIconsScript();
         window.processConditionalBlocks = this.processConditionalBlocks.bind(this);
         window.evaluateCondition = this.evaluateCondition.bind(this);
         
-        // Инициализируем AI сервисы
+        // Инициализируем AI через модуль AIService
         try {
-            // console.log('=== ИНИЦИАЛИЗАЦИЯ AI СЕРВИСОВ ===');
-            
-            // Проверяем доступность модулей - используем глобальные переменные после сборки
-            // KeyRotationService, AIProviderService, LoreAnalyzerService должны быть доступны глобально
-            
-            // Создаем безопасный контекст с проверками
-            const pluginContext = this.createSafePluginContext();
-            // console.log('PluginContext создан:', pluginContext);
-            
-            // Создаем сервисы по одному с обработкой ошибок
-            // После сборки все классы доступны глобально
-            try {
-                // Проверяем доступность KeyRotationService
-                if (typeof window.KeyRotationService === 'function') {
-                    window.keyRotationService = new window.KeyRotationService(pluginContext);
-                    // console.log('✅ KeyRotationService создан');
-                } else {
-                    // console.log('⚠️ KeyRotationService недоступен');
-                    window.keyRotationService = null;
-                }
-            } catch (e) {
-                console.error('❌ Ошибка создания KeyRotationService:', e.message);
-                window.keyRotationService = null;
+            if (typeof window.AIService === 'function') {
+                this.aiService = new window.AIService(this);
+                await this.aiService.init();
             }
-            
-            try {
-                // Проверяем доступность AIProviderService
-                if (typeof window.AIProviderService === 'function') {
-                    window.aiProviderService = new window.AIProviderService(pluginContext);
-                    // console.log('✅ AIProviderService создан');
-                } else {
-                    console.warn('⚠️ AIProviderService модуль не загружен, создаем fallback');
-                    
-                    try {
-                        window.aiProviderService = new FallbackAIProviderService(pluginContext);
-                        window.AIProviderService = FallbackAIProviderService;
-                        // console.log('⚠️ FallbackAIProviderService добавлен в window');
-                    } catch (e) {
-                        console.error('❌ Ошибка создания FallbackAIProviderService:', e.message);
-                        window.aiProviderService = null;
-                        window.AIProviderService = null;
-                    }
-                }
-            } catch (e) {
-                console.error('❌ Ошибка создания AIProviderService:', e.message);
-                window.aiProviderService = null;
-            }
-            
-            try {
-                // Проверяем доступность LoreAnalyzerService
-                if (typeof window.LoreAnalyzerService === 'function') {
-                    window.loreAnalyzerService = new window.LoreAnalyzerService(pluginContext);
-                    // console.log('✅ LoreAnalyzerService создан');
-                } else {
-                    // console.log('⚠️ LoreAnalyzerService недоступен');
-                    window.loreAnalyzerService = null;
-                }
-            } catch (e) {
-                console.error('❌ Ошибка создания LoreAnalyzerService:', e.message);
-                window.loreAnalyzerService = null;
-            }
-            
-            // console.log('=== ИНИЦИАЛИЗАЦИЯ AI СЕРВИСОВ ЗАВЕРШЕНА ===');
-        } catch (e) {
-            console.error('Критическая ошибка инициализации AI сервисов:', e);
-            console.error('Детали ошибки:', e.stack);
-            // Продолжаем работу плагина даже если AI сервисы не инициализированы
-        }
+        } catch (e) { console.error('AIService init error:', e); }
         
         // Создаем папку для секций шаблонов, если её нет (ПОСЛЕ всех операций с this.app)
         try {
@@ -2202,10 +1673,8 @@ await this.loadButtonIconsScript();
             this.quickInitializationCheck();
         }, 1000);
         
-        // Планируем повторную попытку инициализации AI сервисов через 2 секунды
-        window.setTimeout(() => {
-            this.retryAIInitialization();
-        }, 2000);
+        // Планируем повторную попытку инициализации AI через 2 секунды
+        if (this.aiService) this.aiService.retryInitialization(2000);
 
         // === КОМАНДЫ ДЛЯ ВНЕШНЕГО ЧАТА ===
         this.addCommand({
@@ -2380,7 +1849,7 @@ await this.loadButtonIconsScript();
                     // Предочистка ввода
                     this.logDebug('Сырой текст из буфера: ' + raw.substring(0, 200) + '...');
                     
-                    let s = cleanJsonInput ? cleanJsonInput(raw) : String(raw || '').trim();
+                    let s = FactsService.cleanJsonInput ? FactsService.cleanJsonInput(raw) : String(raw || '').trim();
                     this.logDebug('После очистки: ' + s.substring(0, 200) + '...');
                     
                     // Удаляем многоточия в конце (… или ...)
@@ -2419,7 +1888,7 @@ await this.loadButtonIconsScript();
 
                     // Нормализация ключей к русской схеме и правка отношений
                     let skipped = 0;
-                    const newFacts = parsed.map(f => normalizeRussianFactKeys(f)).map(f => {
+                    const newFacts = parsed.map(f => FactsService.normalizeRussianFactKeys(f)).map(f => {
                         // Приводим отношения к массиву
                         if (f && f['отношения'] && !Array.isArray(f['отношения'])) {
                             const rel = f['отношения'];
@@ -2460,7 +1929,7 @@ await this.loadButtonIconsScript();
                     }
 
                     // Загружаем существующие факты
-                    let existing = await loadFacts(this.app, projectRoot);
+                    let existing = await FactsService.loadFacts(this.app, projectRoot);
                     if (!Array.isArray(existing)) existing = [];
                     this.logDebug('Загружено существующих фактов: ' + existing.length);
 
@@ -2501,7 +1970,7 @@ await this.loadButtonIconsScript();
 
                     // Сохраняем
                     const merged = Array.from(index.values());
-                    await saveFacts(this.app, projectRoot, merged);
+                    await FactsService.saveFacts(this.app, projectRoot, merged);
                     this.logDebug(`Импорт фактов завершён: добавлено ${added}, обновлено ${updated}, пропущено ${skipped}`);
                     new Notice(`Импорт завершён: +${added}, обновлено ${updated}, пропущено ${skipped}`);
                 } catch (e) {
@@ -2527,7 +1996,7 @@ await this.loadButtonIconsScript();
                     this.logDebug('Ручной ввод получен, длина: ' + raw.length);
                     
                     // Используем ту же логику обработки
-                    let s = cleanJsonInput ? cleanJsonInput(raw) : String(raw || '').trim();
+                    let s = FactsService.cleanJsonInput ? FactsService.cleanJsonInput(raw) : String(raw || '').trim();
                     this.logDebug('После очистки: ' + s.substring(0, 200) + '...');
                     
                     // Удаляем многоточия в конце (… или ...)
@@ -2565,7 +2034,7 @@ await this.loadButtonIconsScript();
 
                     // Нормализация ключей к русской схеме и правка отношений
                     let skipped = 0;
-                    const newFacts = parsed.map(f => normalizeRussianFactKeys(f)).map(f => {
+                    const newFacts = parsed.map(f => FactsService.normalizeRussianFactKeys(f)).map(f => {
                         // Приводим отношения к массиву
                         if (f && f['отношения'] && !Array.isArray(f['отношения'])) {
                             const rel = f['отношения'];
@@ -2607,7 +2076,7 @@ await this.loadButtonIconsScript();
                     }
 
                     // Загружаем существующие факты
-                    let existing = await loadFacts(this.app, projectRoot);
+                    let existing = await FactsService.loadFacts(this.app, projectRoot);
                     if (!Array.isArray(existing)) existing = [];
                     this.logDebug('Загружено существующих фактов: ' + existing.length);
 
@@ -2648,7 +2117,7 @@ await this.loadButtonIconsScript();
 
                     // Сохраняем
                     const merged = Array.from(index.values());
-                    await saveFacts(this.app, projectRoot, merged);
+                    await FactsService.saveFacts(this.app, projectRoot, merged);
                     this.logDebug(`Импорт фактов завершён: добавлено ${added}, обновлено ${updated}, пропущено ${skipped}`);
                     new Notice(`Импорт завершён: +${added}, обновлено ${updated}, пропущено ${skipped}`);
                 } catch (e) {
@@ -2682,7 +2151,7 @@ await this.loadButtonIconsScript();
                     }
 
                     // Загружаем факты
-                    const facts = await loadFacts(this.app, projectRoot);
+                    const facts = await FactsService.loadFacts(this.app, projectRoot);
                     if (!Array.isArray(facts) || facts.length === 0) {
                         new Notice('База фактов пуста');
                         return;
@@ -2779,69 +2248,7 @@ ${JSON.stringify(facts, null, 2)}
         }
     }
     
-    async retryAIInitialization() {
-        // console.log('=== Retry AI Initialization (2 сек) ===');
-        try {
-            // Проверяем, какие сервисы уже созданы
-            const existingServices = {
-                keyRotation: !!window.keyRotationService,
-                aiProvider: !!window.aiProviderService,
-                loreAnalyzer: !!window.loreAnalyzerService
-            };
-            
-            // console.log('Существующие AI сервисы:', existingServices);
-            
-            // Если все сервисы уже созданы, не делаем ничего
-            if (existingServices.keyRotation && existingServices.aiProvider && existingServices.loreAnalyzer) {
-                // console.log('Все AI сервисы уже инициализированы');
-                return;
-            }
-            
-            // Пытаемся создать недостающие сервисы
-            if (!existingServices.keyRotation) {
-                try {
-                    const pluginContext = this.createSafePluginContext();
-                    const KS = typeof window !== 'undefined' ? window.KeyRotationService : undefined;
-                    if (typeof KS === 'function') {
-                        window.keyRotationService = new KS(pluginContext);
-                        // console.log('KeyRotationService создан при повторной попытке');
-                    }
-                } catch (e) {
-                    console.error('Ошибка создания KeyRotationService при повторной попытке:', e);
-                }
-            }
-            
-            if (!existingServices.aiProvider) {
-                try {
-                    const pluginContext = this.createSafePluginContext();
-                    const APS = typeof window !== 'undefined' ? window.AIProviderService : undefined;
-                    if (typeof APS === 'function') {
-                        window.aiProviderService = new APS(pluginContext);
-                        // console.log('AIProviderService создан при повторной попытке');
-                    }
-                } catch (e) {
-                    console.error('Ошибка создания AIProviderService при повторной попытке:', e);
-                }
-            }
-            
-            if (!existingServices.loreAnalyzer) {
-                try {
-                    const pluginContext = this.createSafePluginContext();
-                    const LAS = typeof window !== 'undefined' ? window.LoreAnalyzerService : undefined;
-                    if (typeof LAS === 'function') {
-                        window.loreAnalyzerService = new LAS(pluginContext);
-                        // console.log('LoreAnalyzerService создан при повторной попытке');
-                    }
-                } catch (e) {
-                    console.error('Ошибка создания LoreAnalyzerService при повторной попытке:', e);
-                }
-            }
-            
-            // console.log('Повторная инициализация AI сервисов завершена');
-        } catch (error) {
-            console.error('Ошибка повторной инициализации AI сервисов:', error);
-        }
-    }
+    async retryAIInitialization() { if (this.aiService) this.aiService.retryInitialization(2000); }
     
     createSafePluginContext() {
         return {
@@ -2878,25 +2285,7 @@ ${JSON.stringify(facts, null, 2)}
         };
     }
     
-    async openAIKeysManager() {
-        try {
-            // console.log('Открытие менеджера AI ключей...');
-            
-            // Создаем простое модальное окно для управления ключами
-            const modal = new AIKeysManagerModal(this.app, Modal, Setting, Notice, this.settings, async (newSettings) => {
-                // Сохраняем новые настройки
-                this.settings = { ...this.settings, ...newSettings };
-                await this.saveSettings();
-                this.logDebug('AI ключи обновлены');
-                //  console.log('AI ключи обновлены:', this.settings);
-            });
-            
-            modal.open();
-        } catch (error) {
-            console.error('Ошибка открытия менеджера AI ключей:', error);
-            this.logDebug('Ошибка открытия менеджера AI ключей: ' + error.message);
-        }
-    }
+    async openAIKeysManager() { if (this.aiService) await this.aiService.openKeysManager(); }
 
 
 
@@ -3136,41 +2525,9 @@ ${JSON.stringify(facts, null, 2)}
     // Вспомогательная функция для определения типа контента по имени файла
     // Используется в aiAnalyzeAndExtendNote и aiBuildLoreContext
     getContentTypeByName(filename) {
-        const name = filename.toLowerCase();
-        
-        // Карта типов контента и связанных с ними ключевых слов
-        const contentTypeKeywords = {
-            'castle': ['замок', 'крепость', 'форт'],
-            'potion': ['зелье', 'настойка', 'отвар'],
-            'artifact': ['артефакт', 'реликвия', 'сокровище'],
-            'character': ['персонаж', 'герой', 'лицо'],
-            'location': ['локация', 'место', 'точка'],
-            'event': ['событие', 'происшествие'],
-            'organization': ['организация', 'группа', 'союз'],
-            'city': ['город', 'поселение'],
-            'village': ['деревня', 'село'],
-            'province': ['провинция', 'область'],
-            'state': ['государство', 'страна'],
-            'spell': ['заклинание', 'спелл'],
-            'alchemy': ['алхимия', 'рецепт'],
-            'mine': ['шахта', 'рудник'],
-            'factory': ['завод', 'фабрика'],
-            'farm': ['ферма', 'хозяйство'],
-            'port': ['порт', 'гавань'],
-            'people': ['народ', 'раса'],
-            'monster': ['монстр', 'чудовище'],
-            'task': ['задача', 'квест']
-        };
-
-        // Поиск соответствия по ключевым словам
-        for (const [contentType, keywords] of Object.entries(contentTypeKeywords)) {
-            if (keywords.some(keyword => name.includes(keyword))) {
-                return contentType;
-            }
-        }
-
-        // Если тип не определен
-        return '';
+        return this.aiService && typeof this.aiService.getContentTypeByName === 'function'
+            ? this.aiService.getContentTypeByName(filename)
+            : '';
     }
 
     async saveSettings() {
@@ -3455,8 +2812,6 @@ planned | started | writing | done | abandoned
                         }
                     });
                 });
-                
-                // Производство было перенесено в раздел «Экономика»
                 
                 // Прочее
                 locationSubMenu.addItem((locItem) => {
@@ -3764,320 +3119,7 @@ planned | started | writing | done | abandoned
            });
        });
    }
-    // --- Вспомогательные методы для оптимизации контекстного меню ---
-
-    /**
-     * Добавляет категорию в контекстное меню
-     * @param {Menu} parentMenu - Родительское меню
-     * @param {Object} config - Конфигурация категории
-     * @param {string} config.title - Заголовок категории
-     * @param {string} config.icon - Иконка категории
-     * @param {Function} config.builder - Функция для построения подменю
-     * @param {Object} target - Целевой объект (файл/папка), передается в builder
-     */
-    _addMenuCategory(parentMenu, config, target) {
-        parentMenu.addItem((item) => {
-            item.setTitle(config.title).setIcon(config.icon);
-            const subMenu = item.setSubmenu();
-            // Передаем target в builder для возможности использования в подменю
-            config.builder(subMenu, target, this);
-        });
-    }
-   // --- Вспомогательные методы для оптимизации контекстного меню ---
-    /**
-     * Добавляет простой пункт меню
-     * @param {Menu} parentMenu - Родительское меню
-     * @param {Object} config - Конфигурация пункта меню
-     * @param {string} config.title - Заголовок пункта меню
-     * @param {string} config.icon - Иконка пункта меню
-     * @param {Function} config.onClick - Обработчик клика
-     * @param {Object} target - Целевой объект (файл/папка)
-     */
-    _addMenuItem(parentMenu, config, target) {
-        parentMenu.addItem((item) => {
-            item.setTitle(config.title).setIcon(config.icon).onClick(() => {
-                // Определяем startPath для onClick
-                let startPath = '';
-                if (target instanceof TFile) startPath = target.parent.path;
-                else if (target instanceof TFolder) startPath = target.path;
-                else if (target && target.path) startPath = target.path;
-                
-                config.onClick(startPath);
-            });
-        });
-    }
-
-    /**
-     * Создает и возвращает конфигурацию для контекстного меню
-     * @returns {Array} Массив конфигураций категорий меню
-     */
-    _getContextMenuConfig() {
-        const self = this; // Сохраняем ссылку на this для использования внутри builder
-        return [
-            // 1. Сюжет и главы
-            {
-                title: '📚 Сюжет и главы',
-                icon: 'book',
-                builder: (subMenu, target) => {
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать главу',
-                        icon: 'book',
-                        onClick: (startPath) => createChapter(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать сцену',
-                        icon: 'film',
-                        onClick: (startPath) => createScene(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать конфликт',
-                        icon: 'flame',
-                        onClick: (startPath) => createConflictWizard(self, startPath)
-                    }, target);
-                }
-            },
-            
-            // 2. Локации
-            {
-                title: '🗺️ Локации',
-                icon: 'map-pin',
-                builder: (subMenu, target) => {
-                    // Жильё
-                    subMenu.addItem((locItem) => {
-                        locItem.setTitle('🏠 Жильё').setIcon('home');
-                        const housingSubMenu = locItem.setSubmenu();
-                        
-                        self._addMenuItem(housingSubMenu, {
-                            title: 'Создать государство',
-                            icon: 'crown',
-                            onClick: (startPath) => window.createState(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(housingSubMenu, {
-                            title: 'Создать провинцию',
-                            icon: 'map',
-                            onClick: (startPath) => createProvince(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(housingSubMenu, {
-                            title: 'Создать город',
-                            icon: 'building',
-                            onClick: (startPath) => createCity(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(housingSubMenu, {
-                            title: 'Создать деревню',
-                            icon: 'home',
-                            onClick: (startPath) => createVillage(self, startPath)
-                        }, target);
-                    });
-                    
-                    // Фортификация
-                    self._addMenuItem(subMenu, {
-                        title: '🏰 Фортификация (мастер)',
-                        icon: 'fortress',
-                        onClick: (startPath) => createCastle(self, startPath)
-                    }, target);
-                    
-                    // Социальные учреждения
-                    self._addMenuItem(subMenu, {
-                        title: '🏛️ Социальные учреждения (мастер)',
-                        icon: 'library',
-                        onClick: async () => {
-                            try {
-                                await self.app.commands.executeCommandById('create-social-institution');
-                            } catch (e) {
-                                self.logDebug('Ошибка запуска мастера социальных объектов: ' + e.message);
-                            }
-                        }
-                    }, target);
-                    
-                    // Прочее
-                    subMenu.addItem((locItem) => {
-                        locItem.setTitle('📍 Прочее').setIcon('map-pin');
-                        const otherSubMenu = locItem.setSubmenu();
-                        
-                        self._addMenuItem(otherSubMenu, {
-                            title: 'Создать мертвую зону',
-                            icon: 'skull',
-                            onClick: (startPath) => createDeadZone(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(otherSubMenu, {
-                            title: 'Создать общую локацию',
-                            icon: 'map-pin',
-                            onClick: (startPath) => createLocation(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(otherSubMenu, {
-                            title: 'Создать монстра',
-                            icon: 'skull',
-                            onClick: (startPath) => createMonster(self, startPath)
-                        }, target);
-                    });
-                }
-            },
-            
-            // 3. Народы
-            {
-                title: '👥 Народы',
-                icon: 'users',
-                builder: (subMenu, target) => {
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать народ',
-                        icon: 'users',
-                        onClick: (startPath) => createPeople(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать организацию',
-                        icon: 'users',
-                        onClick: (startPath) => createOrganizationWizard(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать религию',
-                        icon: 'book',
-                        onClick: (startPath) => createReligionWizard(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать культ (религ.)',
-                        icon: 'flame',
-                        onClick: (startPath) => createCultWizard(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать фракцию',
-                        icon: 'flag',
-                        onClick: (startPath) => createFactionWizard(self, startPath)
-                    }, target);
-                }
-            },
-            
-            // 4. Экономика
-            {
-                title: '💰 Экономика',
-                icon: 'factory',
-                builder: (subMenu, target) => {
-                    // Производство
-                    subMenu.addItem((ecoItem) => {
-                        ecoItem.setTitle('🏭 Производство').setIcon('factory');
-                        const prod = ecoItem.setSubmenu();
-                        
-                        self._addMenuItem(prod, {
-                            title: 'Создать шахту',
-                            icon: 'pickaxe',
-                            onClick: (startPath) => createMine(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(prod, {
-                            title: 'Создать ферму',
-                            icon: 'wheat',
-                            onClick: (startPath) => createFarm(self, startPath)
-                        }, target);
-                        
-                        self._addMenuItem(prod, {
-                            title: 'Создать завод',
-                            icon: 'factory',
-                            onClick: (startPath) => createFactory(self, startPath)
-                        }, target);
-                    });
-                    
-                    // Торговля
-                    subMenu.addItem((ecoItem) => {
-                        ecoItem.setTitle('🧾 Торговля').setIcon('map');
-                        const trade = ecoItem.setSubmenu();
-                        
-                        self._addMenuItem(trade, {
-                            title: 'Создать торговый путь',
-                            icon: 'map',
-                            onClick: (startPath) => createTradeRouteWizard(self, startPath)
-                        }, target);
-                    });
-                    
-                    // Логистика
-                    subMenu.addItem((ecoItem) => {
-                        ecoItem.setTitle('🚚 Логистика').setIcon('map-pin');
-                        const logi = ecoItem.setSubmenu();
-                        
-                        self._addMenuItem(logi, {
-                            title: 'Создать порт',
-                            icon: 'anchor',
-                            onClick: () => {
-                                self.logDebug('Функция createPort временно недоступна');
-                            }
-                        }, target);
-                    });
-                }
-            },
-            
-            // 5. Магия
-            {
-                title: '✨ Магия',
-                icon: 'sparkles',
-                builder: (subMenu, target) => {
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать зелье',
-                        icon: 'potion',
-                        onClick: (startPath) => createPotion(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать заклинание',
-                        icon: 'sparkles',
-                        onClick: (startPath) => createSpell(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать алхимический рецепт',
-                        icon: 'flask',
-                        onClick: (startPath) => createAlchemyRecipe(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать артефакт',
-                        icon: 'sword',
-                        onClick: (startPath) => createArtifact(self, startPath)
-                    }, target);
-                }
-            },
-            
-            // 6. Персонажи
-            {
-                title: '👤 Персонажи',
-                icon: 'user',
-                builder: (subMenu, target) => {
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать персонажа',
-                        icon: 'user',
-                        onClick: (startPath) => createCharacter(self, startPath)
-                    }, target);
-                }
-            },
-            
-            // 7. События
-            {
-                title: '📅 События',
-                icon: 'calendar',
-                builder: (subMenu, target) => {
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать квест',
-                        icon: 'target',
-                        onClick: (startPath) => createQuestWizard(self, startPath)
-                    }, target);
-                    
-                    self._addMenuItem(subMenu, {
-                        title: 'Создать событие',
-                        icon: 'calendar',
-                        onClick: (startPath) => createEventWizard(self, startPath)
-                    }, target);
-                }
-            }
-        ];
-    }
+    // Контекстное меню реализовано в src/MenuRegistry.js
 
 
     // --- Вспомогательные методы для модальных окон ---
@@ -4261,763 +3303,40 @@ async loadButtonIconsScript() {
         }
     }
 
-    async aiAnalyzeAndExtendNote() {
-        try {
-            const file = this.app.workspace.getActiveFile();
-            if (!file) {
-                this.logDebug('Нет активного файла для AI анализа');
-                return;
-            }
-            
-            const content = await this.app.vault.read(file);
-            
-            // Определяем тип сущности по frontmatter или названию файла
-            let contentType = '';
-            const cache = this.app.metadataCache.getFileCache(file) || {};
-            
-            if (cache.frontmatter && cache.frontmatter.type) {
-                contentType = String(cache.frontmatter.type).toLowerCase();
-                console.log('Тип определен из frontmatter:', contentType);
-            } else {
-                // Пробуем по названию файла (используем вспомогательную функцию)
-                console.log('Анализируем название файла:', file.basename);
-                contentType = this.getContentTypeByName(file.basename);
-                console.log('Тип определен по названию:', contentType);
-            }
-            
-            if (!contentType) {
-                this.logDebug('Не удалось определить тип сущности для AI анализа. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
-                return;
-            }
-            
-            // Проверяем доступность AI сервиса
-            if (!window.loreAnalyzerService) {
-                console.warn('AI сервис анализа не инициализирован, показываем базовую информацию');
-                
-                // Fallback: показываем базовую информацию о типе сущности
-                let resultText = `# Анализ сущности: ${contentType}\n\n`;
-                resultText += `## Файл: ${file.basename}\n`;
-                resultText += `## Тип: ${contentType}\n`;
-                resultText += `## Путь: ${file.path}\n\n`;
-                
-                // Добавляем рекомендации по типу
-                const recommendations = this.getRecommendationsForType(contentType);
-                if (recommendations.length > 0) {
-                    resultText += `### Рекомендуемые разделы:\n`;
-                    recommendations.forEach(rec => {
-                        resultText += `- ${rec}\n`;
-                    });
-                }
-                
-                resultText += `\n> [!note] AI сервис недоступен\n> Для полного AI анализа добавьте API ключи в настройках плагина.`;
-                
-                // Показываем результат в модальном окне
-                const modal = new PromptModal(this.app, Modal, Setting, Notice, 'Анализ сущности', resultText);
-                modal.open();
-                return;
-            }
-            
-            // AI сервис доступен - выполняем полный анализ
-            console.log('AI сервис доступен, начинаем анализ...');
-            console.log('Тип контента для анализа:', contentType);
-            console.log('Тип typeof contentType:', typeof contentType);
-            console.log('AI сервис:', window.loreAnalyzerService);
-            console.log('Методы AI сервиса:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.loreAnalyzerService)));
-            
-            const projectRoot = findProjectRoot(this.app, file.parent.path) || '';
-            console.log('Project root:', projectRoot);
-            
-            try {
-                const analysis = await window.loreAnalyzerService.analyzeContent(content, contentType, projectRoot);
-                console.log('Анализ завершен успешно:', analysis);
-                
-                let resultText = `# AI анализ (${contentType})\n`;
-                resultText += `## Полнота: ${analysis.completeness || 0}%\n`;
-                
-                if (analysis.missing && analysis.missing.length > 0) {
-                    resultText += `### Недостающие разделы:\n- ` + analysis.missing.join('\n- ') + '\n';
-                }
-                
-                if (analysis.recommendations && analysis.recommendations.length > 0) {
-                    resultText += `### Рекомендации:\n- ` + analysis.recommendations.join('\n- ') + '\n';
-                }
-                
-                // Показываем результат в специальном модале с опциями
-                const modal = new AIAnalysisResultModal(this.app, Modal, Setting, Notice, 'AI анализ и дополнение', resultText);
-                const result = await modal.openAndGetValue();
-                
-                // Если пользователь выбрал вставку, добавляем результат в заметку
-                if (result === 'insert') {
-                    const editor = this.getActiveEditor();
-                    if (editor) {
-                        const cursor = editor.getCursor();
-                        const insertText = '\n\n' + resultText + '\n';
-                        editor.replaceRange(insertText, cursor);
-                        this.logDebug('✅ Результат AI анализа вставлен в заметку');
-                        this.logDebug('Результат AI анализа вставлен в заметку');
-                    } else {
-                        this.logDebug(`[ERROR] Не удалось вставить результат: редактор недоступен`);
-                    }
-                }
-                
-            } catch (analysisError) {
-                console.error('Ошибка при вызове analyzeContent:', analysisError);
-                console.error('Стек ошибки:', analysisError.stack);
-                
-                // Показываем детальную ошибку
-                let resultText = `# Ошибка AI анализа\n\n`;
-                resultText += `## Тип сущности: ${contentType}\n`;
-                resultText += `## Ошибка: ${analysisError.message}\n`;
-                resultText += `## Детали:\n\`\`\`\n${analysisError.stack}\n\`\`\`\n`;
-                
-                const modal = new PromptModal(this.app, Modal, Setting, Notice, 'Ошибка AI анализа', resultText);
-                modal.open();
-            }
-            
-        } catch (e) {
-            console.error('Ошибка AI анализа:', e);
-            this.logDebug('Ошибка AI анализа: ' + e.message);
-        }
-    }
-
-    async aiBuildLoreContext() {
-        try {
-            const file = this.app.workspace.getActiveFile();
-            if (!file) {
-                this.logDebug('Нет активного файла для AI сбора лора');
-                return;
-            }
-            
-             
-            const content = await this.app.vault.read(file);
-            
-            // Определяем тип сущности по frontmatter или названию файла
-            let contentType = '';
-            const cache = this.app.metadataCache.getFileCache(file) || {};
-            
-            if (cache.frontmatter && cache.frontmatter.type) {
-                contentType = String(cache.frontmatter.type).toLowerCase();
-            } else {
-                // Пробуем по названию файла (используем вспомогательную функцию)
-                contentType = this.getContentTypeByName(file.basename);
-            }
-            
-            if (!contentType) {
-                this.logDebug('Не удалось определить тип сущности для сбора лора. Добавьте frontmatter с полем "type" или используйте название файла с ключевыми словами.');
-                return;
-            }
-            
-            // Проверяем доступность AI сервиса
-            if (!window.loreAnalyzerService) {
-                console.warn('AI сервис анализа не инициализирован, показываем базовую информацию');
-                
-                // Fallback: показываем базовую информацию о типе сущности
-                let resultText = `# Лор-контекст для ${contentType}\n\n`;
-                resultText += `## Файл: ${file.basename}\n`;
-                resultText += `## Тип: ${contentType}\n`;
-                resultText += `## Путь: ${file.path}\n\n`;
-                
-                // Добавляем рекомендации по типу
-                const recommendations = this.getRecommendationsForType(contentType);
-                if (recommendations.length > 0) {
-                    resultText += `### Рекомендуемые разделы:\n`;
-                    recommendations.forEach(rec => {
-                        resultText += `- ${rec}\n`;
-                    });
-                }
-                
-                resultText += `\n> [!note] AI сервис недоступен\n> Для полного AI анализа добавьте API ключи в настройках плагина.`;
-                
-                // Показываем результат в модальном окне
-                const modal = new PromptModal(this.app, Modal, Setting, Notice, 'Лор-контекст', resultText);
-                modal.open();
-                return;
-            }
-            
-            // AI сервис доступен - выполняем полный анализ
-            const projectRoot = findProjectRoot(this.app, file.parent.path) || '';
-            const context = await window.loreAnalyzerService.gatherLoreContext(projectRoot, contentType);
-            
-            let resultText = `# Лор-контекст для ${contentType}\n`;
-            resultText += '```json\n' + JSON.stringify(context, null, 2) + '\n```';
-            
-            // Показываем результат в модальном окне
-            const modal = new PromptModal(this.app, Modal, Setting, Notice, 'AI сбор лор-контекста', resultText);
-            modal.open();
-            
-        } catch (e) {
-            console.error('Ошибка AI сбора лора:', e);
-            this.logDebug('Ошибка AI сбора лора: ' + e.message);
-        }
-    }
 
     // === ЛОР: ДОЛГАЯ КОМАНДА — полная пересборка сводного файла ===
     async aiGatherProjectLore() {
-        const activeFile = this.app.workspace.getActiveFile();
-        const parentPath = activeFile && activeFile.parent ? activeFile.parent.path : '';
-        const projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
-        if (!projectRoot) {
-            this.logDebug(`[ERROR] Проект не найден: отсутствует "Настройки_мира.md"`);
-            return;
+        if (this.aiService && typeof this.aiService.gatherProjectLore === 'function') {
+            return this.aiService.gatherProjectLore();
         }
-
-        // Папка и путь к сводному файлу
-        const loreDir = `${projectRoot}/Лор-контекст`;
-        const loreFilePath = `${loreDir}/Лор_проекта.md`;
-
-        // Собираем контекст через сервис, если доступен
-        let context = null;
-        try {
-            if (window.loreAnalyzerService && typeof window.loreAnalyzerService.gatherLoreContext === 'function') {
-                context = await window.loreAnalyzerService.gatherLoreContext(projectRoot, 'all');
-            }
-        } catch (e) {
-            this.logDebug('gatherLoreContext error: ' + e.message);
-        }
-
-        // Формируем разделы с безопасными фолбэками
-        const summaryText = (context && context.summary) ? String(context.summary) : '—';
-        const contradictions = (context && Array.isArray(context.contradictions)) ? context.contradictions : [];
-        const gaps = (context && Array.isArray(context.gaps)) ? context.gaps : [];
-        const recommendations = (context && Array.isArray(context.recommendations)) ? context.recommendations : [];
-        const byTypes = (context && context.byTypes) ? context.byTypes : {};
-        const byNotes = (context && context.byNotes) ? context.byNotes : {};
-
-        // Строим Markdown
-        const parts = [];
-        parts.push('# Лор проекта');
-        parts.push('');
-
-        // Диагностика базы фактов: Неопределённые сущности
-        try {
-            const diag = await computeFactsDiagnostics(this.app, projectRoot).run();
-            parts.push('## Неопределённые сущности');
-            if (diag.missingIds && diag.missingIds.length > 0) {
-                diag.missingIds.forEach(id => parts.push(`- ${id} — нет собственного факта (добавьте базовую запись с типом и именем)`));
-            } else {
-                parts.push('—');
-            }
-            parts.push('');
-        } catch (e) {}
-        parts.push('## Сводка');
-        parts.push(summaryText || '—');
-        parts.push('');
-        parts.push('## Противоречия');
-        if (contradictions.length > 0) {
-            contradictions.forEach((c) => parts.push(`- ${String(c)}`));
-        } else {
-            parts.push('—');
-        }
-        parts.push('');
-        parts.push('## Пробелы');
-        if (gaps.length > 0) {
-            gaps.forEach((g) => parts.push(`- ${String(g)}`));
-        } else {
-            parts.push('—');
-        }
-        parts.push('');
-        parts.push('## Рекомендации');
-        if (recommendations.length > 0) {
-            recommendations.forEach((r) => parts.push(`- ${String(r)}`));
-        } else {
-            parts.push('—');
-        }
-        parts.push('');
-        parts.push('## По типам сущностей');
-        if (byTypes && typeof byTypes === 'object' && Object.keys(byTypes).length > 0) {
-            for (const t of Object.keys(byTypes)) {
-                const items = byTypes[t];
-                parts.push(`### ${t}`);
-                if (Array.isArray(items) && items.length > 0) {
-                    items.forEach((i) => parts.push(`- ${typeof i === 'string' ? i : JSON.stringify(i)}`));
-                } else {
-                    parts.push('- —');
-                }
-                parts.push('');
-            }
-        } else {
-            parts.push('—');
-            parts.push('');
-        }
-        parts.push('## По заметкам');
-        if (byNotes && typeof byNotes === 'object' && Object.keys(byNotes).length > 0) {
-            for (const notePath of Object.keys(byNotes)) {
-                const base = notePath.split('/').pop().replace(/\.md$/i, '');
-                parts.push(`### ${base} ([[${notePath}|${base}]])`);
-                const info = byNotes[notePath];
-                if (info && typeof info === 'object') {
-                    const lines = Object.keys(info).map((k) => `- ${k}: ${typeof info[k] === 'string' ? info[k] : JSON.stringify(info[k])}`);
-                    parts.push(...lines);
-                } else {
-                    parts.push('- —');
-                }
-                parts.push('');
-            }
-        } else {
-            parts.push('—');
-            parts.push('');
-        }
-
-        // Контекст для ИИ в JSON
-        parts.push('## Контекст для ИИ');
-        parts.push('```json');
-        try {
-            parts.push(JSON.stringify(context || {}, null, 2));
-        } catch (e) {
-            parts.push('{}');
-        }
-        parts.push('```');
-        parts.push('');
-
-        const finalMd = parts.join('\n');
-
-        // Создаем папку и пишем файл
-        try {
-            const folder = this.app.vault.getAbstractFileByPath(loreDir);
-            if (!folder) {
-                await this.app.vault.createFolder(loreDir);
-            }
-        } catch (e) {}
-
-        try {
-            const existing = this.app.vault.getAbstractFileByPath(loreFilePath);
-            if (existing instanceof TFile) {
-                await this.app.vault.modify(existing, finalMd);
-            } else {
-                await this.app.vault.create(loreFilePath, finalMd);
-            }
-            this.logDebug('Лор-проект обновлён: ' + loreFilePath);
-        } catch (e) {
-            this.logDebug('Ошибка записи лора: ' + e.message);
-        }
+        new Notice('AI сервис недоступен');
     }
 
-    // Получает список доступных промптов через adapter (как в креаторах)
-    async getPromptFiles() {
-        try {
-            const promptDir = '.obsidian/plugins/literary-templates/templates/prompts';
-            const adapter = this.app.vault.adapter;
-            const exists = await adapter.exists(promptDir);
-            if (!exists) {
-                console.log('[PROMPT DEBUG] promptDir не найден (adapter.exists):', promptDir);
-                return [];
-            }
-            let fileNames = [];
-            if (adapter.list) {
-                const listResult = await adapter.list(promptDir);
-                fileNames = listResult.files.filter(f => f.endsWith('.md'));
-            } else {
-                try {
-                    const fs = require('fs');
-                    fileNames = fs.readdirSync(promptDir)
-                        .filter(f => f.endsWith('.md'))
-                        .map(f => promptDir + '/' + f);
-                } catch (e) {
-                    console.log('[PROMPT DEBUG] Не удалось получить список файлов через fs:', e.message);
-                    return [];
-                }
-            }
-            // Возвращаем массив {name, path}
-            const files = fileNames.map(path => {
-                const name = path.split('/').pop().replace(/\.md$/, '');
-                return { name, path };
-            });
-            console.log('[PROMPT DEBUG] Найдено промптов (adapter):', files.length, files.map(f => f.name));
-            return files;
-        } catch (e) {
-            console.error('Ошибка получения промптов (adapter):', e);
-            return [];
-        }
-    }
+    // Промпты и выбор шаблонов обрабатываются в AIService
 
     // Показывает вертикальный список промптов с предпросмотром и тегами (PromptSelectorModal)
-    async showPromptSelector() {
-        try {
-            const promptFiles = await this.getPromptFiles();
-            if (promptFiles.length === 0) {
-                this.logDebug(`[ERROR] Промпты не найдены в папке .obsidian/plugins/literary-templates/templates/prompts`);
-                return;
-            }
-            // Читаем и парсим все промпты
-            const prompts = [];
-            for (const file of promptFiles) {
-                const raw = await this.app.vault.adapter.read(file.path);
-                const { tags, content } = this.parsePromptYaml(raw);
-                prompts.push({
-                    title: tags.title || file.name,
-                    tags,
-                    content,
-                    fileName: file.name
-                });
-            }
-            // Открываем новый модал
-            const modal = new PromptSelectorModal(this.app, prompts, async (selectedPrompt) => {
-                // Получаем переменные для подстановки
-                let content = selectedPrompt.content;
-                const file = this.app.workspace.getActiveFile();
-
-                // Определяем проект
-                const parentPath = file && file.parent ? file.parent.path : '';
-                let projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
-                if (!projectRoot) {
-                    try {
-                        const roots = await getAllProjectRoots(this.app);
-                        if (roots && roots.length > 0) projectRoot = roots[0];
-                    } catch (e) {}
-                }
-                const projectName = projectRoot ? projectRoot.split('/').pop() : (file?.basename || '');
-                const projectType = '';
-                const currentDate = (window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10));
-
-                // Источник контента: текущая заметка, база фактов, или оба
-                let injectedContent = '';
-                try {
-                    const src = (selectedPrompt.tags && selectedPrompt.tags.source) || 'current_note';
-                    if (src === 'facts_database') {
-                        const facts = projectRoot ? await loadFacts(this.app, projectRoot) : [];
-                        injectedContent = JSON.stringify(Array.isArray(facts) ? facts : [], null, 2);
-                    } else if (src === 'facts_and_note') {
-                        const facts = projectRoot ? await loadFacts(this.app, projectRoot) : [];
-                        const note = file ? await this.app.vault.read(file) : '';
-                        injectedContent = JSON.stringify({ facts: Array.isArray(facts) ? facts : [], note }, null, 2);
-                    } else {
-                        injectedContent = file ? await this.app.vault.read(file) : '';
-                    }
-                } catch (e) {
-                     
-                    injectedContent = '';
-                }
-
-                // Подстановка переменных
-                content = content.replace(/{{content}}/g, injectedContent)
-                    .replace(/{{projectName}}/g, projectName)
-                    .replace(/{{projectType}}/g, projectType)
-                    .replace(/{{currentDate}}/g, currentDate);
-
-                // Копирование с fallback
-                let copied = false;
-                if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-                    try {
-                        await navigator.clipboard.writeText(content);
-                        this.logDebug('Промпт скопирован в буфер обмена! (clipboard.writeText)');
-                        copied = true;
-                    } catch (e) {
-                        this.logDebug('Ошибка clipboard.writeText, fallback: ' + e.message);
-                    }
-                }
-                if (!copied) {
-                    try {
-                        const textArea = document.createElement('textarea');
-                        textArea.value = content;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(textArea);
-                        this.logDebug('Промпт скопирован в буфер обмена! (execCommand)');
-                    } catch (e) {
-                        this.logDebug('Ошибка копирования через execCommand: ' + e.message);
-                    }
-                }
-            });
-            modal.open();
-        } catch (e) {
-            console.error('Ошибка в showPromptSelector:', e);
-            this.logDebug('Ошибка при выборе промпта: ' + e.message);
-        }
-    }
-
-    // Парсит YAML-теги из начала промпта (--- ... ---) и возвращает {tags, content}
-    parsePromptYaml(raw) {
-        const yamlMatch = raw.match(/^---\s*([\s\S]*?)---\s*([\s\S]*)$/);
-        if (!yamlMatch) return { tags: {}, content: raw };
-        const yaml = yamlMatch[1];
-        const content = yamlMatch[2].trim();
-        const tags = {};
-        yaml.split(/\r?\n/).forEach(line => {
-            const m = line.match(/^([\w-]+):\s*(.*)$/);
-            if (m) {
-                const key = m[1].trim();
-                let value = m[2].trim();
-                // Снимаем обрамляющие кавычки
-                if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
-                    value = value.slice(1, -1);
-                }
-                tags[key] = value;
-            }
-        });
-        return { tags, content };
-    }
+    async showPromptSelector() { if (this.aiService && this.aiService.showPromptSelector) return this.aiService.showPromptSelector(); new Notice('AI сервис недоступен'); }
 
     // === ЛОР: БЫСТРАЯ КОМАНДА — добавить информацию из текущей заметки ===
     async aiAppendCurrentNoteLore() {
-        const file = this.app.workspace.getActiveFile();
-        if (!(file instanceof TFile)) {
-            this.logDebug(`[ERROR] Нет активного файла`);
-            return;
-        }
-
-        const parentPath = file.parent ? file.parent.path : '';
-        const projectRoot = findProjectRoot(this.app, parentPath) || this.activeProjectRoot || '';
-        if (!projectRoot) {
-            this.logDebug(`[ERROR] Проект не найден: отсутствует "Настройки_мира.md"`);
-            return;
-        }
-
-        const loreDir = `${projectRoot}/Лор-контекст`;
-        const loreFilePath = `${loreDir}/Лор_проекта.md`;
-
-        // Обеспечиваем наличие папки
-        try {
-            const folder = this.app.vault.getAbstractFileByPath(loreDir);
-            if (!folder) await this.app.vault.createFolder(loreDir);
-        } catch (e) {}
-
-        // Получаем содержимое заметки и лёгкий анализ
-        const content = await this.app.vault.read(file);
-        let contentType = '';
-        try {
-            const cache = this.app.metadataCache.getFileCache(file) || {};
-            if (cache.frontmatter && cache.frontmatter.type) {
-                contentType = String(cache.frontmatter.type).toLowerCase();
-            }
-        } catch (e) {}
-
-        let quickSummary = '';
-        try {
-            if (window.loreAnalyzerService && typeof window.loreAnalyzerService.analyzeContent === 'function') {
-                const analysis = await window.loreAnalyzerService.analyzeContent(content, contentType || 'unknown', projectRoot);
-                if (analysis && analysis.summary) quickSummary = String(analysis.summary);
-            }
-        } catch (e) {}
-
-        const base = file.basename;
-        const noteSection = [];
-        noteSection.push(`### ${base} ([[${file.path}|${base}]])`);
-        if (contentType) noteSection.push(`- Тип: ${contentType}`);
-        noteSection.push(`- Кратко: ${quickSummary || '—'}`);
-        noteSection.push('');
-
-        const newNoteBlock = noteSection.join('\n');
-
-        // Если файла ещё нет — создаём скелет и вставляем блок
-        const existing = this.app.vault.getAbstractFileByPath(loreFilePath);
-        if (!(existing instanceof TFile)) {
-            const skeleton = [
-                '# Лор проекта',
-                '',
-                '## Сводка',
-                '—',
-                '',
-                '## Противоречия',
-                '—',
-                '',
-                '## Пробелы',
-                '—',
-                '',
-                '## Рекомендации',
-                '—',
-                '',
-                '## По типам сущностей',
-                '—',
-                '',
-                '## По заметкам',
-                newNoteBlock,
-                '## Контекст для ИИ',
-                '```json',
-                '{}',
-                '```',
-                ''
-            ].join('\n');
-            try {
-                await this.app.vault.create(loreFilePath, skeleton);
-                this.logDebug('Создан сводный файл лора и добавлена текущая заметка');
-            } catch (e) {
-                this.logDebug('Ошибка создания файла лора: ' + e.message);
-            }
-            return;
-        }
-
-        // Иначе модифицируем существующий: добавляем блок в секцию "## По заметкам"
-        let md = await this.app.vault.read(existing);
-        const sectionHeader = '## По заметкам';
-        const idx = md.indexOf(sectionHeader);
-        if (idx === -1) {
-            // Нет секции — добавим её в конец
-            md = md.trimEnd() + `\n\n${sectionHeader}\n${newNoteBlock}`;
-        } else {
-            // Вставляем после заголовка секции
-            const head = md.slice(0, idx + sectionHeader.length);
-            const tail = md.slice(idx + sectionHeader.length);
-            md = head + '\n' + newNoteBlock + tail;
-        }
-
-        try {
-            await this.app.vault.modify(existing, md);
-            this.logDebug('Добавлен лор из текущей заметки в сводный файл');
-        } catch (e) {
-            this.logDebug('Ошибка обновления файла лора: ' + e.message);
-        }
+        if (this.aiService && this.aiService.aiAppendCurrentNoteLore) return this.aiService.aiAppendCurrentNoteLore();
+        new Notice('AI сервис недоступен');
     }
     // Тест AI подключения
     async testAIConnection() {
-        try {
-            this.logDebug('=== Тест AI подключения ===');
-            
-            // Собираем полную диагностику
-            const diagnostics = {
-                settings: {
-                    aiEnabled: this.settings.aiEnabled || false,
-                    aiKeys: this.settings.aiKeys ? this.settings.aiKeys.length : 0,
-                    aiProvider: this.settings.aiProvider || 'не указан',
-                    defaultModel: this.settings.defaultModel || 'не указана',
-                    maxTokens: this.settings.maxTokens || 0,
-                    temperature: this.settings.temperature || 0
-                },
-                services: {
-                    keyRotationService: !!window.keyRotationService,
-                    aiProviderService: !!window.aiProviderService,
-                    AIProviderService: !!window.AIProviderService,
-                    loreAnalyzerService: !!window.loreAnalyzerService
-                },
-                serviceTypes: {
-                    aiProviderService: typeof window.aiProviderService,
-                    AIProviderService: typeof window.AIProviderService
-                },
-                methods: {
-                    generateText: window.aiProviderService ? typeof window.aiProviderService.generateText : 'недоступен',
-                    sendRequest: window.aiProviderService ? typeof window.aiProviderService.sendRequest : 'недоступен'
-                }
-            };
-            
-            this.logDebug('Диагностика собрана: ' + JSON.stringify(diagnostics, null, 2));
-            
-            // Проверяем настройки
-            if (!this.settings.aiKeys || this.settings.aiKeys.length === 0) {
-                await this.showDiagnostics('❌ AI ключи не настроены', diagnostics, 'Добавьте API ключи в "Управление AI ключами"');
-                return;
-            }
-            
-            if (!this.settings.aiEnabled) {
-                await this.showDiagnostics('❌ AI отключен в настройках', diagnostics, 'Включите AI в настройках плагина');
-                return;
-            }
-            
-            // Проверяем доступность AI сервисов
-            if (!window.aiProviderService) {
-                await this.showDiagnostics('❌ AI сервис не инициализирован', diagnostics, 'Перезагрузите плагин или проверьте консоль на ошибки');
-                return;
-            }
-            
-            // Тестируем простой запрос
-            try {
-                const testPrompt = 'Скажи "Привет, мир!" на русском языке.';
-                this.logDebug(`Отправляем тестовый запрос: ${testPrompt}`);
-                
-                // Проверяем доступность метода generateText
-                if (typeof window.aiProviderService.generateText !== 'function') {
-                    await this.showDiagnostics('❌ AI сервис не имеет метода generateText', diagnostics, 'Проблема с инициализацией AI сервиса');
-                    return;
-                }
-                
-                const response = await window.aiProviderService.generateText(testPrompt, {
-                    model: this.settings.defaultModel,
-                    maxTokens: 100,
-                    temperature: 0.7
-                });
-                
-                if (response && response.text) {
-                    this.logDebug(`AI ответ: ${response.text}`);
-                    
-                    // Показываем результат в модальном окне
-                    const resultText = `# Тест AI подключения ✅\n\n` +
-                        `## Запрос:\n${testPrompt}\n\n` +
-                        `## Ответ:\n${response.text}\n\n` +
-                        `## Настройки:\n` +
-                        `- Провайдер: ${this.settings.aiProvider}\n` +
-                        `- Модель: ${this.settings.defaultModel}\n` +
-                        `- Ключей: ${this.settings.aiKeys.length}\n` +
-                        `- Макс токенов: ${this.settings.maxTokens}\n` +
-                        `- Температура: ${this.settings.temperature}`;
-                    
-                    const modal = new PromptModal(this.app, Modal, Setting, Notice, 'Тест AI подключения', resultText);
-                    modal.open();
-                } else {
-                    await this.showDiagnostics('❌ AI ответ пустой или некорректный', diagnostics, 'Проблема с форматом ответа от AI сервиса');
-                }
-                
-            } catch (aiError) {
-                this.logDebug(`Ошибка AI запроса: ${aiError.message}`);
-                console.error('AI тест ошибка:', aiError);
-                
-                // Анализируем тип ошибки
-                let errorType = 'Неизвестная ошибка';
-                let errorAdvice = 'Проверьте консоль для деталей';
-                
-                if (aiError.message.includes('401') || aiError.message.includes('Unauthorized')) {
-                    errorType = 'Ошибка авторизации (401)';
-                    errorAdvice = 'API ключ неверный или истек. Обновите ключ в настройках.';
-                } else if (aiError.message.includes('403') || aiError.message.includes('Forbidden')) {
-                    errorType = 'Доступ запрещен (403)';
-                    errorAdvice = 'API ключ не имеет доступа к выбранной модели. Проверьте права доступа.';
-                } else if (aiError.message.includes('429') || aiError.message.includes('Rate limit')) {
-                    errorType = 'Превышен лимит запросов (429)';
-                    errorAdvice = 'Слишком много запросов. Подождите или используйте другой ключ.';
-                } else if (aiError.message.includes('500') || aiError.message.includes('Internal server')) {
-                    errorType = 'Ошибка сервера (500)';
-                    errorAdvice = 'Проблема на стороне AI провайдера. Попробуйте позже.';
-                } else if (aiError.message.includes('timeout') || aiError.message.includes('time out')) {
-                    errorType = 'Таймаут соединения';
-                    errorAdvice = 'Слишком долгий ответ. Проверьте интернет-соединение.';
-                } else if (aiError.message.includes('network') || aiError.message.includes('fetch')) {
-                    errorType = 'Ошибка сети';
-                    errorAdvice = 'Проблема с интернет-соединением. Проверьте сеть.';
-                }
-                
-                await this.showDiagnostics(`❌ ${errorType}`, diagnostics, errorAdvice);
-            }
-            
-        } catch (e) {
-            console.error('Ошибка теста AI:', e);
-            this.logDebug('❌ Ошибка теста AI: ' + e.message);
-            this.logDebug('Ошибка теста AI: ' + e.message);
+        if (this.aiService && this.aiService.testConnection) {
+            return this.aiService.testConnection();
         }
+        new Notice('AI сервис недоступен');
     }
     // Показывает детальную диагностику
-    async showDiagnostics(title, diagnostics, advice) {
-        const diagnosticText = `# ${title}\n\n` +
-            `## Статус сервисов:\n` +
-            `- KeyRotationService: ${diagnostics.services.keyRotationService ? '✅' : '❌'}\n` +
-            `- AIProviderService (класс): ${diagnostics.services.AIProviderService ? '✅' : '❌'}\n` +
-            `- aiProviderService (экземпляр): ${diagnostics.services.aiProviderService ? '✅' : '❌'}\n` +
-            `- LoreAnalyzerService: ${diagnostics.services.loreAnalyzerService ? '✅' : '❌'}\n\n` +
-            `## Типы сервисов:\n` +
-            `- aiProviderService: ${diagnostics.serviceTypes.aiProviderService}\n` +
-            `- AIProviderService: ${diagnostics.serviceTypes.AIProviderService}\n\n` +
-            `## Доступные методы:\n` +
-            `- generateText: ${diagnostics.methods.generateText}\n` +
-            `- sendRequest: ${diagnostics.methods.sendRequest}\n\n` +
-            `## Настройки:\n` +
-            `- AI включен: ${diagnostics.settings.aiEnabled ? '✅' : '❌'}\n` +
-            `- Ключей: ${diagnostics.settings.aiKeys}\n` +
-            `- Провайдер: ${diagnostics.settings.aiProvider}\n` +
-            `- Модель: ${diagnostics.settings.defaultModel}\n` +
-            `- Макс токенов: ${diagnostics.settings.maxTokens}\n` +
-            `- Температура: ${diagnostics.settings.temperature}\n\n` +
-            `## Рекомендации:\n` +
-            `> ${advice}\n\n` +
-            `## Возможные решения:\n` +
-            `1. **Перезагрузите плагин** - часто решает проблемы инициализации\n` +
-            `2. **Проверьте API ключи** - убедитесь, что ключи действительны\n` +
-            `3. **Выберите другую модель** - некоторые модели могут быть недоступны\n` +
-            `4. **Проверьте интернет** - убедитесь в стабильности соединения\n` +
-            `5. **Посмотрите консоль** - там могут быть детальные ошибки`;
-        
-        const modal = new PromptModal(this.app, Modal, Setting, Notice, 'Диагностика AI сервиса', diagnosticText);
-        modal.open();
-    }
+    async showDiagnostics(title, diagnostics, advice) { if (this.aiService && this.aiService.showDiagnostics) return this.aiService.showDiagnostics(title, diagnostics, advice); new Notice(title); }
     
     // Вспомогательный метод для получения рекомендаций по типу сущности
     getRecommendationsForType(contentType) {
+        if (this.aiService && typeof this.aiService.getRecommendationsForType === 'function') {
+            try { return this.aiService.getRecommendationsForType(contentType) || []; } catch (e) {}
+        }
         const recommendations = {
             'castle': [
                 'История и происхождение',
@@ -5176,233 +3495,10 @@ async loadButtonIconsScript() {
     }
 }
 
-// Функции-обёртки для новых визардов
-async function createConflictWizard(plugin, projectPath, options = {}) {
-    const { ConflictWizardModal } = require('./creators/ConflictWizardModal.js');
-    const modal = new ConflictWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createOrganizationWizard(plugin, projectPath, options = {}) {
-    const { OrganizationWizardModal } = require('./creators/OrganizationWizardModal.js');
-    // Гарантируем, что в модал уходит именно корень проекта
-    let root = projectPath || '';
-    try {
-        const active = plugin.app.workspace.getActiveFile();
-        const parentPath = projectPath || (active && active.parent ? active.parent.path : '');
-        root = (typeof findProjectRoot === 'function' ? (findProjectRoot(plugin.app, parentPath) || '') : '') || plugin.activeProjectRoot || projectPath || '';
-    } catch (e) {}
-    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, root, () => {}, options);
-    modal.open();
-}
-
-async function createReligionWizard(plugin, projectPath, options = {}) {
-    const { ReligionWizardModal } = require('./creators/ReligionWizardModal.js');
-    const modal = new ReligionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createCultWizard(plugin, projectPath, options = {}) {
-    const { CultWizardModal } = require('./creators/CultWizardModal.js');
-    const modal = new CultWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createTradeRouteWizard(plugin, projectPath, options = {}) {
-    const { TradeRouteWizardModal } = require('./creators/TradeRouteWizardModal.js');
-    const modal = new TradeRouteWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createFactionWizard(plugin, projectPath, options = {}) {
-    const { FactionWizardModal } = require('./creators/FactionWizardModal.js');
-    const modal = new FactionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createQuestWizard(plugin, projectPath, options = {}) {
-    const { QuestWizardModal } = require('./creators/QuestWizardModal.js');
-    const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-}
-
-async function createEventWizard(plugin, projectPath, options = {}) {
-    const { EventWizardModal } = require('./creators/EventWizardModal.js');
-    const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-async function createHtmlWizard(plugin, projectPath, options = {}) {
-    const { HtmlWizardModal } = require('./creators/HtmlWizardModal.js');
-    const modal = new HtmlWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
-
-// Делаем функции create* доступными в глобальной области видимости
-window.createWorld = createWorld;
-window.createChapter = createChapter;
-window.createCity = createCity;
-window.createLocation = createLocation;
-window.createScene = createScene;
-window.createVillage = createVillage;
-window.createDeadZone = createDeadZone;
-window.createPort = createPort;
-window.createCastle = createCastle;
-window.createPotion = createPotion; // оставляем, функции должны быть глобализованы сборщиком
-window.createSpell = createSpell;
-window.createArtifact = createArtifact;
-window.createAlchemyRecipe = createAlchemyRecipe;
-window.createProvince = createProvince;
-window.createState = createState;
-window.createFactory = createFactory;
-window.createFarm = createFarm;
-window.createPeople = createPeople;
-window.createTask = createTask;
-window.createCharacter = createCharacter;
-window.createMonster = createMonster;
-window.createWork = createWork;
-window.createSocialInstitution = createSocialInstitution;
-        
-        // Функции для wizard'ов
-        window.createConflictWizard = async (plugin, projectPath, options = {}) => {
-            const modal = new ConflictWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-            modal.open();
-        };
-
-window.createOrganizationWizard = async (plugin, projectPath, options = {}) => {
-    // Гарантируем, что в модал уходит именно корень проекта
-    let root = projectPath || '';
-    try {
-        const active = plugin.app.workspace.getActiveFile();
-        const parentPath = projectPath || (active && active.parent ? active.parent.path : '');
-        root = (typeof findProjectRoot === 'function' ? (findProjectRoot(plugin.app, parentPath) || '') : '') || plugin.activeProjectRoot || projectPath || '';
-    } catch (e) {}
-    const modal = new OrganizationWizardModal(plugin.app, Modal, Setting, Notice, plugin, root, () => {}, options);
-    modal.open();
-};
-        
-window.createReligionWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new ReligionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-        
-window.createCultWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new CultWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-        
-window.createTradeRouteWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new TradeRouteWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-        
-window.createFactionWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new FactionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-        
-window.createQuestWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-// async function createEventWizard(plugin, projectPath, options = {}) {
-//     const { EventWizardModal } = require('./creators/EventWizardModal.js');
-//     const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-//     modal.open();
-// }
-
-window.createHtmlWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new HtmlWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createPotionWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new PotionWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createVillageWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new VillageWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createStateWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new StateWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createLocationWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new LocationWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createSceneWizard = async (plugin, projectPath, options = {}) => {
-    const modal = new SceneWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
-
-window.createCharacter = async (plugin, projectPath, options = {}) => {
-    const { CharacterWizardModal } = require('./creators/CharacterWizardModal.js');
-    const modal = new CharacterWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-};
 
 // === НАЧАЛО: Новый способ хранения настроек ===
 const SETTINGS_PATH = '.obsidian/plugins/literary-templates/settings.json';
 
-async function loadSettingsFromFile(app) {
-    if (!app || !app.vault || !app.vault.adapter) {
-        throw new Error('app.vault не инициализирован');
-    }
-    
-    // Дефолтные настройки
-        const defaultSettings = {
-            aiKeys: [],
-            currentKeyIndex: 0,
-            keyUsage: {},
-            aiEnabled: true,
-        aiProvider: 'openrouter', // openrouter, anthropic, openai
-        defaultModel: 'openrouter/mistralai/mistral-7b-instruct', // Бесплатная модель
-            maxTokens: 2000,
-            temperature: 0.7,
-            author: '' // <--- новое поле
-        };
-    
-    try {
-        const data = await app.vault.adapter.read(SETTINGS_PATH);
-        return { ...defaultSettings, ...JSON.parse(data) };
-     
-    } catch (e) {
-        // Если файла нет — просто возвращаем дефолтные настройки
-        // Не пытаемся создавать файл при первой загрузке, чтобы избежать ошибок
-        console.log('Файл настроек не найден, используем дефолтные настройки');
-        return defaultSettings;
-    }
-}
-
-async function saveSettingsToFile(app, settings) {
-    if (!app || !app.vault || !app.vault.adapter) {
-        throw new Error('app.vault не инициализирован');
-    }
-    try {
-    const data = JSON.stringify(settings, null, 2);
-        
-        // Проверяем, существует ли папка плагина
-        const pluginDir = '.obsidian/plugins/literary-templates';
-        try {
-            // Пытаемся создать папку, если её нет
-            await app.vault.adapter.mkdir(pluginDir);
-        } catch (mkdirError) {
-            // Игнорируем ошибку, если папка уже существует
-            console.log('Папка плагина уже существует или не может быть создана:', mkdirError.message);
-        }
-        
-    await app.vault.adapter.write(SETTINGS_PATH, data);
-    } catch (error) {
-        console.warn('Ошибка сохранения настроек плагина:', error);
-        // Не выбрасываем ошибку, чтобы не ломать работу плагина
-    }
-}
 // === КОНЕЦ: Новый способ хранения настроек ===
 
 // === Добавить функцию открытия файла настроек ===
@@ -5414,324 +3510,6 @@ async function openSettingsFile(app) {
         this.logDebug('Файл настроек не найден');
     }
 }
-// === Класс для управления AI ключами ===
-class AIKeysManagerModal extends Modal {
-    constructor(app, Modal, Setting, Notice, settings, onSave) {
-        super(app);
-        this.settings = settings;
-        this.onSave = onSave;
-        this.Modal = Modal;
-        this.Setting = Setting;
-        this.Notice = Notice;
-    }
-    
-    onOpen() {
-        const { contentEl } = this;
-        this.contentEl = contentEl; // Сохраняем ссылку на contentEl
-        contentEl.empty();
-        contentEl.addClass('ai-keys-manager-modal');
-        
-        contentEl.createEl('h2', { text: 'Управление AI ключами' });
-        
-        // Информация о провайдерах
-        const infoContainer = contentEl.createEl('div', { cls: 'info-container' });
-        infoContainer.createEl('h3', { text: 'Информация о провайдерах:' });
-        
-        const providerInfo = infoContainer.createEl('div', { cls: 'provider-info' });
-        providerInfo.innerHTML = `
-            <p><strong>OpenRouter (рекомендуется):</strong></p>
-            <ul>
-                <li>✅ Бесплатные модели: Mistral 7B, Llama 2</li>
-                <li>💰 Платные модели: Claude 3.5, GPT-4</li>
-                <li>🔑 Получите ключ на <a href="https://openrouter.ai" target="_blank">openrouter.ai</a></li>
-            </ul>
-            <p><strong>Anthropic:</strong></p>
-            <ul>
-                <li>💰 Все модели платные</li>
-                <li>🔑 Получите ключ на <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></li>
-            </ul>
-            <p><strong>OpenAI:</strong></p>
-            <ul>
-                <li>💰 Все модели платные</li>
-                <li>🔑 Получите ключ на <a href="https://platform.openai.com" target="_blank">platform.openai.com</a></li>
-            </ul>
-        `;
-        
-        // Список существующих ключей
-        const keysContainer = contentEl.createEl('div', { cls: 'keys-container' });
-        keysContainer.createEl('h3', { text: 'Текущие ключи:' });
-        
-        if (this.settings.aiKeys && this.settings.aiKeys.length > 0) {
-            this.settings.aiKeys.forEach((key, index) => {
-                const keyItem = keysContainer.createEl('div', { cls: 'key-item' });
-                keyItem.createEl('span', { text: `Ключ ${index + 1}: ${key.substring(0, 8)}...` });
-                
-                const deleteBtn = keyItem.createEl('button', { text: 'Удалить', cls: 'delete-btn' });
-                deleteBtn.onclick = () => {
-                    this.settings.aiKeys.splice(index, 1);
-                    this.renderKeys();
-                };
-            });
-        } else {
-            keysContainer.createEl('p', { text: 'Ключи не добавлены' });
-        }
-        
-        // Форма добавления нового ключа
-        const addForm = contentEl.createEl('div', { cls: 'add-key-form' });
-        addForm.createEl('h3', { text: 'Добавить новый ключ:' });
-        
-        const keyInput = addForm.createEl('input', {
-            type: 'password',
-            placeholder: 'Введите AI ключ (API Key)',
-            cls: 'key-input'
-        });
-        
-        const addBtn = addForm.createEl('button', { text: 'Добавить ключ', cls: 'add-btn' });
-        addBtn.onclick = () => {
-            const key = keyInput.value.trim();
-            if (key) {
-                if (!this.settings.aiKeys) this.settings.aiKeys = [];
-                this.settings.aiKeys.push(key);
-                keyInput.value = '';
-                this.renderKeys();
-                new this.Notice('Ключ добавлен');
-            } else {
-                new this.Notice('Введите ключ');
-            }
-        };
-        
-        // Настройки AI
-        const aiSettings = contentEl.createEl('div', { cls: 'ai-settings' });
-        aiSettings.createEl('h3', { text: 'Настройки AI:' });
-        
-        new this.Setting(aiSettings)
-            .setName('AI включен')
-            .setDesc('Включить/выключить AI функциональность')
-            .addToggle(toggle => toggle
-                .setValue(this.settings.aiEnabled || false)
-                .onChange(value => {
-                    this.settings.aiEnabled = value;
-                })
-            );
-        
-        // Выбор провайдера AI
-        new this.Setting(aiSettings)
-            .setName('Провайдер AI')
-            .setDesc('Выберите провайдера AI')
-            .addDropdown(dropdown => dropdown
-                .addOption('openrouter', 'OpenRouter (рекомендуется)')
-                .addOption('anthropic', 'Anthropic Claude')
-                .addOption('openai', 'OpenAI GPT')
-                .setValue(this.settings.aiProvider || 'openrouter')
-                .onChange(value => {
-                    this.settings.aiProvider = value;
-                    // Обновляем список моделей в зависимости от провайдера
-                    this.updateModelList(value);
-                })
-            );
-        
-        // Список моделей (зависит от выбранного провайдера)
-        const modelSetting = new this.Setting(aiSettings)
-            .setName('Модель AI')
-            .setDesc('Выберите модель AI для использования');
-        
-        this.createModelDropdown(modelSetting, this.settings.aiProvider || 'openrouter');
-        
-        new this.Setting(aiSettings)
-            .setName('Максимум токенов')
-            .setDesc('Максимальное количество токенов в ответе')
-            .addSlider(slider => slider
-                .setLimits(100, 4000, 100)
-                .setValue(this.settings.maxTokens || 2000)
-                .setDynamicTooltip()
-                .onChange(value => {
-                    this.settings.maxTokens = value;
-                })
-            );
-        
-        new this.Setting(aiSettings)
-            .setName('Температура')
-            .setDesc('Креативность ответов (0.0 - 1.0)')
-            .addSlider(slider => slider
-                .setLimits(0, 1, 0.1)
-                .setValue(this.settings.temperature || 0.7)
-                .setDynamicTooltip()
-                .onChange(value => {
-                    this.settings.temperature = value;
-            })
-        );
-        
-        // Кнопки управления
-        const buttons = contentEl.createEl('div', { cls: 'modal-buttons' });
-        
-        const saveBtn = buttons.createEl('button', { text: 'Сохранить', cls: 'save-btn' });
-        saveBtn.onclick = () => {
-            this.onSave(this.settings);
-            this.close();
-        };
-        
-        const cancelBtn = buttons.createEl('button', { text: 'Отмена', cls: 'cancel-btn' });
-        cancelBtn.onclick = () => this.close();
-        
-        // Метод для обновления списка ключей
-        this.renderKeys = () => {
-            const keysContainer = contentEl.querySelector('.keys-container');
-            if (keysContainer) {
-                keysContainer.empty();
-                keysContainer.createEl('h3', { text: 'Текущие ключи:' });
-                
-                if (this.settings.aiKeys && this.settings.aiKeys.length > 0) {
-                    this.settings.aiKeys.forEach((key, index) => {
-                        const keyItem = keysContainer.createEl('div', { cls: 'key-item' });
-                        keyItem.createEl('span', { text: `Ключ ${index + 1}: ${key.substring(0, 8)}...` });
-                        
-                        const deleteBtn = keyItem.createEl('button', { text: 'Удалить', cls: 'delete-btn' });
-                        deleteBtn.onclick = () => {
-                            this.settings.aiKeys.splice(index, 1);
-                            this.renderKeys();
-                        };
-                    });
-                } else {
-                    keysContainer.createEl('p', { text: 'Ключи не добавлены' });
-                }
-            }
-        };
-    }
-    
-    // Метод для создания выпадающего списка моделей
-    createModelDropdown(setting, provider) {
-        const models = this.getModelsForProvider(provider);
-        setting.addDropdown(dropdown => {
-            models.forEach(model => {
-                dropdown.addOption(model.value, model.label);
-            });
-            dropdown.setValue(this.settings.defaultModel || models[0].value);
-            dropdown.onChange(value => {
-                this.settings.defaultModel = value;
-            });
-        });
-    }
-    
-    // Метод для получения списка моделей по провайдеру
-    getModelsForProvider(provider) {
-        switch (provider) {
-            case 'openrouter':
-                return [
-                    { value: 'openrouter/mistralai/mistral-7b-instruct', label: 'Mistral 7B (бесплатно)' },
-                    { value: 'openrouter/meta-llama/llama-2-7b-chat', label: 'Llama 2 7B (бесплатно)' },
-                    { value: 'openrouter/meta-llama/llama-2-13b-chat', label: 'Llama 2 13B (бесплатно)' },
-                    { value: 'openrouter/anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (платно)' },
-                    { value: 'openrouter/openai/gpt-4', label: 'GPT-4 (платно)' },
-                    { value: 'openrouter/openai/gpt-3.5-turbo', label: 'GPT-3.5 Turbo (платно)' }
-                ];
-            case 'anthropic':
-                return [
-                    { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (платно)' },
-                    { value: 'anthropic/claude-3-haiku', label: 'Claude 3 Haiku (платно)' },
-                    { value: 'anthropic/claude-2.1', label: 'Claude 2.1 (платно)' }
-                ];
-            case 'openai':
-                return [
-                    { value: 'openai/gpt-4', label: 'GPT-4 (платно)' },
-                    { value: 'openai/gpt-3.5-turbo', label: 'GPT-3.5 Turbo (платно)' },
-                    { value: 'openai/gpt-4-turbo', label: 'GPT-4 Turbo (платно)' }
-                ];
-            default:
-                return [
-                    { value: 'openrouter/mistralai/mistral-7b-instruct', label: 'Mistral 7B (бесплатно)' }
-                ];
-        }
-    }
-    
-    // Метод для обновления списка моделей
-    updateModelList(provider) {
-        const modelSetting = this.contentEl.querySelector('.ai-settings .setting-item:has(.setting-item-name:contains("Модель AI"))');
-        if (modelSetting) {
-            modelSetting.remove();
-        }
-        
-        const newModelSetting = new this.Setting(this.contentEl.querySelector('.ai-settings'))
-            .setName('Модель AI')
-            .setDesc('Выберите модель AI для использования');
-        
-        this.createModelDropdown(newModelSetting, provider);
-    }
-    
-    onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
-    }
-}
 
-// Модальное окно выбора промпта: вертикальный список, предпросмотр, копирование
-class PromptSelectorModal extends HtmlWizardModal {
-    constructor(app, prompts, onSelect) {
-        super(app);
-        this.prompts = prompts;
-        this.onSelect = onSelect;
-    }
-
-    onOpen() {
-        this.applyBaseStyles();
-        this.render();
-    }
-
-    render() {
-        this.contentEl.empty();
-        this.contentEl.addClass('lt-wizard');
-        this.contentEl.createEl('h2', { text: 'Выберите промпт', cls: 'lt-modal-title' });
-        const list = this.contentEl.createEl('div', { cls: 'lt-prompt-list' });
-        // В начало списка добавить специальный пункт
-        const importItem = list.createEl('div', {
-            cls: 'lt-prompt-item lt-prompt-import',
-            text: '🡇 Импортировать факты из буфера',
-            title: 'Вставить факты из буфера обмена в базу проекта'
-        });
-        importItem.onclick = () => {
-            try {
-                // Важно: вызываем команду сразу в обработчике клика (user gesture)
-                this.app.commands.executeCommandById('literary-templates:import-facts-from-clipboard');
-            } catch (err) {
-                if (this.app && this.app.logDebug) this.app.logDebug('Ошибка вызова команды импорта: ' + err.message);
-            } finally {
-                // Закрываем модал после запуска команды
-                this.close();
-            }
-        };
-        // Визуальный разделитель
-        list.createEl('div', { cls: 'lt-prompt-separator' });
-        // Далее — обычные промпты
-        this.prompts.forEach((prompt, idx) => {
-             
-            const item = list.createEl('div', {
-                cls: 'lt-prompt-item',
-                text: prompt.tags.title,
-                title: prompt.tags.description || ''
-            });
-            item.onclick = () => {
-                if (this.onSelect) this.onSelect(prompt);
-                this.close();
-            };
-        });
-        // ... добавить стили для .lt-prompt-import и .lt-prompt-separator ...
-    }
-}
-
-// Fallback AI сервис для случаев, когда основной недоступен
-class FallbackAIProviderService {
-    constructor(pluginContext) {
-        this.plugin = pluginContext;
-        // console.log('⚠️ FallbackAIProviderService создан');
-    }
-    
-    async generateText(prompt) {
-        // console.log('⚠️ FallbackAIProviderService.generateText вызван:', prompt.substring(0, 50) + '...');
-        return {
-            text: `[FALLBACK] Запрос: ${prompt}\n\nЭто fallback ответ, так как основной AI сервис недоступен.`,
-            success: false,
-            fallback: true
-        };
-    }
-}
 
 module.exports = LiteraryTemplatesPlugin; 

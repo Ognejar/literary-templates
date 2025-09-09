@@ -406,39 +406,39 @@ class VillageWizardModal extends EntityWizardBase {
             el.createEl('h3', { text: 'Выберите государство:' });
             const stateContainer = el.createDiv();
             stateContainer.style.cssText = `
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-                margin-bottom: 20px;
-            `;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        `;
             statesList.forEach(state => {
                 const btn = stateContainer.createEl('button', { text: state });
-                btn.style.cssText = `
-                    padding: 8px 16px;
-                    margin: 0;
+            btn.style.cssText = `
+                padding: 8px 16px;
+                margin: 0;
                     background: ${this.state.state === state ? 'var(--interactive-accent)' : 'var(--background-secondary)'};
                     color: ${this.state.state === state ? 'var(--text-on-accent)' : 'var(--text-normal)'};
-                    border: 1px solid var(--background-modifier-border);
-                    border-radius: 6px;
-                    font-size: 14px;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                `;
-                btn.addEventListener('mouseenter', () => {
+                border: 1px solid var(--background-modifier-border);
+                border-radius: 6px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            `;
+            btn.addEventListener('mouseenter', () => {
                     if (this.state.state !== state) {
-                        btn.style.background = 'var(--background-modifier-hover)';
-                    }
-                });
-                btn.addEventListener('mouseleave', () => {
-                    if (this.state.state !== state) {
-                        btn.style.background = 'var(--background-secondary)';
-                    }
-                });
-                btn.onclick = () => {
-                    this.state.state = state;
-                    this.render();
-                };
+                    btn.style.background = 'var(--background-modifier-hover)';
+                }
             });
+            btn.addEventListener('mouseleave', () => {
+                    if (this.state.state !== state) {
+                    btn.style.background = 'var(--background-secondary)';
+                }
+            });
+            btn.onclick = () => {
+                    this.state.state = state;
+                this.render();
+            };
+        });
         }
         
         // Ручной ввод
@@ -503,42 +503,42 @@ class VillageWizardModal extends EntityWizardBase {
         console.log(`🗺️ Провинции для государства "${this.state.state}":`, filteredProvinces);
         
         if (filteredProvinces.length > 0) {
-            el.createEl('h3', { text: 'Выберите провинцию:' });
-            const provinceContainer = el.createDiv();
-            provinceContainer.style.cssText = `
-                display: flex;
+                el.createEl('h3', { text: 'Выберите провинцию:' });
+                const provinceContainer = el.createDiv();
+                provinceContainer.style.cssText = `
+                    display: flex;
                 wrap: wrap;
-                gap: 8px;
-                margin-bottom: 20px;
-            `;
-            filteredProvinces.forEach(province => {
-                const btn = provinceContainer.createEl('button', { text: province });
-                btn.style.cssText = `
-                    padding: 8px 16px;
-                    margin: 0;
-                    background: ${this.state.province === province ? 'var(--interactive-accent)' : 'var(--background-secondary)'};
-                    color: ${this.state.province === province ? 'var(--text-on-accent)' : 'var(--text-normal)'};
-                    border: 1px solid var(--background-modifier-border);
-                    border-radius: 6px;
-                    font-size: 14px;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
+                    gap: 8px;
+                    margin-bottom: 20px;
                 `;
-                btn.addEventListener('mouseenter', () => {
-                    if (this.state.province !== province) {
-                        btn.style.background = 'var(--background-modifier-hover)';
-                    }
+            filteredProvinces.forEach(province => {
+                    const btn = provinceContainer.createEl('button', { text: province });
+                    btn.style.cssText = `
+                        padding: 8px 16px;
+                        margin: 0;
+                        background: ${this.state.province === province ? 'var(--interactive-accent)' : 'var(--background-secondary)'};
+                        color: ${this.state.province === province ? 'var(--text-on-accent)' : 'var(--text-normal)'};
+                        border: 1px solid var(--background-modifier-border);
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                    `;
+                    btn.addEventListener('mouseenter', () => {
+                        if (this.state.province !== province) {
+                            btn.style.background = 'var(--background-modifier-hover)';
+                        }
+                    });
+                    btn.addEventListener('mouseleave', () => {
+                        if (this.state.province !== province) {
+                            btn.style.background = 'var(--background-secondary)';
+                        }
+                    });
+                    btn.onclick = () => {
+                        this.state.province = province;
+                        this.render();
+                    };
                 });
-                btn.addEventListener('mouseleave', () => {
-                    if (this.state.province !== province) {
-                        btn.style.background = 'var(--background-secondary)';
-                    }
-                });
-                btn.onclick = () => {
-                    this.state.province = province;
-                    this.render();
-                };
-            });
         } else {
             el.createEl('p', { text: `Для государства "${this.state.state}" не найдено провинций.` });
             
@@ -584,25 +584,25 @@ class VillageWizardModal extends EntityWizardBase {
                     };
                 });
             }
-        }
-        
-        // Ручной ввод
-        el.createEl('h3', { text: 'Или введите вручную:' });
-        const input = el.createEl('input', { 
-            type: 'text', 
-            value: this.state.province, 
-            placeholder: 'Название провинции' 
-        });
-        input.style.cssText = `
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--background-modifier-border);
-            border-radius: 6px;
-            font-size: 16px;
-            background: var(--background-primary);
-            color: var(--text-normal);
-        `;
-        input.addEventListener('input', e => { this.state.province = input.value; });
+            }
+            
+            // Ручной ввод
+            el.createEl('h3', { text: 'Или введите вручную:' });
+            const input = el.createEl('input', { 
+                type: 'text', 
+                value: this.state.province, 
+                placeholder: 'Название провинции' 
+            });
+            input.style.cssText = `
+                width: 100%;
+                padding: 12px;
+                border: 1px solid var(--background-modifier-border);
+                border-radius: 6px;
+                font-size: 16px;
+                background: var(--background-primary);
+                color: var(--text-normal);
+            `;
+            input.addEventListener('input', e => { this.state.province = input.value; });
         
         this.renderNav(el, async () => {
             if (!this.state.province.trim()) {

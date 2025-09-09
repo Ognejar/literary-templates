@@ -7,9 +7,23 @@ $files = [
     'modals.js',           // Сначала вспомогательные модальные окна
     'projectRoot.js',      // Затем утилиты
     'src/settingsService.js', // Сервис настроек и тэговых картинок
+    // Новые модули main.js
+    'src/CommandRegistry.js',
+    'src/UIHelpers.js',
+    'src/MenuRegistry.js',
+    'src/TemplateManager.js',
+    'src/ProjectManager.js',
+    'src/SettingsManager.js',
+    'src/ProjectDiscovery.js',
+    'src/FileUtils.js',
+    // База фактов
+    'src/FactsService.js',
     // AI сервисы
     'src/KeyRotationService.js',
     'src/AIProviderService.js',
+    'src/AIService.js',
+    'src/FallbackAIProviderService.js',
+    'src/AIKeysManagerModal.js',
     'src/LoreAnalyzerService.js',
     // Сервисы для работы с временными слоями
     'src/TimelineService.js',
@@ -22,8 +36,10 @@ $files = [
     'helpers/strings.js',
     'ui/adapters/ObsidianSettingAdapter.js',
     'ui/WizardUI.js',
+    'src/Globals.js',
     // Базовые классы для визардов (ПЕРЕД всеми визардами!)
     'creators/HtmlWizardModal.js',
+    'src/PromptSelectorModal.js',
     'creators/EntityWizardBase.js',
     'creators/EntityFactory.js',
     'creators/LoreAnalysisModal.js',
@@ -210,8 +226,13 @@ echo "Восстановлено $countWindowGlobal строк глобализ�
 
 // Удаляю добавление глобализации WorkCreationModal и createWork в конец файла (str_replace) - больше не нужно
 
-// Добавляем глобализацию TimelineService как конструктор
-$main .= "\n// Глобализация TimelineService для работы createWork\n";
+// Добавляем глобализацию новых модулей
+$main .= "\n// Глобализация новых модулей main.js\n";
+$main .= "window.CommandRegistry = CommandRegistry;\n";
+$main .= "window.UIHelpers = UIHelpers;\n";
+$main .= "window.TemplateManager = TemplateManager;\n";
+$main .= "window.ProjectManager = ProjectManager;\n";
+$main .= "window.SettingsManager = SettingsManager;\n";
 $main .= "window.TimelineService = TimelineService;\n";
 $main .= "window.WorkCreationModal = WorkCreationModal;\n";
 $main .= "window.CityWizardModal = CityWizardModal;\n";

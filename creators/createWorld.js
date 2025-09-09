@@ -298,7 +298,7 @@ planned | started | writing | done | abandoned
                     const content = fileName === 'Справочник_писателя.md' ? hub : page(title);
                 await safeCreateFile(full, content, app);
                 console.log('Файл справочника создан:', full);
-            } catch (e) {
+                } catch (e) {
                 console.error('Ошибка создания файла справочника', fileName, ':', e.message);
             }
             }

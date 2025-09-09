@@ -229,12 +229,17 @@ class WorkCreationModal extends HtmlWizardModal {
     }
 
     updateYearRange() {
+        const yearInput = this.contentEl.querySelector('#work-year');
+        if (!yearInput) return;
         const selectedEpoch = this.epochs.find(e => e.id === this.state.epochId);
         if (selectedEpoch) {
-            const yearInput = this.contentEl.querySelector('#work-year');
             yearInput.min = selectedEpoch.startYear;
             yearInput.max = selectedEpoch.endYear;
             yearInput.placeholder = `${selectedEpoch.startYear}-${selectedEpoch.endYear}`;
+        } else {
+            yearInput.removeAttribute('min');
+            yearInput.removeAttribute('max');
+            yearInput.placeholder = 'Год (опционально)';
         }
     }
 
@@ -282,13 +287,8 @@ class WorkCreationModal extends HtmlWizardModal {
     }
 
     isFormValid() {
-        return this.state.title.trim() !== '' &&
-               this.state.id.trim() !== '' &&
-               this.state.description.trim() !== '' &&
-               this.state.epochId !== '' &&
-               this.state.year !== '' &&
-               this.state.context.trim() !== '' &&
-               this.state.author.trim() !== '';
+        // Минимально требуем только название (ID генерируется из него)
+        return this.state.title.trim() !== '' && this.state.id.trim() !== '';
     }
 
     async createWork() {
@@ -299,10 +299,6 @@ class WorkCreationModal extends HtmlWizardModal {
             }
 
             const selectedEpoch = this.epochs.find(e => e.id === this.state.epochId);
-            if (!selectedEpoch) {
-                console.error('Эпоха не найдена');
-                return;
-            }
 
             // Показываем индикатор загрузки
             const createBtn = this.contentEl.querySelector('.create-work-btn');
@@ -322,12 +318,12 @@ class WorkCreationModal extends HtmlWizardModal {
                 title: this.state.title.trim(),
                 id: this.state.id.trim(),
                 description: this.state.description.trim(),
-                epochId: this.state.epochId,
-                epoch: selectedEpoch.name,
-                epochName: selectedEpoch.name,
-                epochStartYear: selectedEpoch.startYear,
-                epochEndYear: selectedEpoch.endYear,
-                year: parseInt(this.state.year),
+                epochId: this.state.epochId || '',
+                epoch: selectedEpoch ? selectedEpoch.name : '',
+                epochName: selectedEpoch ? selectedEpoch.name : '',
+                epochStartYear: selectedEpoch ? selectedEpoch.startYear : '',
+                epochEndYear: selectedEpoch ? selectedEpoch.endYear : '',
+                year: this.state.year === '' ? '' : parseInt(this.state.year, 10),
                 context: this.state.context.trim(),
                 workType: this.state.workType.trim(),
                 author: this.state.author.trim()
@@ -338,6 +334,18 @@ class WorkCreationModal extends HtmlWizardModal {
             if (this.onWorkCreated) {
                 await this.onWorkCreated(workData);
             }
+
+            // Если автор изменён — сохранить в настройки
+            try {
+                const prevAuthor = (this.plugin.settings && this.plugin.settings.author) ? this.plugin.settings.author : '';
+                if (workData.author && workData.author !== prevAuthor) {
+                    this.plugin.settings = this.plugin.settings || {};
+                    this.plugin.settings.author = workData.author;
+                    if (typeof this.plugin.saveSettings === 'function') {
+                        await this.plugin.saveSettings();
+                    }
+                }
+            } catch (_) {}
 
             // Успешное завершение
             if (typeof Notice !== 'undefined') {
