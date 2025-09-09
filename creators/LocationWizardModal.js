@@ -23,19 +23,18 @@ class LocationWizardModal extends EntityWizardBase {
         this.step = 0;
         this.data = {
             locationName: '',
-            type: 'Локация',
+            type: '',
             description: '',
             region: '',
             climate: '',
-            faction: '',
+            state: '',
             status: 'действует', // действует, заброшено, разрушено
             statusReason: '', // причина заброшенности/разрушения
         };
         this.config = {
-            locationTypes: [],
-            climates: [],
-            factions: [],
             provinces: [],
+            states: [],
+            climates: [],
             statuses: [
                 { value: 'действует', label: 'Действует', icon: '✅' },
                 { value: 'заброшено', label: 'Заброшено', icon: '🏚️' },
@@ -72,32 +71,62 @@ class LocationWizardModal extends EntityWizardBase {
                 this.close();
                 return;
             }
+
+            // Загружаем климаты из настроек
             const settingsFile = this.app.vault.getAbstractFileByPath(`${projectRoot}/Настройки_мира.md`);
             if (settingsFile instanceof TFile) {
                 const content = await this.app.vault.read(settingsFile);
                 const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
                 if (configMatch && configMatch[1]) {
                     const parsedConfig = JSON.parse(configMatch[1]);
-                    this.config.locationTypes = parsedConfig.locations.locationTypes || [];
-                    this.config.climates = parsedConfig.locations.climates || [];
-                    this.config.factions = parsedConfig.locations.factions || [];
+                    this.config.climates = parsedConfig.locations?.climates || [];
                 }
             }
 
+            // Загружаем государства и провинции из папки Локации
             const locationsFolder = `${projectRoot}/Локации`;
             const folder = this.app.vault.getAbstractFileByPath(locationsFolder);
             if (folder && folder.children) {
-                this.config.provinces = folder.children
-                    .filter(f => f instanceof TFile && f.extension === 'md' && f.basename.includes('Провинция') && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
-                    .map(f => f.basename);
+                // Загружаем государства
+                const statesFolder = this.app.vault.getAbstractFileByPath(`${locationsFolder}/Государства`);
+                if (statesFolder && statesFolder.children) {
+                    this.config.states = [];
+                    for (const file of statesFolder.children) {
+                        if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                            try {
+                                const content = await this.app.vault.read(file);
+                                const nameMatch = content.match(/^name:\s*["']?([^"'\n]+)["']?/m);
+                                const name = nameMatch ? nameMatch[1].trim() : file.basename;
+                                this.config.states.push(name);
+                            } catch (e) {
+                                console.error(`Ошибка чтения файла государства ${file.basename}:`, e);
+                                this.config.states.push(file.basename);
+                            }
+                        }
+                    }
+                }
+                
+                // Загружаем провинции с их государствами
+                const provincesFolder = this.app.vault.getAbstractFileByPath(`${locationsFolder}/Провинции`);
+                if (provincesFolder && provincesFolder.children) {
+                    this.config.provinces = [];
+                    for (const file of provincesFolder.children) {
+                        if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                            try {
+                                const content = await this.app.vault.read(file);
+                                const stateMatch = content.match(/^state:\s*["']?([^"'\n]+)["']?/m);
+                                const state = stateMatch ? stateMatch[1].trim() : '';
+                                this.config.provinces.push({
+                                    name: file.basename,
+                                    state: state
+                                });
+                            } catch (e) {
+                                console.error(`Ошибка чтения файла провинции ${file.basename}:`, e);
+                            }
+                        }
+                    }
+                }
             }
-            // Инициализируем this.data.type, this.data.climate и this.data.faction здесь, после загрузки конфига
-            this.data.type = this.data.type || this.config.locationTypes[0] || '';
-            this.data.climate = this.data.climate || this.config.climates[0] || '';
-            this.data.faction = this.data.faction || this.config.factions[0] || '';
-
-            console.log('DEBUG: LocationWizardModal - Config loaded. this.config.locationTypes:', this.config.locationTypes, 'climates:', this.config.climates, 'factions:', this.config.factions);
-            console.log('DEBUG: LocationWizardModal - Data initialized. type:', this.data.type, 'climate:', this.data.climate, 'faction:', this.data.faction);
         } catch (e) {
             new this.Notice('Ошибка загрузки конфигурации: ' + e.message);
             console.error('Ошибка загрузки конфигурации:', e);
@@ -122,23 +151,23 @@ class LocationWizardModal extends EntityWizardBase {
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 2:
-                this.titleEl.setText('Создание новой локации - Шаг 3/6: Тип, Климат, Фракция');
-                this.renderTypeClimateFaction(contentEl);
+                this.titleEl.setText('Создание новой локации - Шаг 3/6: Тип и Климат');
+                this.renderTypeAndClimate(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 3:
-                this.titleEl.setText('Создание новой локации - Шаг 4/6: Провинция');
-                this.renderProvince(contentEl);
+                this.titleEl.setText('Создание новой локации - Шаг 4/6: Государство');
+                this.renderState(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 4:
-                this.titleEl.setText('Создание новой локации - Шаг 5/6: Описание');
-                this.renderDescription(contentEl);
+                this.titleEl.setText('Создание новой локации - Шаг 5/6: Провинция');
+                this.renderProvince(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta" id="next">Далее</button>';
                 break;
             case 5:
-                this.titleEl.setText('Создание новой локации - Шаг 6/6: Особенности и Предпросмотр');
-                this.renderFeatures(contentEl);
+                this.titleEl.setText('Создание новой локации - Шаг 6/6: Описание и Предпросмотр');
+                this.renderDescription(contentEl);
                 this.renderPreview(contentEl);
                 navButtons = '<button id="prev">Назад</button><button class="mod-cta">Создать</button>';
                 break;
@@ -202,39 +231,32 @@ class LocationWizardModal extends EntityWizardBase {
         }
     }
 
-    renderTypeClimateFaction(contentEl) {
+    renderTypeAndClimate(contentEl) {
         new this.Setting(contentEl)
             .setName('Тип локации')
-            .addDropdown(dropdown => {
-                this.config.locationTypes.forEach(type => dropdown.addOption(type, type));
-                dropdown.setValue(this.data.type || this.config.locationTypes[0]);
-                dropdown.onChange(value => this.data.type = value);
-                // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
+            .addText(text => {
+                text.setPlaceholder('Например: Пещера, Руины, Святилище, Лес, Гора')
+                    .setValue(this.data.type)
+                    .onChange(value => {
+                        this.data.type = value;
+                    });
+                // Увеличиваем размер поля
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
 
         new this.Setting(contentEl)
             .setName('Климат')
             .addDropdown(dropdown => {
-                this.config.climates.forEach(climate => dropdown.addOption(climate, climate));
-                dropdown.setValue(this.data.climate || this.config.climates[0]);
+                dropdown.addOption('', 'Выберите климат (опционально)');
+                const fallbackClimates = ['Тропический', 'Умеренный', 'Холодный', 'Пустынный', 'Горный', 'Прибрежный', 'Субтропический'];
+                const climates = this.config.climates.length > 0 ? this.config.climates : fallbackClimates;
+                climates.forEach(climate => dropdown.addOption(climate, climate));
+                dropdown.setValue(this.data.climate);
                 dropdown.onChange(value => this.data.climate = value);
                 // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
-            });
-
-        new this.Setting(contentEl)
-            .setName('Фракция')
-            .addDropdown(dropdown => {
-                this.config.factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.faction || this.config.factions[0]);
-                dropdown.onChange(value => this.data.faction = value);
-                // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
+                dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
                 dropdown.selectEl.style.padding = '6px';
             });
@@ -245,9 +267,32 @@ class LocationWizardModal extends EntityWizardBase {
             .setName('Провинция (опционально)')
             .addDropdown(dropdown => {
                 dropdown.addOption('', 'Выберите провинцию (опционально)');
-                this.config.provinces.forEach(province => dropdown.addOption(province, province));
+                
+                // Фильтруем провинции по выбранному государству
+                const filteredProvinces = this.data.state 
+                    ? this.config.provinces.filter(province => 
+                        province.state === this.data.state
+                      )
+                    : this.config.provinces;
+                
+                filteredProvinces.forEach(province => dropdown.addOption(province.name, province.name));
                 dropdown.setValue(this.data.province);
                 dropdown.onChange(value => this.data.province = value);
+                // Увеличиваем размер выпадающего списка
+                dropdown.selectEl.style.minWidth = '320px';
+                dropdown.selectEl.style.fontSize = '14px';
+                dropdown.selectEl.style.padding = '6px';
+            });
+    }
+
+    renderState(contentEl) {
+        new this.Setting(contentEl)
+            .setName('Государство (опционально)')
+            .addDropdown(dropdown => {
+                dropdown.addOption('', 'Выберите государство (опционально)');
+                this.config.states.forEach(state => dropdown.addOption(state, state));
+                dropdown.setValue(this.data.state);
+                dropdown.onChange(value => this.data.state = value);
                 // Увеличиваем размер выпадающего списка
                 dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
@@ -273,25 +318,6 @@ class LocationWizardModal extends EntityWizardBase {
             });
     }
 
-    renderFeatures(contentEl) {
-        const featureContainer = contentEl.createEl('div', { cls: 'features-container' });
-        new this.Setting(featureContainer)
-            .setName('Особенности (каждая с новой строки)')
-            .addTextArea(text => {
-                text.setPlaceholder('Добавьте особенности, каждую с новой строки')
-                    .setValue(this.data.features.join('\\n'))
-                    .onChange(value => {
-                        this.data.features = value.split('\\n').map(f => f.trim()).filter(f => f.length > 0);
-                        this.renderPreview(this.contentEl); // Обновляем предпросмотр
-                    });
-                // Увеличиваем размер текстового поля
-                text.inputEl.style.width = '100%';
-                text.inputEl.style.minHeight = '120px';
-                text.inputEl.style.fontSize = '14px';
-                text.inputEl.style.lineHeight = '1.4';
-                text.inputEl.style.padding = '8px';
-            });
-    }
 
     renderPreview(contentEl) {
         const previewEl = contentEl.createEl('div', { cls: 'preview-section' });
@@ -299,12 +325,13 @@ class LocationWizardModal extends EntityWizardBase {
         previewEl.createEl('p', { text: `**Название:** ${this.data.locationName}` });
         previewEl.createEl('p', { text: `**Тип:** ${this.data.type}` });
         previewEl.createEl('p', { text: `**Климат:** ${this.data.climate}` });
-        previewEl.createEl('p', { text: `**Фракция:** ${this.data.faction}` });
         if (this.data.province) {
             previewEl.createEl('p', { text: `**Провинция:** ${this.data.province}` });
         }
+        if (this.data.state) {
+            previewEl.createEl('p', { text: `**Государство:** ${this.data.state}` });
+        }
         previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
-        previewEl.createEl('p', { text: `**Особенности:** ${this.data.features.join(', ')}` });
     }
 
     renderNav(contentEl, buttonsHtml) {
@@ -341,22 +368,13 @@ class LocationWizardModal extends EntityWizardBase {
                 break;
             case 1: // Статус — специфической валидации нет
                 break;
-            case 2: // Тип, Климат, Фракция
-                if (!this.data.type || !this.data.climate || !this.data.faction) {
-                    new this.Notice('Пожалуйста, выберите тип, климат и фракцию.');
-                    return false;
-                }
+            case 2: // Тип и Климат — все опционально
                 break;
-            case 3: // Провинция (опционально)
-                // Ничего не проверяем — опционально
+            case 3: // Государство (опционально)
                 break;
-            case 4: // Описание
-                if (!this.data.description.trim()) {
-                    new this.Notice('Пожалуйста, введите описание локации.');
-                    return false;
-                }
+            case 4: // Провинция (опционально)
                 break;
-            case 5: // Особенности (опционально)
+            case 5: // Описание — опционально
                 break;
         }
         return true;

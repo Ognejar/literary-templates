@@ -18,7 +18,6 @@ const { EntityWizardBase } = require('./EntityWizardBase.js');
 var CastleWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
@@ -51,23 +50,11 @@ var CastleWizardModal = class extends EntityWizardBase {
                 { value: 'разрушено', label: 'Разрушено', icon: '💥' }
             ]
         };
-
-
-        this.steps = [
-            'Название и тип',
-            'Статус фортификации',
-            'Климат и фракция',
-            'Государство и провинция',
-            'Описание',
-            'Укрепления',
-            'Гарнизон',
-            'Примечательные особенности',
-            'Предпросмотр'
-        ];
+        // Используем синхронную инициализацию, как в других модулях
+        this.projectRoot = projectRoot;
     }
 
     async onOpen() {
-        // Добавляем общие стили для модального окна
         this.modalEl.style.cssText = `
             max-width: 900px !important;
             width: 900px !important;

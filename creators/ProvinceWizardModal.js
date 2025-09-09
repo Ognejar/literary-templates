@@ -17,7 +17,6 @@ const { EntityWizardBase } = require('./EntityWizardBase.js');
 var ProvinceWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, plugin, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.projectRoot = projectRoot;
         this.plugin = plugin;
         this.onFinish = onFinish;
         this.step = 0;
@@ -39,6 +38,8 @@ var ProvinceWizardModal = class extends EntityWizardBase {
             castles: [],
             // Убраны поля history и populationHistory - теперь вводятся вручную в шаблоне
         };
+        // Используем синхронную инициализацию, как в других модулях
+        this.projectRoot = projectRoot;
     }
 
     async onOpen() {

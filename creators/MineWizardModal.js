@@ -17,7 +17,6 @@ const { EntityWizardBase } = require('./EntityWizardBase.js');
 var MineWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
@@ -37,7 +36,6 @@ var MineWizardModal = class extends EntityWizardBase {
         };
         this.config = {
             climates: [],
-            factions: [],
             provinces: [],
             states: [],
             statuses: [
@@ -47,6 +45,7 @@ var MineWizardModal = class extends EntityWizardBase {
             ],
             mineTypes: ['Железная руда', 'Медная руда', 'Золотая руда', 'Серебряная руда', 'Уголь', 'Соль', 'Драгоценные камни', 'Другое']
         };
+        this.projectRoot = projectRoot;
     }
 
     async onOpen() {
@@ -80,7 +79,6 @@ var MineWizardModal = class extends EntityWizardBase {
             // Используем settingsService для загрузки конфигурации
             if (window.litSettingsService) {
                 this.config.climates = await window.litSettingsService.getClimates(this.app, this.projectRoot) || [];
-                this.config.factions = await window.litSettingsService.getFactions(this.app, this.projectRoot) || [];
             } else {
                 // Fallback к старому методу
                 const settingsFile = this.app.vault.getAbstractFileByPath(`${this.projectRoot}/Настройки_мира.md`);
@@ -90,30 +88,22 @@ var MineWizardModal = class extends EntityWizardBase {
                     if (configMatch && configMatch[1]) {
                         const parsedConfig = JSON.parse(configMatch[1]);
                         this.config.climates = parsedConfig.locations?.climates || [];
-                        this.config.factions = parsedConfig.locations?.factions || [];
                     }
                 }
             }
 
             // Загружаем провинции
-            const provincesFolder = `${this.projectRoot}/Локации/Провинции`;
-            const provincesFolderObj = this.app.vault.getAbstractFileByPath(provincesFolder);
-            if (provincesFolderObj && provincesFolderObj.children) {
-                this.config.provinces = provincesFolderObj.children
-                    .filter(f => f instanceof TFile && f.extension === 'md')
-                    .map(f => f.basename);
-            }
+            this.config.provinces = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Провинции`, 'Провинции');
 
             // Загружаем государства
             this.config.states = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
-            this.data.dominantFaction = this.data.dominantFaction || (this.config.factions[0] || '');
             this.data.mineType = this.data.mineType || (this.config.mineTypes[0] || '');
 
-            console.log('DEBUG: MineWizardModal - Config loaded. climates:', this.config.climates, 'factions:', this.config.factions);
-            console.log('DEBUG: MineWizardModal - Data initialized. climate:', this.data.climate, 'dominantFaction:', this.data.dominantFaction);
+            console.log('DEBUG: MineWizardModal - Config loaded. climates:', this.config.climates);
+            console.log('DEBUG: MineWizardModal - Data initialized. climate:', this.data.climate);
         } catch (e) {
             new this.Notice('Ошибка загрузки конфигурации: ' + e.message);
             console.error('Ошибка загрузки конфигурации:', e);
@@ -208,13 +198,13 @@ var MineWizardModal = class extends EntityWizardBase {
 
         new this.Setting(contentEl)
             .setName('Доминирующая фракция')
-            .addDropdown(dropdown => {
-                this.config.factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.dominantFaction || this.config.factions[0]);
-                dropdown.onChange(value => this.data.dominantFaction = value);
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
+            .addText(text => {
+                text.setValue(this.data.dominantFaction || '')
+                    .setPlaceholder('Введите название фракции')
+                    .onChange(value => this.data.dominantFaction = value);
+                text.inputEl.style.minWidth = '280px';
+                text.inputEl.style.fontSize = '14px';
+                text.inputEl.style.padding = '6px';
             });
     }
 
@@ -402,8 +392,8 @@ var MineWizardModal = class extends EntityWizardBase {
                 }
                 break;
             case 2: // Climate and Faction
-                if (!this.data.climate || !this.data.dominantFaction) {
-                    new this.Notice('Пожалуйста, выберите климат и доминирующую фракцию.');
+                if (!this.data.climate) {
+                    new this.Notice('Пожалуйста, выберите климат.');
                     return false;
                 }
                 break;

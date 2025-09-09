@@ -40,7 +40,6 @@ const { EntityWizardBase } = require('./EntityWizardBase.js');
 var CityWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
@@ -68,6 +67,8 @@ var CityWizardModal = class extends EntityWizardBase {
             uniqueFeaturesSection: '', // Добавляем для шаблона
             features: []
         };
+        // Используем синхронную инициализацию, как в других модулях
+        this.projectRoot = projectRoot;
         this.config = {
             climates: [],
             factions: [],

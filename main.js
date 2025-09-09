@@ -115,9 +115,24 @@ function findProjectRoot(app, startPath = '') {
  * @returns {boolean} - true если это папка проектов
  */
 function isProjectFolder(app, folderPath) {
-    const projectMarkerFile = `${folderPath}/Проекты.md`;
-    const file = app.vault.getAbstractFileByPath(projectMarkerFile);
-    return file && file instanceof TFile;
+    // Папка проектов - та, где лежат папки миров
+    // Проверяем, есть ли в ней подпапки с файлом "Настройки_мира.md"
+    const folder = app.vault.getAbstractFileByPath(folderPath);
+    if (!folder || !(folder instanceof TFolder)) return false;
+    
+    const children = folder.children;
+    if (!children || children.length === 0) return false;
+    
+    // Ищем хотя бы одну подпапку с файлом "Настройки_мира.md"
+    for (const child of children) {
+        if (child instanceof TFolder) {
+            const settingsFile = app.vault.getAbstractFileByPath(`${child.path}/Настройки_мира.md`);
+            if (settingsFile && settingsFile instanceof TFile) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
@@ -613,13 +628,39 @@ class LiteraryTemplatesPlugin extends Plugin {
         return '';
     }
 
-    // Вспомогательная функция для определения стартового пути из target
-    // Используется в addContextMenu, registerCommands и других местах
-    getStartPath(target) {
-        if (target instanceof TFile) return target.parent.path;
-        if (target instanceof TFolder) return target.path;
-        if (target && target.path) return target.path;
-        return '';
+    /**
+     * Получает текущий startPath из активного файла
+     * @returns {string} - Путь для начала поиска проекта
+     */
+    getCurrentStartPath() {
+        const activeFile = this.app.workspace.getActiveFile();
+        return activeFile ? this.getStartPath(activeFile) : '';
+    }
+
+    /**
+     * Создает callback для команды создания сущности с автоматическим определением startPath
+     * @param {Function} createFunction - Функция создания сущности
+     * @param {boolean} useWindow - Использовать window.createFunction вместо прямого вызова
+     * @returns {Function} - Callback для команды
+     */
+    createEntityCallback(createFunction, useWindow = false) {
+        return () => {
+            const currentStartPath = this.getCurrentStartPath();
+            if (useWindow) {
+                window[createFunction.name](this, currentStartPath);
+            } else {
+                createFunction(this, currentStartPath);
+            }
+        };
+    }
+
+    /**
+     * Получает корень проекта из активного файла
+     * @returns {string|null} - Путь к корню проекта или null
+     */
+    getCurrentProjectRoot() {
+        const startPath = this.getCurrentStartPath();
+        return startPath ? findProjectRoot(this.app, startPath) : null;
     }
 
     async insertTodoAtCursor() {
@@ -1440,8 +1481,7 @@ class LiteraryTemplatesPlugin extends Plugin {
             })
         );
 
-        const activeFile = this.app.workspace.getActiveFile();
-        const startPath = activeFile ? this.getStartPath(activeFile) : '';
+        const startPath = this.getCurrentStartPath();
 await this.loadButtonIconsScript();
 
 
@@ -1496,136 +1536,139 @@ await this.loadButtonIconsScript();
         this.addCommand({
             id: 'create-artifact',
             name: 'Создать артефакт',
-            callback: () => createArtifact(this, startPath),
+            callback: this.createEntityCallback(createArtifact),
         });
         this.addCommand({
             id: 'create-conflict',
             name: 'Создать конфликт (мастер)',
-            callback: () => createConflictWizard(this, startPath),
+            callback: this.createEntityCallback(createConflictWizard),
         });
         this.addCommand({
             id: 'create-chapter',
             name: 'Создать главу',
-            callback: () => createChapter(this, startPath),
+            callback: this.createEntityCallback(createChapter),
         });
         this.addCommand({
             id: 'create-scene',
             name: 'Создать сцену',
-            callback: () => createScene(this, startPath),
+            callback: this.createEntityCallback(createScene),
         });
         this.addCommand({
             id: 'create-village',
             name: 'Создать деревню',
-            callback: () => createVillage(this, startPath),
+            callback: this.createEntityCallback(createVillage),
         });
         this.addCommand({
             id: 'create-mine',
             name: 'Создать шахту',
-            callback: () => createMine(this, startPath),
+            callback: this.createEntityCallback(createMine),
         });
         this.addCommand({
             id: 'create-factory',
             name: 'Создать завод',
-            callback: () => createFactory(this, startPath),
+            callback: this.createEntityCallback(createFactory),
         });
         this.addCommand({
             id: 'create-farm',
             name: 'Создать ферму',
-            callback: () => createFarm(this, startPath),
+            callback: this.createEntityCallback(createFarm),
         });
         this.addCommand({
             id: 'create-city',
             name: 'Создать город',
-            callback: () => window.createCity(this, startPath),
+            callback: this.createEntityCallback(createCity),
         });
         this.addCommand({
             id: 'create-province',
             name: 'Создать провинцию',
-            callback: () => createProvince(this, startPath),
+            callback: this.createEntityCallback(createProvince),
         });
         this.addCommand({
             id: 'create-state',
             name: 'Создать государство',
-            callback: () => window.createState(this, startPath),
+            callback: this.createEntityCallback(createState),
         });
         this.addCommand({
             id: 'create-castle',
             name: 'Создать замок (мастер)',
-            callback: () => createCastle(this, startPath),
+            callback: this.createEntityCallback(createCastle),
         });
         this.addCommand({
             id: 'create-dead-zone',
-            name: 'Создать мертвую зону (мастер)',
-            callback: () => createDeadZone(this, startPath),
+            name: 'Создать мёртвую зону',
+            callback: this.createEntityCallback(createDeadZone),
         });
         this.addCommand({
             id: 'create-location',
             name: 'Создать общую локацию',
-            callback: () => createLocation(this, startPath),
+            callback: this.createEntityCallback(createLocation),
         });
         this.addCommand({
             id: 'create-port',
-            name: 'Создать порт (мастер)',
-            callback: () => {
-                this.logDebug('Функция createPort временно недоступна');
-            },
+            name: 'Создать порт',
+            callback: this.createEntityCallback(createPort),
         });
         this.addCommand({
             id: 'create-potion',
             name: 'Создать зелье',
-            callback: () => window.createPotion(this, startPath),
+            callback: this.createEntityCallback(createPotion),
+        });
+        this.addCommand({
+            id: 'create-alchemy-recipe',
+            name: 'Создать алхимический рецепт',
+            callback: this.createEntityCallback(createAlchemyRecipe),
         });
         this.addCommand({
             id: 'create-people',
             name: 'Создать народ',
-            callback: () => createPeople(this, startPath),
+            callback: this.createEntityCallback(createPeople),
         });
         this.addCommand({
             id: 'create-religion',
             name: 'Создать религию (мастер)',
-            callback: () => createReligionWizard(this, startPath),
+            callback: this.createEntityCallback(createReligionWizard),
         });
         this.addCommand({
             id: 'create-cult',
             name: 'Создать культ (мастер)',
-            callback: () => createCultWizard(this, startPath),
+            callback: this.createEntityCallback(createCultWizard),
         });
         this.addCommand({
             id: 'create-trade-route',
             name: 'Создать торговый путь (мастер)',
-            callback: () => createTradeRouteWizard(this, startPath),
+            callback: this.createEntityCallback(createTradeRouteWizard),
         });
         this.addCommand({
             id: 'create-faction',
             name: 'Создать фракцию (мастер)',
-            callback: () => createFactionWizard(this, startPath),
+            callback: this.createEntityCallback(createFactionWizard),
         });
         this.addCommand({
             id: 'create-quest',
             name: 'Создать квест (мастер)',
-            callback: () => createQuestWizard(this, startPath),
+            callback: this.createEntityCallback(createQuestWizard),
         });
         this.addCommand({
             id: 'create-event',
             name: 'Создать событие (мастер)',
-            callback: () => createEventWizard(this, startPath),
+            callback: this.createEntityCallback(createEventWizard),
         });
         this.addCommand({
             id: 'create-task',
             name: 'Создать задачу (мастер)',
-            callback: () => createTask(this, startPath),
+            callback: this.createEntityCallback(createTask),
         });
         this.addCommand({
             id: 'create-organization',
             name: 'Создать организацию (мастер)',
-            callback: () => createOrganizationWizard(this, startPath),
+            callback: this.createEntityCallback(createOrganizationWizard),
         });
 
         // Социальные учреждения (единый мастер)
         this.addCommand({
             id: 'create-social-institution',
             name: 'Создать социальный объект (мастер)',
-            callback: () => (window.createSocialInstitution ? window.createSocialInstitution(this, startPath) : null),
+            callback: this.createEntityCallback(createSocialInstitution),
         });
         
         // Команды для работы с эпохами и произведениями
@@ -1682,7 +1725,7 @@ await this.loadButtonIconsScript();
         this.addCommand({
             id: 'create-new-spell-wizard',
             name: 'Создать новое заклинание (мастер)',
-            callback: () => createSpell(this, startPath),
+            callback: this.createEntityCallback(createSpell),
         });
         this.addCommand({
             id: 'insert-todo',
@@ -1710,9 +1753,7 @@ await this.loadButtonIconsScript();
             name: 'Проект: добавить виджет задач (Dataview) на главную',
             callback: async () => {
                 try {
-                    const activeFile = this.app.workspace.getActiveFile();
-                    const startPath = activeFile ? activeFile.parent.path : '';
-                    const projectRoot = startPath ? findProjectRoot(this.app, startPath) : null;
+                    const projectRoot = this.getCurrentProjectRoot();
                     if (!projectRoot) { this.logDebug(`[ERROR] Проект не найден`); return; }
                     const mainPath = `${projectRoot}/${projectRoot.split('/').pop()}.md`;
                     const file = this.app.vault.getAbstractFileByPath(mainPath);
@@ -1742,9 +1783,7 @@ await this.loadButtonIconsScript();
             name: 'Проект: добавить список файлов (2 уровня)',
             callback: async () => {
                 try {
-                    const activeFile = this.app.workspace.getActiveFile();
-                    const startPath = activeFile ? activeFile.parent.path : '';
-                    const projectRoot = startPath ? findProjectRoot(this.app, startPath) : null;
+                    const projectRoot = this.getCurrentProjectRoot();
                     if (!projectRoot) { this.logDebug(`[ERROR] Проект не найден`); return; }
                     const mainPath = `${projectRoot}/${projectRoot.split('/').pop()}.md`;
                     const file = this.app.vault.getAbstractFileByPath(mainPath);
@@ -1887,18 +1926,12 @@ await this.loadButtonIconsScript();
         this.addCommand({
             id: 'create-new-character',
             name: 'Создать нового персонажа',
-            callback: async () => {
-                        try {
-            await window.createCharacter(this);
-        } catch (error) {
-            this.logDebug('Ошибка при создании персонажа: ' + error.message);
-        }
-            },
+            callback: this.createEntityCallback(createCharacter),
         });
         this.addCommand({
             id: 'create-monster',
             name: 'Создать монстра',
-            callback: () => createMonster(this, startPath),
+            callback: this.createEntityCallback(createMonster),
         });
         this.addCommand({
             id: 'create-world',
@@ -3100,14 +3133,6 @@ ${JSON.stringify(facts, null, 2)}
             console.error('logDebug error:', e);
         }
     }
-    // Вспомогательная функция для определения стартового пути из target
-    // Используется в addContextMenu, registerCommands и других местах
-    getStartPath(target) {
-        if (target instanceof TFile) return target.parent.path;
-        if (target instanceof TFolder) return target.path;
-        if (target && target.path) return target.path;
-        return '';
-    }
     // Вспомогательная функция для определения типа контента по имени файла
     // Используется в aiAnalyzeAndExtendNote и aiBuildLoreContext
     getContentTypeByName(filename) {
@@ -3374,7 +3399,7 @@ planned | started | writing | done | abandoned
                             if (target instanceof TFile) startPath = target.parent.path;
                             else if (target instanceof TFolder) startPath = target.path;
                             else if (target && target.path) startPath = target.path;
-                            window.createState(this, startPath);
+                            createState(this, startPath);
                         });
                     });
                     
@@ -3997,7 +4022,7 @@ planned | started | writing | done | abandoned
                     self._addMenuItem(subMenu, {
                         title: 'Создать зелье',
                         icon: 'potion',
-                        onClick: (startPath) => window.createPotion(self, startPath)
+                        onClick: (startPath) => createPotion(self, startPath)
                     }, target);
                     
                     self._addMenuItem(subMenu, {
@@ -4009,13 +4034,13 @@ planned | started | writing | done | abandoned
                     self._addMenuItem(subMenu, {
                         title: 'Создать алхимический рецепт',
                         icon: 'flask',
-                        onClick: (startPath) => window.createAlchemyRecipe(self, startPath)
+                        onClick: (startPath) => createAlchemyRecipe(self, startPath)
                     }, target);
                     
                     self._addMenuItem(subMenu, {
                         title: 'Создать артефакт',
                         icon: 'sword',
-                        onClick: (startPath) => window.createArtifact(self, startPath)
+                        onClick: (startPath) => createArtifact(self, startPath)
                     }, target);
                 }
             },
@@ -4028,7 +4053,7 @@ planned | started | writing | done | abandoned
                     self._addMenuItem(subMenu, {
                         title: 'Создать персонажа',
                         icon: 'user',
-                        onClick: (startPath) => window.createCharacter(self, startPath)
+                        onClick: (startPath) => createCharacter(self, startPath)
                     }, target);
                 }
             },
@@ -5278,13 +5303,13 @@ window.createFactionWizard = async (plugin, projectPath, options = {}) => {
 window.createQuestWizard = async (plugin, projectPath, options = {}) => {
     const modal = new QuestWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
     modal.open();
-}
+};
 
-async function createEventWizard(plugin, projectPath, options = {}) {
-    const { EventWizardModal } = require('./creators/EventWizardModal.js');
-    const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
-    modal.open();
-}
+// async function createEventWizard(plugin, projectPath, options = {}) {
+//     const { EventWizardModal } = require('./creators/EventWizardModal.js');
+//     const modal = new EventWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);
+//     modal.open();
+// }
 
 window.createHtmlWizard = async (plugin, projectPath, options = {}) => {
     const modal = new HtmlWizardModal(plugin.app, Modal, Setting, Notice, plugin, projectPath, () => {}, options);

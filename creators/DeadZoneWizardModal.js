@@ -206,15 +206,14 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
             });
 
         new this.Setting(contentEl)
-            .setName('Фракция')
-            .addDropdown(dropdown => {
-                factions.forEach(faction => dropdown.addOption(faction, faction));
-                dropdown.setValue(this.data.faction || factions[0] || '');
-                dropdown.onChange(value => this.data.faction = value);
-                // Увеличиваем размер выпадающего списка
-                dropdown.selectEl.style.minWidth = '280px';
-                dropdown.selectEl.style.fontSize = '14px';
-                dropdown.selectEl.style.padding = '6px';
+            .setName('Фракция (свободный ввод)')
+            .addText(text => {
+                text.setPlaceholder('Введите название фракции (опционально)')
+                    .setValue(this.data.faction || '')
+                    .onChange(value => this.data.faction = value);
+                text.inputEl.style.width = '100%';
+                text.inputEl.style.fontSize = '16px';
+                text.inputEl.style.padding = '8px';
             });
     }
 
@@ -402,11 +401,7 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
                     return false;
                 }
                 break;
-            case 1: // Climate, Faction, Era
-                if (!this.data.climate || !this.data.faction) {
-                    new this.Notice('Пожалуйста, выберите климат и фракцию.');
-                    return false;
-                }
+            case 1: // Climate, Faction, Era (всё опционально)
                 break;
             case 2: // Jurisdiction (optional)
                 // Nothing to validate, as jurisdiction is optional
@@ -415,11 +410,7 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
             case 4: // Current State (optional)
                 // Nothing to validate, as they are optional
                 break;
-            case 5: // Description
-                if (!this.data.description.trim()) {
-                    new this.Notice('Пожалуйста, введите описание мертвой зоны.');
-                    return false;
-                }
+            case 5: // Description (опционально)
                 break;
             case 6: // Findings
                 // Findings can be empty

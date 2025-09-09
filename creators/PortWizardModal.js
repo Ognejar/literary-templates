@@ -92,17 +92,43 @@ var PortWizardModal = class extends EntityWizardBase {
                 }
             }
 
-            // Загружаем провинции
+            // Загружаем государства (имя из YAML name)
+            this.config.states = [];
+            const statesFolderPath = `${this.projectPath}/Локации/Государства`;
+            const statesFolderObj = this.app.vault.getAbstractFileByPath(statesFolderPath);
+            if (statesFolderObj && statesFolderObj.children) {
+                for (const file of statesFolderObj.children) {
+                    if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                        try {
+                            const content = await this.app.vault.read(file);
+                            const nameMatch = content.match(/^name:\s*["']?([^"'\n]+)["']?/m);
+                            const name = nameMatch ? nameMatch[1].trim() : file.basename;
+                            this.config.states.push(name);
+                        } catch (_) {
+                            this.config.states.push(file.basename);
+                        }
+                    }
+                }
+            }
+
+            // Загружаем провинции с привязкой к государству (поле state в YAML)
+            this.config.provinces = [];
             const provincesFolder = `${this.projectPath}/Локации/Провинции`;
             const provincesFolderObj = this.app.vault.getAbstractFileByPath(provincesFolder);
             if (provincesFolderObj && provincesFolderObj.children) {
-                this.config.provinces = provincesFolderObj.children
-                    .filter(f => f instanceof TFile && f.extension === 'md')
-                    .map(f => f.basename);
+                for (const file of provincesFolderObj.children) {
+                    if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                        try {
+                            const content = await this.app.vault.read(file);
+                            const stateMatch = content.match(/^state:\s*["']?([^"'\n]+)["']?/m);
+                            const state = stateMatch ? stateMatch[1].trim() : '';
+                            this.config.provinces.push({ name: file.basename, state });
+                        } catch (_) {
+                            this.config.provinces.push({ name: file.basename, state: '' });
+                        }
+                    }
+                }
             }
-
-            // Загружаем государства
-            this.config.states = this.loadFilesFromFolder(`${this.projectPath}/Локации/Государства`, 'Государства');
 
             // Инициализируем значения по умолчанию
             this.data.climate = this.data.climate || (this.config.climates[0] || '');
@@ -173,28 +199,34 @@ var PortWizardModal = class extends EntityWizardBase {
         new Setting(this.contentEl)
             .setName('Климат')
             .addDropdown(d => {
-                this.config.climates.forEach(climate => d.addOption(climate, climate));
-                d.setValue(this.data.climate);
+                const fallbackClimates = ['Тропический', 'Умеренный', 'Холодный', 'Пустынный', 'Горный', 'Прибрежный', 'Субтропический'];
+                const climates = (this.config.climates && this.config.climates.length > 0) ? this.config.climates : fallbackClimates;
+                d.addOption('', 'Выберите климат (опционально)');
+                climates.forEach(climate => d.addOption(climate, climate));
+                d.setValue(this.data.climate || '');
                 d.onChange(v => this.data.climate = v);
             });
         
         this.renderClimateDominantFaction(this.contentEl);
         
         new Setting(this.contentEl)
-            .setName('Государство')
+            .setName('Государство (опционально)')
             .addDropdown(d => {
                 d.addOption('', 'Выберите государство');
-                this.config.states.forEach(state => d.addOption(state, state));
-                d.setValue(this.data.state);
-                d.onChange(v => this.data.state = v);
+                (this.config.states || []).forEach(state => d.addOption(state, state));
+                d.setValue(this.data.state || '');
+                d.onChange(v => { this.data.state = v; this.render(); });
             });
         
         new Setting(this.contentEl)
             .setName('Провинция (опционально)')
             .addDropdown(d => {
                 d.addOption('', 'Выберите провинцию (опционально)');
-                this.config.provinces.forEach(province => d.addOption(province, province));
-                d.setValue(this.data.province);
+                const filtered = this.data.state
+                    ? (this.config.provinces || []).filter(p => p.state === this.data.state)
+                    : (this.config.provinces || []);
+                filtered.forEach(p => d.addOption(p.name, p.name));
+                d.setValue(this.data.province || '');
                 d.onChange(v => this.data.province = v);
             });
     }
@@ -248,30 +280,6 @@ var PortWizardModal = class extends EntityWizardBase {
         if (this.step === 0) {
             if (!String(this.data.name || '').trim()) {
                 new this.Notice('Введите название порта');
-                return false;
-            }
-            if (!String(this.data.description || '').trim()) {
-                new this.Notice('Введите описание порта');
-                return false;
-            }
-        }
-        if (this.step === 1) {
-            if (!this.data.status) {
-                new this.Notice('Выберите статус порта');
-                return false;
-            }
-        }
-        if (this.step === 2) {
-            if (!this.data.climate) {
-                new this.Notice('Выберите климат');
-                return false;
-            }
-            if (!this.data.dominantFaction) {
-                new this.Notice('Выберите доминирующую фракцию');
-                return false;
-            }
-            if (!this.data.state) {
-                new this.Notice('Выберите государство');
                 return false;
             }
         }

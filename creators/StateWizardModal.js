@@ -17,7 +17,6 @@ const { EntityWizardBase } = require('./EntityWizardBase.js');
 class StateWizardModal extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, projectRoot, onFinish) {
         super(app, ModalClass, SettingClass, NoticeClass);
-        this.projectRoot = projectRoot;
         this.onFinish = onFinish;
         this.step = 0;
         this.data = {
@@ -68,6 +67,8 @@ class StateWizardModal extends EntityWizardBase {
             'Общество',
             'Предпросмотр'
         ];
+        // Используем синхронную инициализацию, как в других модулях
+        this.projectRoot = projectRoot;
     }
 
     async onOpen() {

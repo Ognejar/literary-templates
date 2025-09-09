@@ -356,8 +356,8 @@ class VillageWizardModal extends EntityWizardBase {
         factionInput.style.padding = '8px';
         
         this.renderNav(el, async () => {
-            if (!this.state.climate || !this.state.faction) {
-                console.warn('❌ Выберите климат и фракцию!');
+            if (!this.state.climate) {
+                console.warn('❌ Выберите климат!');
                 return;
             }
             this.state.step++;
@@ -365,7 +365,7 @@ class VillageWizardModal extends EntityWizardBase {
         }, true);
     }
     
-    renderState(el) {
+    async renderState(el) {
         // Стилизованный заголовок
         const header = el.createEl('h2', { text: 'Государство' });
         
@@ -398,7 +398,7 @@ class VillageWizardModal extends EntityWizardBase {
         `;
         
         // Загружаем список государств
-        const statesList = this.loadStatesList();
+        const statesList = await this.loadStatesList();
         console.log('🏛️ Доступные государства:', statesList);
         console.log('🏛️ Количество государств:', statesList.length);
         
@@ -1061,49 +1061,58 @@ class VillageWizardModal extends EntityWizardBase {
     /**
      * Загружает список государств из папки Локации/Государства
      */
-    loadStatesList() {
+    async loadStatesList() {
         if (!this.projectRoot) {
             console.warn('⚠️ projectRoot недоступен для загрузки государств');
             return [];
         }
-        
         try {
-            // Пробуем разные варианты путей
             const possiblePaths = [
                 `${this.projectRoot}/Локации/Государства`,
                 `${this.projectRoot}/Государства`,
                 'Локации/Государства',
                 'Государства'
             ];
-            
-            console.log('🔍 Возможные пути для государств:', possiblePaths);
-            
             for (const statesFolder of possiblePaths) {
-                console.log(`🔍 Проверяем путь: ${statesFolder}`);
                 const folder = this.app.vault.getAbstractFileByPath(statesFolder);
-                
                 if (folder && folder.children && folder.children.length > 0) {
-                    const states = folder.children
-                        .filter(f => f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
-                        .map(f => f.basename);
-                    console.log(`🏛️ Загружены государства из папки ${statesFolder}:`, states);
-                    return states;
-                } else {
-                    console.log(`ℹ️ Папка ${statesFolder} не найдена или пуста`);
+                    const result = [];
+                    const basenames = [];
+                    for (const file of folder.children) {
+                        if (file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.') && file.basename !== 'Государства') {
+                            try {
+                                const content = await this.app.vault.read(file);
+                                // Проверяем type: "Государство" или тег "государство"
+                                const typeMatch = content.match(/^type:\s*"?([^"\n]+)"?/m);
+                                const tagsMatch = content.match(/^tags:\s*\[([^\]]*)\]/m);
+                                const type = typeMatch ? typeMatch[1].trim() : '';
+                                let hasTag = false;
+                                if (tagsMatch) {
+                                    hasTag = tagsMatch[1].split(',').map(s => s.replace(/['"]/g, '').trim()).includes('государство');
+                                }
+                                if (type === 'Государство' || hasTag) {
+                                    // Имя из поля name, если есть
+                                    const nameMatch = content.match(/^name:\s*"?([^"\n]+)"?/m);
+                                    const name = nameMatch ? nameMatch[1].trim() : file.basename;
+                                    result.push(name);
+                                }
+                                // копим базовые имена на случай пустого строгого результата
+                                basenames.push(file.basename);
+                            } catch (e) {
+                                basenames.push(file.basename);
+                                continue;
+                            }
+                        }
+                    }
+                    // Если строгая фильтрация не дала результатов — возвращаем базовые имена как fallback
+                    return (result.length > 0) ? result : basenames;
                 }
             }
-            
             // Fallback на умолчания
-            const defaultStates = ['Гардарский_Союз', 'Велюградия', 'Галиндия', 'Драконий_хребет', 'Краковей'];
-            console.log('🏛️ Используем государства по умолчанию:', defaultStates);
-            return defaultStates;
-            
+            return ['Гардарский_Союз', 'Велюградия', 'Галиндия', 'Драконий_хребет', 'Краковей'];
         } catch (error) {
             console.error('❌ Ошибка загрузки государств:', error);
-            // Fallback на умолчания при ошибке
-            const defaultStates = ['Гардарский_Союз', 'Велюградия', 'Галиндия', 'Драконий_хребет', 'Краковей'];
-            console.log('🏛️ Используем государства по умолчанию из-за ошибки:', defaultStates);
-            return defaultStates;
+            return ['Гардарский_Союз', 'Велюградия', 'Галиндия', 'Драконий_хребет', 'Краковей'];
         }
     }
     
@@ -1217,12 +1226,11 @@ class VillageWizardModal extends EntityWizardBase {
     async finish() {
         try {
             // Добавляем текущую дату
-            this.data.date = window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10);
-            
+            const date = window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10);
             // Подготавливаем данные для шаблона
             const data = {
                 name: this.state.villageName,
-                date: this.data.date,
+                date: date,
                 climate: this.state.climate,
                 faction: this.state.faction,
                 province: this.state.province,
@@ -1235,14 +1243,12 @@ class VillageWizardModal extends EntityWizardBase {
                 crafts: this.state.crafts,
                 features: this.state.features
             };
-
             // Очищаем пустые поля
             Object.keys(data).forEach(key => {
                 if (data[key] === '' && typeof data[key] === 'string') {
                     data[key] = 'Не указано';
                 }
             });
-
             await this.onFinish(data);
             this.close();
         } catch (error) {

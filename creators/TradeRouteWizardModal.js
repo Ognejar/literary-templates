@@ -24,6 +24,9 @@ class TradeRouteWizardModal extends EntityWizardBase {
         this.data = {
             name: '',
             description: '',
+            climate: '',
+            state: '',
+            province: '',
             startPoint: '',
             endPoint: '',
             distance: '',
@@ -43,11 +46,13 @@ class TradeRouteWizardModal extends EntityWizardBase {
         this.step = 0;
         this.steps = [
             this.renderBasic.bind(this),
+            this.renderLocation.bind(this),
             this.renderRouteDetails.bind(this),
             this.renderTradeDetails.bind(this),
             this.renderGeneralDetails.bind(this),
             this.renderPreview.bind(this)
         ];
+        this.config = { climates: [], states: [], provinces: [] };
     }
 
     async onOpen() {
@@ -55,7 +60,62 @@ class TradeRouteWizardModal extends EntityWizardBase {
         this.modalEl.style.maxWidth = '900px';
         this.modalEl.style.width = '900px';
         if (this.options.prefillName && !this.data.name) this.data.name = this.options.prefillName;
+        await this.loadConfig();
         this.render();
+    }
+
+    async loadConfig() {
+        try {
+            if (!this.projectPath) return;
+            // Климат из настроек
+            if (window.litSettingsService) {
+                this.config.climates = await window.litSettingsService.getClimates(this.app, this.projectPath) || [];
+            } else {
+                const settingsFile = this.app.vault.getAbstractFileByPath(`${this.projectPath}/Настройки_мира.md`);
+                if (settingsFile instanceof TFile) {
+                    const content = await this.app.vault.read(settingsFile);
+                    const configMatch = content.match(/```json\n([\s\S]*?)\n```/);
+                    if (configMatch && configMatch[1]) {
+                        const parsed = JSON.parse(configMatch[1]);
+                        this.config.climates = parsed.locations?.climates || [];
+                    }
+                }
+            }
+            // States
+            this.config.states = [];
+            const statesFolderObj = this.app.vault.getAbstractFileByPath(`${this.projectPath}/Локации/Государства`);
+            if (statesFolderObj && statesFolderObj.children) {
+                for (const file of statesFolderObj.children) {
+                    if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                        try {
+                            const content = await this.app.vault.read(file);
+                            const nameMatch = content.match(/^name:\s*["']?([^"'\n]+)["']?/m);
+                            const name = nameMatch ? nameMatch[1].trim() : file.basename;
+                            this.config.states.push(name);
+                        } catch (_) {
+                            this.config.states.push(file.basename);
+                        }
+                    }
+                }
+            }
+            // Provinces
+            this.config.provinces = [];
+            const provincesFolderObj = this.app.vault.getAbstractFileByPath(`${this.projectPath}/Локации/Провинции`);
+            if (provincesFolderObj && provincesFolderObj.children) {
+                for (const file of provincesFolderObj.children) {
+                    if (file instanceof TFile && file.extension === 'md' && !file.basename.startsWith('Index') && !file.basename.startsWith('.')) {
+                        try {
+                            const content = await this.app.vault.read(file);
+                            const stateMatch = content.match(/^state:\s*["']?([^"'\n]+)["']?/m);
+                            const state = stateMatch ? stateMatch[1].trim() : '';
+                            this.config.provinces.push({ name: file.basename, state });
+                        } catch (_) {
+                            this.config.provinces.push({ name: file.basename, state: '' });
+                        }
+                    }
+                }
+            }
+        } catch (_) {}
     }
 
     render() {
@@ -88,6 +148,41 @@ class TradeRouteWizardModal extends EntityWizardBase {
         new Setting(this.contentEl)
             .setName('Конечная точка')
             .addText(t => t.setValue(this.data.endPoint).onChange(v => this.data.endPoint = v));
+    }
+
+    renderLocation() {
+        const h = this.contentEl.createEl('h2', { text: 'Расположение' });
+        h.classList.add('lt-header');
+
+        new Setting(this.contentEl)
+            .setName('Климат')
+            .addDropdown(d => {
+                const fallbackClimates = ['Тропический', 'Умеренный', 'Холодный', 'Пустынный', 'Горный', 'Прибрежный', 'Субтропический'];
+                const climates = (this.config.climates && this.config.climates.length > 0) ? this.config.climates : fallbackClimates;
+                d.addOption('', 'Выберите климат (опционально)');
+                climates.forEach(c => d.addOption(c, c));
+                d.setValue(this.data.climate || '');
+                d.onChange(v => this.data.climate = v);
+            });
+
+        new Setting(this.contentEl)
+            .setName('Государство (опционально)')
+            .addDropdown(d => {
+                d.addOption('', 'Выберите государство');
+                (this.config.states || []).forEach(s => d.addOption(s, s));
+                d.setValue(this.data.state || '');
+                d.onChange(v => { this.data.state = v; this.render(); });
+            });
+
+        new Setting(this.contentEl)
+            .setName('Провинция (опционально)')
+            .addDropdown(d => {
+                d.addOption('', 'Выберите провинцию');
+                const filtered = this.data.state ? (this.config.provinces || []).filter(p => p.state === this.data.state) : (this.config.provinces || []);
+                filtered.forEach(p => d.addOption(p.name, p.name));
+                d.setValue(this.data.province || '');
+                d.onChange(v => this.data.province = v);
+            });
     }
 
     renderRouteDetails() {

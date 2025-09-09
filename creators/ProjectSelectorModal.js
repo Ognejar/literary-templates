@@ -185,3 +185,7 @@ class ProjectSelectorModal extends Modal {
 }
 
 module.exports = ProjectSelectorModal;
+
+if (typeof window !== 'undefined') {
+    window.ProjectSelectorModal = ProjectSelectorModal;
+}

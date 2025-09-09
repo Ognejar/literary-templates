@@ -157,6 +157,21 @@ class EntityWizardBase extends HtmlWizardModal {
             }
         }
         
+        // Дополнительный поиск - ищем папки с государствами
+        if (files.length === 0) {
+            const allFolders = this.app.vault.getAllFolders() || [];
+            for (const folder of allFolders) {
+                if (folder.path.includes('Государства')) {
+                    const folderChildren = folder.children || [];
+                    for (const child of folderChildren) {
+                        if (child.extension === 'md' && !child.basename.startsWith('.')) {
+                            files.push(child.basename);
+                        }
+                    }
+                }
+            }
+        }
+        
         return files;
     }
 
@@ -477,6 +492,42 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
             console.error(`Ошибка загрузки модуля ${modulePath}:`, error);
             throw error;
         }
+    }
+
+    /**
+     * Проверяет валидность projectRoot, при необходимости инициирует выбор проекта
+     * @param {string} projectRoot - исходный путь
+     * @returns {Promise<string>} - валидный путь к проекту или ''
+     */
+    async ensureValidProjectRoot(projectRoot) {
+        const app = this.app;
+        // Проверяем наличие Настройки_мира.md
+        let isValid = false;
+        if (projectRoot) {
+            const settingsFile = app.vault.getAbstractFileByPath(`${projectRoot}/Настройки_мира.md`);
+            isValid = !!settingsFile;
+        }
+        if (isValid) return projectRoot;
+
+        // Ищем все проекты
+        const allFiles = app.vault.getMarkdownFiles();
+        const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
+        const projects = projectFiles.map(f => f.parent.path);
+        if (!projects.length) {
+            if (this.Notice) new this.Notice('Проекты не найдены!');
+            this.close && this.close();
+            return '';
+        }
+        // Показываем ProjectSelectorModal
+        return new Promise((resolve) => {
+            const modal = new window.ProjectSelectorModal(app, this.Modal, this.Setting, this.Notice, projects, async (selectedProject) => {
+                if (window.litSettingsService && typeof window.litSettingsService.setCurrentProject === 'function') {
+                    await window.litSettingsService.setCurrentProject(app, selectedProject);
+                }
+                resolve(selectedProject);
+            });
+            modal.open();
+        });
     }
 }
 

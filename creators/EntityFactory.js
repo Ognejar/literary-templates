@@ -27,9 +27,6 @@ class EntityFactory {
      */
     async createEntity(entityType, startPath = '', options = {}) {
         try {
-            await this.plugin.logDebug(`=== create${entityType} вызвана ===`);
-            await this.plugin.logDebug('startPath: ' + startPath);
-
             // 1. Определяем проект (SRP: одна ответственность)
             const project = await this.resolveProject(startPath);
             if (!project) return;
@@ -63,28 +60,36 @@ class EntityFactory {
      * Разрешает проект (SRP: одна ответственность)
      */
     async resolveProject(startPath) {
-        // Используем резолвер контекста из сервиса настроек
+        // 1. Проверяем, находится ли startPath внутри проекта
+        if (startPath) {
+            const projectRoot = window.findProjectRoot(this.plugin.app, startPath);
+            if (projectRoot) {
+                return projectRoot;
+            }
+        }
+        
+        // 2. Если startPath не в проекте, проверяем текущий проект из настроек
         try {
             if (window.litSettingsService && typeof window.litSettingsService.resolveContext === 'function') {
                 const ctx = await window.litSettingsService.resolveContext(this.plugin.app, startPath);
-                const resolvedProjectRoot = ctx.projectRoot || '';
-                await this.plugin.logDebug('resolvedProjectRoot from context: ' + resolvedProjectRoot);
-                if (resolvedProjectRoot) return resolvedProjectRoot;
+                const currentProject = ctx.projectRoot || '';
+                
+                if (currentProject) {
+                    // Проверяем, является ли текущий проект папкой мира
+                    const settingsFile = `${currentProject}/Настройки_мира.md`;
+                    const file = this.plugin.app.vault.getAbstractFileByPath(settingsFile);
+                    
+                    if (file && file instanceof TFile) {
+                        return currentProject;
+                    }
+                }
             }
         } catch (e) {
-            await this.plugin.logDebug('Context resolver error: ' + e.message);
+            // Игнорируем ошибки контекстного резолвера
         }
         
-        // Fallback: старый способ
-        let resolvedProjectRoot = '';
-        if (startPath) {
-            resolvedProjectRoot = window.findProjectRoot(this.plugin.app, startPath) || startPath;
-        }
+        // 3. Если нет текущего проекта, запрашиваем выбор
         
-        if (resolvedProjectRoot) {
-            return resolvedProjectRoot;
-        }
-
         // Ищем все проекты
         const allFiles = this.plugin.app.vault.getMarkdownFiles();
         const projectFiles = allFiles.filter(f => f.basename === 'Настройки_мира');
@@ -96,7 +101,13 @@ class EntityFactory {
             return null;
         }
 
-        return await this.plugin.selectProject(projects);
+        // Показываем модальное окно выбора проекта
+        return new Promise((resolve) => {
+            const modal = new window.ProjectSelectorModal(this.plugin.app, Modal, Setting, Notice, projects, (selectedProject) => {
+                resolve(selectedProject);
+            });
+            modal.open();
+        });
     }
 
     /**
@@ -180,31 +191,40 @@ class EntityFactory {
             projectName: project.split('/').pop()
         };
 
-        // Добавляем специфичные для типа поля
-        switch (entityType) {
-            case 'City':
-                return this.prepareCityData(project, entityData, baseData);
-            case 'State':
-                return this.prepareStateData(project, entityData, baseData);
-            case 'Province':
-                return this.prepareProvinceData(project, entityData, baseData);
-            case 'Village':
-                return this.prepareVillageData(project, entityData, baseData);
-            case 'Castle':
-                return this.prepareCastleData(project, entityData, baseData);
-            case 'Port':
-                return this.preparePortData(project, entityData, baseData);
-            case 'Farm':
-                return this.prepareFarmData(project, entityData, baseData);
-            case 'Mine':
-                return this.prepareMineData(project, entityData, baseData);
-            case 'Factory':
-                return this.prepareFactoryData(project, entityData, baseData);
-            case 'Location':
-                return this.prepareLocationData(project, entityData, baseData);
-            default:
-                return baseData;
+        // Вместо длинного switch-case:
+        const methodName = `prepare${entityType}Data`;
+        if (typeof this[methodName] === 'function') {
+            return this[methodName](project, entityData, baseData);
         }
+        return baseData;
+    }
+
+    /**
+     * Утилита для маппинга полей с поддержкой fallback-ключей
+     * @param {object} source - объект-источник (обычно entityData)
+     * @param {Record<string, string|string[]>} mapping - маппинг {targetField: sourceKey | [sourceKey1, sourceKey2]}
+     * @param {Record<string, any>} defaults - значения по умолчанию для целевых полей
+     */
+    mapFields(source, mapping, defaults = {}) {
+        const result = {};
+        for (const [target, src] of Object.entries(mapping)) {
+            let value = '';
+            if (Array.isArray(src)) {
+                for (const key of src) {
+                    if (source[key] !== undefined && source[key] !== null && String(source[key]).trim() !== '') {
+                        value = source[key];
+                        break;
+                    }
+                }
+            } else {
+                value = source[src];
+            }
+            if (value === undefined || value === null || String(value).trim() === '') {
+                value = (defaults[target] !== undefined) ? defaults[target] : '';
+            }
+            result[target] = value;
+        }
+        return result;
     }
 
     /**
@@ -233,11 +253,14 @@ class EntityFactory {
      * Подготавливает данные для государства (SRP: одна ответственность)
      */
     prepareStateData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['stateName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.stateName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Государство').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Государство').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Государство')
         };
     }
@@ -258,11 +281,7 @@ class EntityFactory {
             minorFactionsSection: minorFactionsContent || 'Не указаны',
             citiesSection: citiesContent || 'Не указаны',
             villagesSection: villagesContent || 'Не указаны',
-            imageBlock: this.findTagImage(project, 'Провинция'),
-            // --- ДОБАВЛЕНО ---
-            history: entityData.history || baseData.history || [],
-            population_history: entityData.population_history || baseData.population_history || [],
-            // --- КОНЕЦ ДОБАВЛЕНИЯ ---
+            imageBlock: this.findTagImage(project, 'Провинция')
         };
     }
 
@@ -270,11 +289,14 @@ class EntityFactory {
      * Подготавливает данные для деревни (SRP: одна ответственность)
      */
     prepareVillageData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['villageName', 'name'],
+            dominantFaction: ['faction', 'dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.villageName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Деревня').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.faction || entityData.dominantFaction || '', // Поддержка старого поля faction
+            ...mapped,
+            typeLower: (entityData.type || 'Деревня').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Деревня')
         };
     }
@@ -300,11 +322,14 @@ class EntityFactory {
      * Подготавливает данные для замка (SRP: одна ответственность)
      */
     prepareCastleData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['castleName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.castleName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Замок').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Замок').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Замок')
         };
     }
@@ -313,11 +338,14 @@ class EntityFactory {
      * Подготавливает данные для порта (SRP: одна ответственность)
      */
     preparePortData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['portName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.portName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Порт').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Порт').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Порт')
         };
     }
@@ -326,11 +354,14 @@ class EntityFactory {
      * Подготавливает данные для фермы (SRP: одна ответственность)
      */
     prepareFarmData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['farmName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.farmName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Ферма').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Ферма').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Ферма')
         };
     }
@@ -339,11 +370,14 @@ class EntityFactory {
      * Подготавливает данные для шахты (SRP: одна ответственность)
      */
     prepareMineData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['mineName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.mineName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Шахта').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Шахта').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Шахта')
         };
     }
@@ -352,11 +386,14 @@ class EntityFactory {
      * Подготавливает данные для завода (SRP: одна ответственность)
      */
     prepareFactoryData(project, entityData, baseData) {
+        const mapped = this.mapFields(entityData, {
+            name: ['factoryName', 'name'],
+            dominantFaction: ['dominantFaction']
+        });
         return {
             ...baseData,
-            name: entityData.factoryName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Завод').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            ...mapped,
+            typeLower: (entityData.type || 'Завод').toLowerCase(),
             imageBlock: this.findTagImage(project, 'Завод')
         };
     }
@@ -368,9 +405,36 @@ class EntityFactory {
         return {
             ...baseData,
             name: entityData.locationName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Локация').toLowerCase(), // Добавляем typeLower
-            dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
+            type: entityData.type || '', // Тип локации
+            climate: entityData.climate || '', // Климат
+            typeLower: (entityData.type || 'локация').toLowerCase(), // Добавляем typeLower
+            province: entityData.province || '', // Провинция
+            state: entityData.state || '', // Государство
+            status: entityData.status || 'действует', // Статус
+            statusReason: entityData.statusReason || '', // Причина статуса
+            description: entityData.description || '', // Описание
             imageBlock: this.findTagImage(project, 'Локация')
+        };
+    }
+
+    /**
+     * Подготавливает данные для мёртвой зоны (SRP: одна ответственность)
+     */
+    prepareDeadZoneData(project, entityData, baseData) {
+        return {
+            ...baseData,
+            name: entityData.zoneName || entityData.name || '',
+            type: 'Мёртвая зона',
+            climate: entityData.climate || '',
+            province: entityData.province || '',
+            state: entityData.state || '',
+            status: entityData.status || 'заброшено',
+            statusReason: entityData.statusReason || '',
+            description: entityData.description || '',
+            oldEconomy: entityData.oldEconomy || '',
+            currentState: entityData.currentState || '',
+            findingsContent: (entityData.findings || []).map(f => `- ${f}`).join('\n'),
+            imageBlock: this.findTagImage(project, 'Мёртвая зона')
         };
     }
 
@@ -459,7 +523,7 @@ class EntityFactory {
             'Location': 'locationName',
             'Port': 'portName',
             'Castle': 'castleName',
-            'DeadZone': 'deadZoneName',
+            'DeadZone': 'zoneName',
             'Farm': 'farmName',
             'Mine': 'mineName',
             'Factory': 'factoryName',
