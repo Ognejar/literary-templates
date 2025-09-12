@@ -131,6 +131,12 @@ async function createWorkStructure(plugin, projectRoot, workData) {
             await ensureFolder(`${workFolder}/${folder}`, plugin.app);
         }
         
+        // Создать локальный файл сюжетных линий
+        if (typeof Notice !== 'undefined') {
+            new Notice('Создание файла сюжетных линий...', 2000);
+        }
+        await createLocalPlotlinesFile(plugin, workFolder, workData);
+        
         // Имя файла: Тип_Название.md
         if (typeof Notice !== 'undefined') {
             new Notice('Создание файла произведения...', 2000);
@@ -174,6 +180,19 @@ async function createWorkStructure(plugin, projectRoot, workData) {
                 new Notice('Открытие файла...', 1500);
             }
             await plugin.app.workspace.getLeaf(true).openFile(createdFile);
+
+            // Предложить создать скелет (главы/сцены) сразу после создания произведения
+            try {
+                const ask = plugin.suggester
+                    ? await plugin.suggester(['Да', 'Нет'], ['Создать скелет сейчас', 'Пропустить'], 'Создать скелет глав и сцен для произведения?')
+                    : 'Нет';
+                if (ask === 'Да' && typeof window.generateSkeleton === 'function') {
+                    // Передаём стартовый путь в папку произведения, чтобы генератор работал в нужном контексте
+                    await window.generateSkeleton(plugin, workFolder);
+                }
+            } catch (e) {
+                console.warn('Не удалось предложить создание скелета:', e?.message);
+            }
         }
         
     } catch (error) {
@@ -254,6 +273,45 @@ function buildWorkFileName(title, workType) {
     const t = sanitizeFileName(title || '');
     const k = sanitizeFileName(workType || '');
     return (k ? `${k}_${t}` : t) || 'Произведение';
+}
+
+/**
+ * Создает локальный файл сюжетных линий для произведения
+ */
+async function createLocalPlotlinesFile(plugin, workFolder, workData) {
+    try {
+        // Читаем шаблон локальных сюжетных линий
+        let templateContent = '';
+        try {
+            templateContent = await plugin.readTemplateFile('Локальные_сюжетные_линии');
+        } catch (e) {
+            console.error('Шаблон "Локальные_сюжетные_линии.md" не найден:', e);
+            if (typeof Notice !== 'undefined') {
+                new Notice('Шаблон "Локальные_сюжетные_линии.md" не найден в templates!', 6000);
+            }
+            return;
+        }
+
+        // Подставляем значения
+        const data = {
+            workName: workData.id,
+            workTitle: workData.title,
+            created: new Date().toISOString().split('T')[0]
+        };
+        const content = await window.fillTemplate(templateContent, data);
+
+        // Создаем файл
+        const plotlinesFilePath = `${workFolder}/Сюжетные_линии.md`;
+        const createdFile = await safeCreateFile(plotlinesFilePath, content, plugin.app);
+        
+        if (createdFile) {
+            console.log('Локальный файл сюжетных линий создан:', createdFile.path);
+        }
+        
+    } catch (error) {
+        console.error('Ошибка при создании локального файла сюжетных линий:', error);
+        // Не пробрасываем ошибку, чтобы не прерывать создание произведения
+    }
 }
 
 // Глобализация для работы команды 'Создать произведение'

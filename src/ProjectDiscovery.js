@@ -10,19 +10,20 @@
  * @docs       docs/Карточка функционала.md
  */
 
-// Возвращает список папок-проектов (папки, где есть под-папки миров)
+// Возвращает список папок-проектов (папки, где есть под-папки миров ИЛИ файл-маркер 'Проекты.md')
 async function getAllProjectFolders(app) {
-    // Эвристика: папка проекта содержит под-папки, внутри которых есть файл 'Настройки_мира.md'
     const all = app.vault.getMarkdownFiles();
+    // 1) Папки, где есть миры с 'Настройки_мира.md'
     const worldSettings = all.filter(f => f.basename === 'Настройки_мира');
     const worldRoots = new Set(worldSettings.map(f => f.parent ? f.parent.path : ''));
     const projectFolders = new Set();
     worldRoots.forEach(root => {
         const parts = String(root).split('/');
-        if (parts.length > 1) {
-            projectFolders.add(parts.slice(0, -1).join('/'));
-        }
+        if (parts.length > 1) projectFolders.add(parts.slice(0, -1).join('/'));
     });
+    // 2) Папки, где есть файл-маркер 'Проекты.md'
+    const markers = all.filter(f => f.basename === 'Проекты');
+    markers.forEach(f => { if (f.parent && f.parent.path) projectFolders.add(f.parent.path); });
     return Array.from(projectFolders);
 }
 

@@ -148,6 +148,344 @@ class CommandRegistry {
             name: 'Обновить шаблоны',
             callback: () => this.refreshTemplatesCallback()
         });
+
+        // Добавить персонажа в сцену
+        this.plugin.addCommand({
+            id: 'add-character-to-scene',
+            name: 'Добавить персонажа в сцену',
+            callback: async () => {
+                try { await this.insertCharacterIntoScene(); } catch (e) { new Notice('Ошибка: ' + e.message); }
+            }
+        });
+
+        // Добавить локацию в сцену
+        this.plugin.addCommand({
+            id: 'add-location-to-scene',
+            name: 'Добавить локацию в сцену',
+            callback: async () => {
+                try { await this.insertLocationIntoScene(); } catch (e) { new Notice('Ошибка: ' + e.message); }
+            }
+        });
+
+        // Глава: дефолтные персонажи
+        this.plugin.addCommand({
+            id: 'set-chapter-default-characters',
+            name: 'Задать персонажей главы (по умолчанию)',
+            callback: async () => {
+                try { await this.setChapterDefaults('characters'); } catch (e) { new Notice('Ошибка: ' + e.message); }
+            }
+        });
+
+        // Глава: дефолтные локации
+        this.plugin.addCommand({
+            id: 'set-chapter-default-locations',
+            name: 'Задать локации главы (по умолчанию)',
+            callback: async () => {
+                try { await this.setChapterDefaults('locations'); } catch (e) { new Notice('Ошибка: ' + e.message); }
+            }
+        });
+
+        // Глава: применить дефолты ко всем сценам
+        this.plugin.addCommand({
+            id: 'apply-chapter-defaults-to-scenes',
+            name: 'Применить дефолты главы ко всем сценам',
+            callback: async () => {
+                try { await this.applyChapterDefaultsToScenes(); } catch (e) { new Notice('Ошибка: ' + e.message); }
+            }
+        });
+
+        // Структура: скелет и перенумерация
+        this.plugin.addCommand({
+            id: 'generate-skeleton',
+            name: 'Сгенерировать скелет произведения',
+            callback: async () => {
+                try { await window.generateSkeleton(this.plugin, this.getCurrentStartPath()); } catch (e) { new Notice('Ошибка: '+e.message); }
+            }
+        });
+        this.plugin.addCommand({
+            id: 'renumber-chapters',
+            name: 'Перенумеровать главы',
+            callback: async () => {
+                try { await window.renumberChapters(this.plugin, this.getCurrentStartPath()); } catch (e) { new Notice('Ошибка: '+e.message); }
+            }
+        });
+        this.plugin.addCommand({
+            id: 'renumber-scenes',
+            name: 'Перенумеровать сцены в текущей главе',
+            callback: async () => {
+                try { await window.renumberScenes(this.plugin); } catch (e) { new Notice('Ошибка: '+e.message); }
+            }
+        });
+    }
+
+    // === ВСТАВКА ПЕРСОНАЖА В СЦЕНУ ===
+    // Получить редактор надёжно (без падений)
+    getEditor() {
+        try {
+            if (typeof this.plugin.getActiveEditor === 'function') {
+                const ed = this.plugin.getActiveEditor();
+                if (ed) return ed;
+            }
+        } catch (_) {}
+        try {
+            const MV = (typeof window !== 'undefined' && window.MarkdownView) ? window.MarkdownView : undefined;
+            if (MV && this.plugin.app.workspace.getActiveViewOfType) {
+                const view = this.plugin.app.workspace.getActiveViewOfType(MV);
+                if (view && view.editor) return view.editor;
+            }
+        } catch (_) {}
+        try {
+            const leaf = this.plugin.app.workspace.getMostRecentLeaf ? this.plugin.app.workspace.getMostRecentLeaf() : this.plugin.app.workspace.activeLeaf;
+            const view = leaf && leaf.view ? leaf.view : null;
+            if (view && typeof view.getViewType === 'function' && view.getViewType() === 'markdown' && view.editor) return view.editor;
+        } catch (_) {}
+        return null;
+    }
+
+    async insertCharacterIntoScene() {
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (!(activeFile instanceof TFile)) { await this.plugin.logDebug('[add-character] Нет активного файла'); return; }
+        const cache = this.plugin.app.metadataCache.getFileCache(activeFile) || {};
+        const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+        if (fmType !== 'сцена') { 
+            // Разрешаем вставку в главы с подтверждением
+            if (fmType === 'глава') {
+                const confirm = await this.plugin.confirm?.('Добавить персонажа в главу? (будет добавлен в default_characters)');
+                if (!confirm) return;
+            } else {
+                await this.plugin.logDebug('[add-character] Текущий файл не сцена'); 
+                return; 
+            }
+        }
+
+        let editor = this.getEditor();
+        if (!editor) { 
+            // Fallback для режима просмотра: переключаемся в режим редактирования
+            try {
+                const leaf = this.plugin.app.workspace.getActiveLeaf();
+                if (leaf && leaf.setMode) {
+                    leaf.setMode('source');
+                    // Ждём немного, чтобы редактор инициализировался
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Получаем редактор заново после переключения
+                    editor = this.getEditor();
+                }
+            } catch (e) {
+                await this.plugin.logDebug('[add-character] Не удалось переключиться в режим редактирования');
+                return;
+            }
+        }
+        
+        if (!editor) {
+            await this.plugin.logDebug('[add-character] Редактор недоступен');
+            return;
+        }
+
+        const projectRoot = this.getCurrentProjectRoot();
+        if (!projectRoot) { await this.plugin.logDebug('[add-character] Проект не найден'); return; }
+
+        // Загружаем список персонажей
+        let characters = [];
+        try {
+            const folder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/Персонажи`);
+            if (folder && folder.children) {
+                characters = folder.children
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .map(f => f.basename);
+            }
+        } catch (_) {}
+        if (characters.length === 0) { await this.plugin.logDebug('[add-character] Персонажи не найдены'); return; }
+
+        const choice = await this.plugin.suggester(characters, characters, 'Выберите персонажа');
+        if (!choice) return;
+
+        // Обновляем frontmatter (characters)
+        await this.plugin.app.fileManager.processFrontMatter(activeFile, (fm) => {
+            if (!fm.characters) fm.characters = [];
+            if (Array.isArray(fm.characters)) {
+                if (!fm.characters.includes(choice)) fm.characters.push(choice);
+            }
+        });
+
+        // Вставляем ссылку в текст (в раздел Персонажи, если найден)
+        const link = `[[${choice}]]`;
+        editor.replaceSelection(`${link}`);
+        new Notice(`Добавлен персонаж: ${choice}`);
+    }
+
+    // === ВСТАВКА ЛОКАЦИИ В СЦЕНУ ===
+    async insertLocationIntoScene() {
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (!(activeFile instanceof TFile)) { await this.plugin.logDebug('[add-location] Нет активного файла'); return; }
+        const cache = this.plugin.app.metadataCache.getFileCache(activeFile) || {};
+        const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+        if (fmType !== 'сцена') { 
+            // Разрешаем вставку в главы с подтверждением
+            if (fmType === 'глава') {
+                const confirm = await this.plugin.confirm?.('Добавить локацию в главу? (будет добавлена в default_locations)');
+                if (!confirm) return;
+            } else {
+                await this.plugin.logDebug('[add-location] Текущий файл не сцена'); 
+                return; 
+            }
+        }
+
+        let editor = this.getEditor();
+        if (!editor) { 
+            // Fallback для режима просмотра: переключаемся в режим редактирования
+            try {
+                const leaf = this.plugin.app.workspace.getActiveLeaf();
+                if (leaf && leaf.setMode) {
+                    leaf.setMode('source');
+                    // Ждём немного, чтобы редактор инициализировался
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Получаем редактор заново после переключения
+                    editor = this.getEditor();
+                }
+            } catch (e) {
+                await this.plugin.logDebug('[add-location] Не удалось переключиться в режим редактирования');
+                return;
+            }
+        }
+        
+        if (!editor) {
+            await this.plugin.logDebug('[add-location] Редактор недоступен');
+            return;
+        }
+
+        const projectRoot = this.getCurrentProjectRoot();
+        if (!projectRoot) { await this.plugin.logDebug('[add-location] Проект не найден'); return; }
+
+        // Загружаем список локаций
+        let locations = [];
+        try {
+            const folder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/Локации`);
+            if (folder && folder.children) {
+                locations = folder.children
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .map(f => f.basename);
+            }
+        } catch (_) {}
+        if (locations.length === 0) { await this.plugin.logDebug('[add-location] Локации не найдены'); return; }
+
+        const choice = await this.plugin.suggester(locations, locations, 'Выберите локацию');
+        if (!choice) return;
+
+        // Обновляем frontmatter (locations)
+        await this.plugin.app.fileManager.processFrontMatter(activeFile, (fm) => {
+            if (!fm.locations) fm.locations = [];
+            if (Array.isArray(fm.locations)) {
+                if (!fm.locations.includes(choice)) fm.locations.push(choice);
+            }
+        });
+
+        // Вставляем ссылку в текст
+        const link = `[[${choice}]]`;
+        editor.replaceSelection(`${link}`);
+        new Notice(`Добавлена локация: ${choice}`);
+    }
+
+    // === ВСПОМОГАТЕЛЬНО: контекст главы по активному файлу ===
+    getChapterContextFromActive() {
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (!activeFile) return null;
+        const folder = activeFile.parent;
+        if (!folder) return null;
+        // Ищем файл главы (frontmatter type: глава) в текущей папке
+        const files = (folder.children || []).filter(f => f instanceof TFile && f.extension === 'md');
+        for (const f of files) {
+            const cache = this.plugin.app.metadataCache.getFileCache(f) || {};
+            const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+            if (fmType === 'глава') {
+                return { chapterFolder: folder, chapterFile: f };
+            }
+        }
+        // Если активный файл сам глава
+        const cache = this.plugin.app.metadataCache.getFileCache(activeFile) || {};
+        const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+        if (fmType === 'глава') {
+            return { chapterFolder: folder, chapterFile: activeFile };
+        }
+        return null;
+    }
+
+    // === Установка дефолтов в главе ===
+    async setChapterDefaults(kind) {
+        const ctx = this.getChapterContextFromActive();
+        if (!ctx) { await this.plugin.logDebug('[chapter-defaults] Глава не найдена'); return; }
+        const { chapterFile } = ctx;
+
+        const projectRoot = this.getCurrentProjectRoot();
+        if (!projectRoot) { await this.plugin.logDebug('[chapter-defaults] Проект не найден'); return; }
+
+        // Загружаем источники
+        let choices = [];
+        let folderName = kind === 'characters' ? 'Персонажи' : 'Локации';
+        try {
+            const folder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/${folderName}`);
+            if (folder && folder.children) {
+                choices = folder.children
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .map(f => f.basename);
+            }
+        } catch (_) {}
+        if (choices.length === 0) { await this.plugin.logDebug('[chapter-defaults] Нечего выбирать'); return; }
+
+        const picked = await this.plugin.suggester(choices, choices, kind === 'characters' ? 'Выберите персонажа' : 'Выберите локацию');
+        if (!picked) return;
+
+        await this.plugin.app.fileManager.processFrontMatter(chapterFile, (fm) => {
+            const key = kind === 'characters' ? 'default_characters' : 'default_locations';
+            if (!fm[key]) fm[key] = [];
+            if (Array.isArray(fm[key]) && !fm[key].includes(picked)) fm[key].push(picked);
+        });
+
+        new Notice(kind === 'characters' ? `Добавлен персонаж по умолчанию: ${picked}` : `Добавлена локация по умолчанию: ${picked}`);
+    }
+
+    // === Применение дефолтов ко всем сценам главы ===
+    async applyChapterDefaultsToScenes() {
+        const ctx = this.getChapterContextFromActive();
+        if (!ctx) { await this.plugin.logDebug('[apply-defaults] Глава не найдена'); return; }
+        const { chapterFolder, chapterFile } = ctx;
+
+        // Читаем дефолты из главы
+        const cache = this.plugin.app.metadataCache.getFileCache(chapterFile) || {};
+        const fm = cache.frontmatter || {};
+        const defChars = Array.isArray(fm.default_characters) ? fm.default_characters : [];
+        const defLocs = Array.isArray(fm.default_locations) ? fm.default_locations : [];
+        if (defChars.length === 0 && defLocs.length === 0) { await this.plugin.logDebug('[apply-defaults] Дефолты пусты'); return; }
+
+        // Рекурсивно собираем MD-файлы в папке главы
+        const scenes = [];
+        const collect = (folder) => {
+            for (const ch of (folder.children || [])) {
+                if (ch instanceof TFile && ch.extension === 'md') {
+                    const c = this.plugin.app.metadataCache.getFileCache(ch) || {};
+                    const t = c.frontmatter && c.frontmatter.type ? String(c.frontmatter.type) : '';
+                    if (t === 'сцена') scenes.push(ch);
+                } else if (ch && ch.children) {
+                    collect(ch);
+                }
+            }
+        };
+        collect(chapterFolder);
+        if (scenes.length === 0) { await this.plugin.logDebug('[apply-defaults] Сцен не найдено'); return; }
+
+        for (const sf of scenes) {
+            await this.plugin.app.fileManager.processFrontMatter(sf, (sfm) => {
+                if (defChars.length) {
+                    if (!sfm.characters) sfm.characters = [];
+                    for (const c of defChars) if (!sfm.characters.includes(c)) sfm.characters.push(c);
+                }
+                if (defLocs.length) {
+                    if (!sfm.locations) sfm.locations = [];
+                    for (const l of defLocs) if (!sfm.locations.includes(l)) sfm.locations.push(l);
+                }
+            });
+        }
+
+        new Notice('Дефолты главы применены ко всем сценам');
     }
 
     /**
@@ -168,7 +506,15 @@ class CommandRegistry {
         try {
             const startPath = this.getCurrentStartPath();
             const projectRoot = this.getCurrentProjectRoot();
-            
+            // Для главы/сцены используем прямой вызов, минуя фабрику
+            if (entityType === 'Chapter') {
+                await window.createChapter(this.plugin, startPath);
+                return;
+            }
+            if (entityType === 'Scene') {
+                await window.createScene(this.plugin, startPath);
+                return;
+            }
             await this.entityFactory.createEntity(entityType, startPath);
         } catch (error) {
             new Notice(`Ошибка создания ${entityType}: ${error.message}`);

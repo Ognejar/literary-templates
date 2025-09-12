@@ -80,33 +80,56 @@ async function createWorld(plugin, worldData, startPath = '') {
 
         console.log('Данные для шаблона:', templateData);
 
-        // Создаем основной файл проекта
-        const mainFilePath = `${projectPath}/${worldData.projectName}.md`;
+        // Создаем основной файл проекта: ИМЯ ФАЙЛА ДОЛЖНО СОВПАДАТЬ С ИМЕНЕМ ПАПКИ (safeName)
+        const desiredMainPath = `${projectPath}/${safeName}.md`;
+        const legacyMainPath = `${projectPath}/${worldData.projectName}.md`;
         const mainFileContent = await generateFromTemplate('Новый_мир', templateData, plugin);
         
         // Логируем создание управляющего файла
         plugin.logDebug(
-          `Создание управляющего файла: ${mainFilePath}\nПервые строки:\n${mainFileContent.split('\n').slice(0, 20).join('\n')}`
+          `Создание управляющего файла: ${desiredMainPath}\nПервые строки:\n${mainFileContent.split('\n').slice(0, 20).join('\n')}`
         );
 
-        // Проверяем, существует ли файл и является ли он overview
-        let needOverwrite = false;
-        const existingFile = plugin.app.vault.getAbstractFileByPath(mainFilePath);
-        if (existingFile) {
-            const existingContent = await plugin.app.vault.read(existingFile);
-            // Проверяем, содержит ли файл overview-блок
-            if (existingContent.startsWith(`# ${worldData.projectName}`) && existingContent.includes('folder-overview')) {
-                needOverwrite = true;
-                plugin.logDebug(`Обнаружен overview-файл, будет перезаписан шаблоном мира: ${mainFilePath}`);
+        // Миграция/создание главного файла согласно правилу
+        const desiredFile = plugin.app.vault.getAbstractFileByPath(desiredMainPath);
+        const legacyFile = plugin.app.vault.getAbstractFileByPath(legacyMainPath);
+
+        if (desiredFile) {
+            // Целевой файл уже есть — опционально обновим, если это пустая болванка overview
+            try {
+                const content = await plugin.app.vault.read(desiredFile);
+                const isOverview = /folder-overview/.test(content);
+                if (isOverview) {
+                    await plugin.app.vault.adapter.write(desiredMainPath, mainFileContent);
+                    plugin.logDebug(`Главный файл обновлён по шаблону (overview -> template): ${desiredMainPath}`);
+                }
+            } catch (_) {}
+            // Удаляем легаси-файл с пробелами, если он дублирует главный
+            if (legacyFile) {
+                try { await plugin.app.vault.delete(legacyFile); plugin.logDebug(`Удалён дублирующий файл: ${legacyMainPath}`); } catch (_) {}
+            }
+        } else {
+            // Целевого файла нет
+            if (legacyFile) {
+                // Переносим содержимое из легаси-файла в новый и удаляем старый
+                try {
+                    const oldContent = await plugin.app.vault.read(legacyFile);
+                    const contentToWrite = (oldContent && oldContent.trim().length > 0) ? oldContent : mainFileContent;
+                    await plugin.app.vault.adapter.write(desiredMainPath, contentToWrite);
+                    await plugin.app.vault.delete(legacyFile);
+                    plugin.logDebug(`Перенесён контент из ${legacyMainPath} в ${desiredMainPath} и удалён легаси-файл`);
+                } catch (e) {
+                    // Если перенос не удался — хотя бы создадим целевой по шаблону
+                    await plugin.app.vault.adapter.write(desiredMainPath, mainFileContent);
+                    plugin.logDebug(`Создан главный файл по шаблону (перенос не удался): ${desiredMainPath}`);
+                }
             } else {
-                plugin.logDebug(`Файл уже существует и не является overview, не перезаписываем: ${mainFilePath}`);
+                // Ничего не было — создаём новый по шаблону
+                await plugin.app.vault.adapter.write(desiredMainPath, mainFileContent);
+                plugin.logDebug(`Создан главный файл: ${desiredMainPath}`);
             }
         }
-        if (!existingFile || needOverwrite) {
-            await plugin.app.vault.adapter.write(mainFilePath, mainFileContent);
-            plugin.logDebug(`Управляющий файл создан/перезаписан: ${mainFilePath}`);
-        }
-        console.log('Основной файл создан:', mainFilePath);
+        console.log('Основной файл создан/подтверждён:', desiredMainPath);
 
         // Создаем файл настроек мира
         const settingsFilePath = `${projectPath}/Настройки_мира.md`;
@@ -154,17 +177,17 @@ ${worldData.description}
         }
 
         // Открываем основной файл проекта
-        if (existingFile) { // Use existingFile here
-            await plugin.app.workspace.getLeaf().openFile(existingFile);
-            console.log('Основной файл открыт');
-        }
+        try {
+            const openFileRef = plugin.app.vault.getAbstractFileByPath(desiredMainPath);
+            if (openFileRef) { await plugin.app.workspace.getLeaf().openFile(openFileRef); console.log('Основной файл открыт'); }
+        } catch (_) {}
 
         console.log('=== createWorld завершена успешно ===');
 
         return {
             success: true,
             worldPath: projectPath,
-            mainFile: existingFile, // Return existingFile
+            mainFile: desiredMainPath,
             message: `Мир "${worldData.projectName}" успешно создан!`
         };
 
@@ -295,12 +318,24 @@ planned | started | writing | done | abandoned
             for (const [fileName, title] of pages) {
                 try {
                     const full = `${справочникPath}/${fileName}`;
-                    const content = fileName === 'Справочник_писателя.md' ? hub : page(title);
-                await safeCreateFile(full, content, app);
-                console.log('Файл справочника создан:', full);
+                    // Пытаемся прочитать пользовательский шаблон из плагина
+                    const tplRel = `.obsidian/plugins/literary-templates/templates/Справочник/${fileName}`;
+                    let content = '';
+                    try {
+                        const exists = await app.vault.adapter.exists(tplRel);
+                        if (exists) {
+                            content = await app.vault.adapter.read(tplRel);
+                        }
+                    } catch (_) {}
+                    // Фолбэк: генерируем болванку
+                    if (!content || content.trim() === '') {
+                        content = (fileName === 'Справочник_писателя.md') ? hub : page(title);
+                    }
+                    await safeCreateFile(full, content, app);
+                    // console.log('Файл справочника создан:', full);
                 } catch (e) {
-                console.error('Ошибка создания файла справочника', fileName, ':', e.message);
-            }
+                    console.error('Ошибка создания файла справочника', fileName, ':', e.message);
+                }
             }
             
         console.log('Справочник писателя создан успешно');
@@ -344,7 +379,7 @@ async function copyTagImagesFs(plugin, targetPath) {
                 // Создаём папку назначения, если нужно
                 fs.mkdirSync(path.dirname(destFile), { recursive: true });
                 fs.copyFileSync(srcFile, destFile);
-                console.log('Скопирована картинка:', fileName);
+                // console.log('Скопирована картинка:', fileName);
             }
         }
         new Notice('Теговые картинки скопированы!');

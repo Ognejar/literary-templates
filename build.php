@@ -107,6 +107,7 @@ $files = [
     'creators/createMonster.js',
     'creators/createTask.js',
     'creators/createWork.js',
+    'creators/structureTools.js',
     'creators/createSocialInstitution.js',
     // main.js должен быть последним!
     'main.js',
@@ -256,6 +257,24 @@ $main .= "window.AlchemyRecipeWizardModal = AlchemyRecipeWizardModal;\n";
 $main .= "window.SpellWizardModal = SpellWizardModal;\n";
 $main .= "window.PotionWizardModal = PotionWizardModal;\n";
 $main .= "window.SceneWizardModal = SceneWizardModal;\n";
+// Глобализация модального окна выбора главы
+$main .= "window.ChapterSelectorModal = ChapterSelectorModal;\n";
+// Обратная совместимость: алиас на старое имя
+$main .= "window.ChapterWizardModal = ChapterSelectorModal;\n";
+$main .= "window.SuggesterModal = SuggesterModal;\n";
+$main .= "window.PromptModal = PromptModal;\n";
+
+// Глобализация функций создания сущностей, вызываемых из меню/команд
+$main .= "window.createChapter = createChapter;\n";
+$main .= "window.createScene = createScene;\n";
+
+// Глобализация базовых утилит, используемых во всех creators
+$main .= "window.findProjectRoot = typeof findProjectRoot !== 'undefined' ? findProjectRoot : window.findProjectRoot;\n";
+$main .= "window.getAllProjectRoots = typeof getAllProjectRoots !== 'undefined' ? getAllProjectRoots : window.getAllProjectRoots;\n";
+$main .= "window.fillTemplate = typeof fillTemplate !== 'undefined' ? fillTemplate : window.fillTemplate;\n";
+$main .= "window.generateFromTemplate = typeof generateFromTemplate !== 'undefined' ? generateFromTemplate : window.generateFromTemplate;\n";
+$main .= "window.ensureEntityInfrastructure = typeof ensureEntityInfrastructure !== 'undefined' ? ensureEntityInfrastructure : window.ensureEntityInfrastructure;\n";
+$main .= "window.safeCreateFile = typeof safeCreateFile !== 'undefined' ? safeCreateFile : window.safeCreateFile;\n";
 
 // Добавляем один импорт obsidian в начало (включая MarkdownView и requestUrl)
 $main = "const { Plugin, Notice, TFile, TFolder, Modal, Setting, MarkdownView, requestUrl } = require('obsidian');\n\n" . $main;

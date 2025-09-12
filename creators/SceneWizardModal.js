@@ -18,12 +18,12 @@ class SceneWizardModal extends Modal {
         this.Modal = ModalClass;
         this.Setting = SettingClass;
         this.Notice = NoticeClass;
-        this.autocompleteData = autocompleteData; // { plotLinesList, charactersList, locationsList, chapterChoices }
+        this.autocompleteData = autocompleteData; // { plotLinesList, charactersList, locationsList, chapterChoices, defaultChapterNum }
         this.onFinish = onFinish;
         this.state = {
             step: 0,
             sceneName: '',
-            chapterNum: '',
+            chapterNum: (autocompleteData && autocompleteData.defaultChapterNum) || '',
             // chapterManual: '', // Удалено: ручной ввод главы не нужен
             plotLines: [],
             characters: [],
@@ -41,6 +41,7 @@ class SceneWizardModal extends Modal {
         ];
     }
     onOpen() {
+        try { console.log('[SceneWizardModal] onOpen'); } catch (_) {}
         // Добавляем общие стили для модального окна
         this.modalEl.style.cssText = `
             max-width: 900px !important;
@@ -56,6 +57,7 @@ class SceneWizardModal extends Modal {
         this.render();
     }
     render() {
+        try { console.log('[SceneWizardModal] render step =', this.state.step); } catch (_) {}
         const { contentEl } = this;
         contentEl.empty();
         
@@ -106,6 +108,7 @@ class SceneWizardModal extends Modal {
         }
     }
     renderSceneName(el) {
+        try { console.log('[SceneWizardModal] renderSceneName'); } catch (_) {}
         // Справка
         const help = el.createDiv('help-section');
         help.style.cssText = `
@@ -140,11 +143,13 @@ class SceneWizardModal extends Modal {
                 new this.Notice('Название сцены обязательно!');
                 return;
             }
+            try { console.log('[SceneWizardModal] sceneName set:', this.state.sceneName); } catch (_) {}
             this.state.step++;
             this.render();
         });
     }
     renderChapterNumber(el) {
+        try { console.log('[SceneWizardModal] renderChapterNumber, chapters =', (this.autocompleteData.chapterChoices||[]).length); } catch (_) {}
         // Справка
         const help = el.createDiv('help-section');
         help.style.cssText = `
@@ -231,6 +236,7 @@ class SceneWizardModal extends Modal {
                 new this.Notice('Пожалуйста, выберите главу из списка.');
                 return;
             }
+            try { console.log('[SceneWizardModal] chapter selected:', this.state.chapterNum); } catch (_) {}
             this.state.step++;
             this.render();
         });
@@ -279,18 +285,30 @@ class SceneWizardModal extends Modal {
         });
         
         addBtn.onclick = () => {
+            console.log('[SceneWizardModal] add plot line clicked');
+            console.log('[SceneWizardModal] list:', list);
+            console.log('[SceneWizardModal] selected:', selected);
             const choices = list.filter(l => !selected.find(s => s.id === l.id)).map(l => `${l.name} - ${l.description}`);
-            if (choices.length === 0) return;
-            new SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите сюжетную линию').openAndGetValue().then(choice => {
+            console.log('[SceneWizardModal] choices:', choices);
+            if (choices.length === 0) {
+                console.log('[SceneWizardModal] No choices available');
+                return;
+            }
+            console.log('[SceneWizardModal] window.SuggesterModal:', typeof window.SuggesterModal);
+            if (typeof window.SuggesterModal === 'undefined') {
+                console.error('[SceneWizardModal] SuggesterModal not found!');
+                return;
+            }
+            new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите сюжетную линию').openAndGetValue().then(choice => {
                 if (!choice) return;
                 const lineObj = list.find(l => `${l.name} - ${l.description}` === choice);
                 if (!lineObj) return;
                 // Степень
                 const degrees = [ 'Прямая', 'Связанная', 'Фоновая' ];
-                new SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, degrees, degrees, `Степень для "${lineObj.name}"`).openAndGetValue().then(degree => {
+                new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, degrees, degrees, `Степень для "${lineObj.name}"`).openAndGetValue().then(degree => {
                     if (!degree) return;
                     // Описание
-                    const descPrompt = new PromptModal(this.app, this.Modal, this.Setting, this.Notice, `Краткое описание роли сцены в линии "${lineObj.name}":`);
+                    const descPrompt = new window.PromptModal(this.app, this.Modal, this.Setting, this.Notice, `Краткое описание роли сцены в линии "${lineObj.name}":`);
                     descPrompt.openAndGetValue().then(description => {
                         selected.push({
                             id: lineObj.id,
@@ -356,6 +374,7 @@ class SceneWizardModal extends Modal {
                 new this.Notice('Выберите хотя бы одну сюжетную линию!');
                 return;
             }
+            try { console.log('[SceneWizardModal] plot lines selected:', this.state.plotLines.length); } catch (_) {}
             this.state.step++;
             this.render();
         }, true);
@@ -404,9 +423,10 @@ class SceneWizardModal extends Modal {
         });
         
         addBtn.onclick = () => {
+            try { console.log('[SceneWizardModal] add character clicked'); } catch (_) {}
             const choices = list.filter(c => !selected.includes(c));
             if (choices.length === 0) return;
-            new SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите персонажа').openAndGetValue().then(choice => {
+            new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите персонажа').openAndGetValue().then(choice => {
                 if (!choice) return;
                 selected.push(choice);
                 this.state.characters = selected;
@@ -508,9 +528,10 @@ class SceneWizardModal extends Modal {
         });
         
         addBtn.onclick = () => {
+            try { console.log('[SceneWizardModal] add location clicked'); } catch (_) {}
             const choices = list.filter(l => !selected.includes(l));
             if (choices.length === 0) return;
-            new SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите локацию').openAndGetValue().then(choice => {
+            new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите локацию').openAndGetValue().then(choice => {
                 if (!choice) return;
                 selected.push(choice);
                 this.state.locations = selected;
@@ -762,7 +783,14 @@ class SceneWizardModal extends Modal {
                 finishBtn.style.background = 'var(--interactive-accent)';
             });
             finishBtn.onclick = () => {
-                this.onFinish(this.state);
+                try { console.log('[SceneWizardModal] finish clicked, state =', this.state); } catch (_) {}
+                new this.Notice('Создание сцены...');
+                try {
+                    this.onFinish(this.state);
+                } catch (e) {
+                    try { console.error('[SceneWizardModal] onFinish error', e); } catch (_) {}
+                    new this.Notice('Ошибка при создании сцены: ' + e.message);
+                }
                 this.close();
             };
         }

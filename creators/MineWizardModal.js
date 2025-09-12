@@ -186,10 +186,11 @@ var MineWizardModal = class extends EntityWizardBase {
 
     renderClimateFaction(contentEl) {
         new this.Setting(contentEl)
-            .setName('Климат')
+            .setName('Климат (опционально)')
             .addDropdown(dropdown => {
+                dropdown.addOption('', '— не указывать —');
                 this.config.climates.forEach(climate => dropdown.addOption(climate, climate));
-                dropdown.setValue(this.data.climate || this.config.climates[0]);
+                dropdown.setValue(this.data.climate || '');
                 dropdown.onChange(value => this.data.climate = value);
                 dropdown.selectEl.style.minWidth = '280px';
                 dropdown.selectEl.style.fontSize = '14px';
@@ -210,11 +211,11 @@ var MineWizardModal = class extends EntityWizardBase {
 
     renderStateProvince(contentEl) {
         new this.Setting(contentEl)
-            .setName('Государство')
+            .setName('Государство (опционально)')
             .addDropdown(dropdown => {
-                dropdown.addOption('', 'Выберите государство');
+                dropdown.addOption('', '— не указывать —');
                 this.config.states.forEach(state => dropdown.addOption(state, state));
-                dropdown.setValue(this.data.state);
+                dropdown.setValue(this.data.state || '');
                 dropdown.onChange(value => this.data.state = value);
                 dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
@@ -236,7 +237,7 @@ var MineWizardModal = class extends EntityWizardBase {
 
     renderDescription(contentEl) {
         new this.Setting(contentEl)
-            .setName('Описание')
+            .setName('Описание (опционально)')
             .addTextArea(text => {
                 text.setPlaceholder('Подробное описание шахты')
                     .setValue(this.data.description)
@@ -253,10 +254,11 @@ var MineWizardModal = class extends EntityWizardBase {
 
     renderMineTypeShafts(contentEl) {
         new this.Setting(contentEl)
-            .setName('Тип шахты')
+            .setName('Тип шахты (опционально)')
             .addDropdown(dropdown => {
+                dropdown.addOption('', '— не указывать —');
                 this.config.mineTypes.forEach(type => dropdown.addOption(type, type));
-                dropdown.setValue(this.data.mineType || this.config.mineTypes[0]);
+                dropdown.setValue(this.data.mineType || '');
                 dropdown.onChange(value => this.data.mineType = value);
                 dropdown.selectEl.style.minWidth = '320px';
                 dropdown.selectEl.style.fontSize = '14px';
@@ -264,7 +266,7 @@ var MineWizardModal = class extends EntityWizardBase {
             });
 
         new this.Setting(contentEl)
-            .setName('Количество шахт')
+            .setName('Количество шахт (опционально)')
             .addText(text => {
                 text.setPlaceholder('Например: 3')
                     .setValue(this.data.shafts)
@@ -326,7 +328,7 @@ var MineWizardModal = class extends EntityWizardBase {
         const previewEl = contentEl.createEl('div', { cls: 'preview-section' });
         previewEl.createEl('h3', { text: 'Предпросмотр:' });
         previewEl.createEl('p', { text: `**Название:** ${this.data.mineName}` });
-        previewEl.createEl('p', { text: `**Климат:** ${this.data.climate}` });
+        if (this.data.climate) previewEl.createEl('p', { text: `**Климат:** ${this.data.climate}` });
         previewEl.createEl('p', { text: `**Доминирующая фракция:** ${this.data.dominantFaction}` });
         if (this.data.state) {
             previewEl.createEl('p', { text: `**Государство:** ${this.data.state}` });
@@ -335,8 +337,8 @@ var MineWizardModal = class extends EntityWizardBase {
             previewEl.createEl('p', { text: `**Провинция:** ${this.data.province}` });
         }
         previewEl.createEl('p', { text: `**Описание:** ${this.data.description.substring(0, 100)}...` });
-        previewEl.createEl('p', { text: `**Тип шахты:** ${this.data.mineType}` });
-        previewEl.createEl('p', { text: `**Количество шахт:** ${this.data.shafts}` });
+        if (this.data.mineType) previewEl.createEl('p', { text: `**Тип шахты:** ${this.data.mineType}` });
+        if (this.data.shafts) previewEl.createEl('p', { text: `**Количество шахт:** ${this.data.shafts}` });
         const statusLabel = this.config.statuses.find(s => s.value === this.data.status)?.label || this.data.status;
         previewEl.createEl('p', { text: `**Статус:** ${statusLabel}` });
         if (this.data.status !== 'действует' && this.data.statusReason) {
@@ -381,41 +383,18 @@ var MineWizardModal = class extends EntityWizardBase {
                     return false;
                 }
                 break;
-            case 1: // Status
-                if (!this.data.status) {
-                    new this.Notice('Пожалуйста, выберите статус шахты.');
-                    return false;
-                }
-                if (this.data.status !== 'действует' && !this.data.statusReason.trim()) {
-                    new this.Notice('Пожалуйста, укажите причину заброшенности/разрушения.');
-                    return false;
-                }
+            case 1: // Status (reason optional)
+                // статус может быть пустым — не блокируем
                 break;
-            case 2: // Climate and Faction
-                if (!this.data.climate) {
-                    new this.Notice('Пожалуйста, выберите климат.');
-                    return false;
-                }
+            case 2: // Climate and Faction (optional)
                 break;
-            case 3: // State and Province
-                if (!this.data.state) {
-                    new this.Notice('Пожалуйста, выберите государство.');
-                    return false;
-                }
+            case 3: // State and Province (optional)
                 break;
-            case 4: // Description
-                if (!this.data.description.trim()) {
-                    new this.Notice('Пожалуйста, введите описание шахты.');
-                    return false;
-                }
+            case 4: // Description (optional)
                 break;
-            case 5: // Mine Type and Shafts
-                if (!this.data.mineType.trim()) {
-                    new this.Notice('Пожалуйста, укажите тип шахты.');
-                    return false;
-                }
-                if (!this.data.shafts.trim() || isNaN(Number(this.data.shafts))) {
-                    new this.Notice('Пожалуйста, укажите количество шахт (числом).');
+            case 5: // Mine Type and Shafts (optional; validate number only if filled)
+                if (this.data.shafts && isNaN(Number(this.data.shafts))) {
+                    new this.Notice('Количество шахт должно быть числом (или оставьте пустым).');
                     return false;
                 }
                 break;

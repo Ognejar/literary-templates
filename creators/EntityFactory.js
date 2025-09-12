@@ -134,7 +134,6 @@ class EntityFactory {
             'AlchemyRecipe': window.AlchemyRecipeWizardModal,
             'Task': window.TaskWizardModal,
             'Scene': window.SceneWizardModal,
-            'Chapter': window.ChapterWizardModal,
             'Work': window.WorkCreationModal,
             'Conflict': window.ConflictWizardModal,
             'Organization': window.OrganizationWizardModal,

@@ -410,6 +410,7 @@ var CharacterWizardModal = class extends EntityWizardBase {
             name,
             date,
             created: date,
+            projectName: (typeof this.projectPath === 'string' && this.projectPath) ? this.projectPath.split('/').pop() : '',
             // world is the project name; do not write it into character YAML
             age: clean(this.data.age),
             gender: this.data.gender,
@@ -433,7 +434,6 @@ var CharacterWizardModal = class extends EntityWizardBase {
             otherCharactersContent: list(this.data.otherCharacters).map(x => `[[${x}]]`).join(', '),
             tagsContent: list(this.data.tags).join(', '),
             tagImage: '',
-            scope: '',
             workName: '',
             workLink: ''
         };
@@ -450,12 +450,14 @@ var CharacterWizardModal = class extends EntityWizardBase {
         try {
             const scopeOptions = ['Глобальный персонаж (во весь мир)', 'Персонаж произведения'];
             const scopeChoice = await this.plugin.suggester(scopeOptions, scopeOptions, 'Область персонажа');
-            if (!scopeChoice) { this.Notice('Область не выбрана'); return; }
-            if (scopeChoice === scopeOptions[0]) {
-                data.scope = 'global';
+            if (!scopeChoice) { 
+                // Если пользователь отменил выбор — создаём глобального персонажа
+                new this.Notice('Создаём глобального персонажа');
+                targetFolder = `${this.projectPath}/Персонажи`;
+            } else if (scopeChoice === scopeOptions[0]) {
                 targetFolder = `${this.projectPath}/Персонажи`;
             } else {
-                data.scope = 'work';
+                // Персонаж произведения
                 const worksRoot = `${this.projectPath}/1_Рукопись/Произведения`;
                 const worksFolder = this.app.vault.getAbstractFileByPath(worksRoot);
                 let workChoices = [];
@@ -463,17 +465,27 @@ var CharacterWizardModal = class extends EntityWizardBase {
                     workChoices = worksFolder.children.filter(ch => ch && ch.children).map(ch => ch.name);
                 }
                 if (workChoices.length === 0) {
-                    new this.Notice('Произведения не найдены. Сначала создайте произведение.');
-                    this.close();
-                    return;
+                    // Fallback: создаём глобального персонажа вместо прерывания
+                    new this.Notice('Произведения не найдены. Создаём глобального персонажа.');
+                    targetFolder = `${this.projectPath}/Персонажи`;
+                } else {
+                    chosenWork = await this.plugin.suggester(workChoices, workChoices, 'Выберите произведение для персонажа');
+                    if (!chosenWork) { 
+                        // Fallback: создаём глобального персонажа
+                        new this.Notice('Создаём глобального персонажа');
+                        targetFolder = `${this.projectPath}/Персонажи`;
+                    } else {
+                        data.workName = chosenWork;
+                        data.workLink = `[[${chosenWork}]]`;
+                        targetFolder = `${this.projectPath}/1_Рукопись/Произведения/${data.workName}/Персонажи`;
+                    }
                 }
-                chosenWork = await this.plugin.suggester(workChoices, workChoices, 'Выберите произведение для персонажа');
-                if (!chosenWork) { this.Notice('Произведение не выбрано'); return; }
-                data.workName = chosenWork;
-                data.workLink = `[[${chosenWork}]]`;
-                targetFolder = `${this.projectPath}/1_Рукопись/Произведения/${data.workName}/Персонажи`;
             }
-        } catch (e) {}
+        } catch (e) {
+            // При любой ошибке — fallback на глобального персонажа
+            new this.Notice('Ошибка выбора области. Создаём глобального персонажа.');
+            targetFolder = `${this.projectPath}/Персонажи`;
+        }
 
         // Обработка профессий: если нет в настройках, создаём справочник
         try {
@@ -539,7 +551,15 @@ var CharacterWizardModal = class extends EntityWizardBase {
             }
         } catch (e) {}
         
-        const content = await window.generateFromTemplate('Новый_персонаж', data, this.plugin);
+        // Генерируем контент через TemplateManager API
+        let content = '';
+        try {
+            const tpl = await this.plugin.readTemplateFile('Новый_персонаж');
+            content = await window.fillTemplate(tpl, data);
+        } catch (e) {
+            // fallback на старый helper, если доступен
+            content = await window.generateFromTemplate('Новый_персонаж', data, this.plugin);
+        }
         const folder = targetFolder || `${this.projectPath}/Персонажи`;
         
         if (this.options.targetFile instanceof TFile) {

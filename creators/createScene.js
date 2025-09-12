@@ -47,6 +47,8 @@ var createScene = async function(plugin, startPath = '') {
 
         }
         plugin.logDebug('project: ' + project);
+        plugin.logDebug('[createScene] projectRoot: ' + (projectRoot || '(empty)'));
+        plugin.logDebug('[createScene] startPath: ' + (startPath || '(empty)'));
         // --- Автозаполнение ---
         // 1. Сюжетные линии
         let plotLinesList = [];
@@ -119,32 +121,184 @@ var createScene = async function(plugin, startPath = '') {
         }
         
         // 4. Главы (для выбора существующей главы)
+        // Пытаемся вычислить принудительный контекст из startPath/активного файла:
+        // - forcedWork: произведение
+        // - forcedChapterNum: номер главы (NNN) если находимся внутри конкретной главы
+        let forcedWork = '';
+        let forcedChapterNum = '';
+        try {
+            const active = plugin.app.workspace.getActiveFile();
+            const ctxPath = (startPath && startPath.trim()) ? startPath : (active ? active.path : '');
+            if (ctxPath) {
+                // Ветка: конкретная глава
+                const mChapter = ctxPath.match(/\/(?:1_Рукопись\/Произведения\/([^\/]+)\/Главы\/Глава_(\d{3})_|1_Рукопись\/Главы\/Глава_(\d{3})_)/);
+                if (mChapter) {
+                    if (mChapter[1]) forcedWork = mChapter[1];
+                    forcedChapterNum = (mChapter[2] || mChapter[3] || '').trim();
+                } else {
+                    // Ветка: в пределах произведения
+                    const mWork = ctxPath.match(/\/1_Рукопись\/Произведения\/([^\/]+)\//);
+                    if (mWork && mWork[1]) forcedWork = mWork[1];
+                }
+            }
+            plugin.logDebug(`[createScene] forcedWork=${forcedWork || '(none)'} forcedChapterNum=${forcedChapterNum || '(none)'}`);
+        } catch (e) {
+            plugin.logDebug('[createScene] forced context parse error: ' + e.message);
+        }
         let chapterChoices = [];
         try {
-            const chaptersFolder = `${project}/Главы`;
-            const folder = plugin.app.vault.getAbstractFileByPath(chaptersFolder);
-            if (folder && folder.children) {
-                chapterChoices = folder.children
-                    .filter(f => f instanceof TFolder && f.name.startsWith('Глава_'))
-                    .map(f => {
-                        const match = f.name.match(/^Глава_(\d+)_?(.+)?$/);
-                        return {
-                            num: match ? match[1] : f.name,
-                            name: match && match[2] ? match[2].replace(/_/g, ' ') : f.name,
-                            path: f.path // <--- добавлено!
-                        };
+            const collectChaptersFrom = (folderPath, decorateNameCb) => {
+                try { console.log('[createScene] scan', folderPath); } catch (_) {}
+                plugin.logDebug('[createScene] Scan chapters in: ' + folderPath);
+                const result = [];
+                const folder = plugin.app.vault.getAbstractFileByPath(folderPath);
+                if (folder && folder.children) {
+                    try { console.log('[createScene] children count =', folder.children.length); } catch (_) {}
+                    plugin.logDebug('[createScene] Found folder, children count: ' + folder.children.length);
+                    folder.children.forEach(ch => {
+                        const isFolder = !!(ch && ch.children);
+                        if (isFolder && ch.name && ch.name.startsWith('Глава_')) {
+                            const match = ch.name.match(/^Глава_(\d+)_?(.+)?$/);
+                            const baseName = match && match[2] ? match[2].replace(/_/g, ' ') : ch.name;
+                            result.push({
+                                num: match ? match[1] : ch.name,
+                                name: decorateNameCb ? decorateNameCb(baseName) : baseName,
+                                path: ch.path
+                            });
+                            try { console.log('[createScene] chapter found', result[result.length-1]); } catch (_) {}
+                            plugin.logDebug('[createScene] Chapter found: ' + JSON.stringify(result[result.length-1]));
+                        }
                     });
-                plugin.logDebug('chapterChoices: ' + JSON.stringify(chapterChoices));
+                    try { console.log('[createScene] chapters from folder =', result.length); } catch (_) {}
+                    plugin.logDebug('[createScene] Chapters collected from folder: ' + result.length);
+                }
+                return result;
+            };
+
+            if (forcedChapterNum) {
+                // Жёстко ограничиваемся текущей главой
+                const baseFolder = forcedWork ? `${project}/1_Рукопись/Произведения/${forcedWork}/Главы` : `${project}/1_Рукопись/Главы`;
+                const onlyThis = collectChaptersFrom(baseFolder);
+                chapterChoices = onlyThis.filter(ch => ch.num === forcedChapterNum);
+            } else if (forcedWork) {
+                // Только главы выбранного произведения
+                const workChapters = `${project}/1_Рукопись/Произведения/${forcedWork}/Главы`;
+                const decorated = collectChaptersFrom(workChapters, (base) => `${base} (Произведение: ${forcedWork})`);
+                chapterChoices = decorated;
             } else {
-                plugin.logDebug('No chapters folder or no children');
+                // Главы без привязки к произведению
+                const commonChaptersFolder = `${project}/1_Рукопись/Главы`;
+                chapterChoices = chapterChoices.concat(collectChaptersFrom(commonChaptersFolder));
+
+                // Главы внутри произведений
+                const worksRoot = `${project}/1_Рукопись/Произведения`;
+                const worksFolder = plugin.app.vault.getAbstractFileByPath(worksRoot);
+                plugin.logDebug('[createScene] Works root: ' + worksRoot + ', exists: ' + (worksFolder ? 'YES' : 'NO'));
+                if (worksFolder && worksFolder.children) {
+                    worksFolder.children.forEach(workDir => {
+                        const isFolder = !!(workDir && workDir.children);
+                        if (isFolder) {
+                            const workChapters = `${workDir.path}/Главы`;
+                            plugin.logDebug('[createScene] Scan work chapters: ' + workChapters);
+                            const decorated = collectChaptersFrom(workChapters, (base) => `${base} (Произведение: ${workDir.name})`);
+                            chapterChoices = chapterChoices.concat(decorated);
+                            plugin.logDebug('[createScene] Added ' + decorated.length + ' chapters from work: ' + workDir.name);
+                        }
+                    });
+                }
             }
+
+            // Лог для отладки
+            plugin.logDebug('chapterChoices: ' + JSON.stringify(chapterChoices));
         } catch (e) {
             chapterChoices = [];
             plugin.logDebug('Error loading chapters: ' + e.message);
         }
 
+        // Если глав нет — предложить создать
+        if (!chapterChoices || chapterChoices.length === 0) {
+            new Notice('Главы не найдены. Создайте главу — откроется мастер.');
+            plugin.logDebug('[createScene] No chapters found. Trigger createChapter...');
+            try {
+                await window.createChapter(plugin, project);
+                plugin.logDebug('[createScene] createChapter finished');
+            } catch (e) {
+                plugin.logDebug('Error auto-creating chapter: ' + e.message);
+            }
+            // Повторно собрать список после попытки создания (и в общих, и в произведениях)
+            try {
+                const refreshed = [];
+                const collectChaptersFrom = (folderPath, decorateNameCb) => {
+                    plugin.logDebug('[createScene] Refresh scan: ' + folderPath);
+                    const result = [];
+                    const folder = plugin.app.vault.getAbstractFileByPath(folderPath);
+                    if (folder && folder.children) {
+                        plugin.logDebug('[createScene] Refresh folder children: ' + folder.children.length);
+                        folder.children.forEach(ch => {
+                            const isFolder = !!(ch && ch.children);
+                            if (isFolder && ch.name && ch.name.startsWith('Глава_')) {
+                                const match = ch.name.match(/^Глава_(\d+)_?(.+)?$/);
+                                const baseName = match && match[2] ? match[2].replace(/_/g, ' ') : ch.name;
+                                result.push({
+                                    num: match ? match[1] : ch.name,
+                                    name: decorateNameCb ? decorateNameCb(baseName) : baseName,
+                                    path: ch.path
+                                });
+                                plugin.logDebug('[createScene] Refresh chapter found: ' + JSON.stringify(result[result.length-1]));
+                            }
+                        });
+                    }
+                    return result;
+                };
+
+                if (forcedChapterNum) {
+                    const baseFolder = forcedWork ? `${project}/1_Рукопись/Произведения/${forcedWork}/Главы` : `${project}/1_Рукопись/Главы`;
+                    refreshed.push(...collectChaptersFrom(baseFolder));
+                    chapterChoices = refreshed.filter(ch => ch.num === forcedChapterNum);
+                } else if (forcedWork) {
+                    const workChapters = `${project}/1_Рукопись/Произведения/${forcedWork}/Главы`;
+                    refreshed.push(...collectChaptersFrom(workChapters, (base) => `${base} (Произведение: ${forcedWork})`));
+                    chapterChoices = refreshed;
+                } else {
+                    // Общие главы
+                    refreshed.push(...collectChaptersFrom(`${project}/1_Рукопись/Главы`));
+                    // Главы произведений
+                    const worksRoot = `${project}/1_Рукопись/Произведения`;
+                    const worksFolder = plugin.app.vault.getAbstractFileByPath(worksRoot);
+                    if (worksFolder && worksFolder.children) {
+                        worksFolder.children.forEach(workDir => {
+                            const isFolder = !!(workDir && workDir.children);
+                            if (isFolder) {
+                                const workChapters = `${workDir.path}/Главы`;
+                                refreshed.push(...collectChaptersFrom(workChapters, (base) => `${base} (Произведение: ${workDir.name})`));
+                            }
+                        });
+                    }
+                    chapterChoices = refreshed;
+                }
+                plugin.logDebug('[createScene] Refreshed chapterChoices length: ' + chapterChoices.length);
+            } catch (e) {
+                plugin.logDebug('Error refreshing chapters after create: ' + e.message);
+            }
+            if (!chapterChoices || chapterChoices.length === 0) {
+                new Notice('Сцена не может быть создана: главы по-прежнему не найдены.');
+                plugin.logDebug('[createScene] Still no chapters after refresh. Abort.');
+                return;
+            }
+        }
+
         // --- Запуск SceneWizardModal ---
-        const modal = new SceneWizardModal(plugin.app, Modal, Setting, Notice, { plotLinesList, charactersList, locationsList, chapterChoices }, async (sceneData) => {
+        // Определяем проект и последнюю выбранную главу для преселекта
+        const projectName = project.split('/').pop();
+        const defaultChapterNum = (plugin.settings && plugin.settings.sceneDefaultChapterByProject && plugin.settings.sceneDefaultChapterByProject[projectName]) || '';
+
+        const modal = new SceneWizardModal(
+            plugin.app,
+            Modal,
+            Setting,
+            Notice,
+            { plotLinesList, charactersList, locationsList, chapterChoices, defaultChapterNum },
+            async (sceneData) => {
             // После завершения мастера — создать файл сцены по шаблону
             const plotLinesYaml = sceneData.plotLines.length > 0
                 ? sceneData.plotLines.map(line => `- line: "${line.line}"\n  degree: "${line.degree}"\n  description: "${line.description}"`).join('\n')
@@ -161,6 +315,7 @@ var createScene = async function(plugin, startPath = '') {
             
             // --- Генерация имени и пути ---
             // Найти выбранную главу в chapterChoices (используем chapterChoices из замыкания, а не this)
+            plugin.logDebug('[createScene] sceneData.chapterNum: ' + sceneData.chapterNum + ', sceneData.sceneName: ' + sceneData.sceneName);
             const selectedChapter = chapterChoices.find(ch => ch.num === sceneData.chapterNum);
             plugin.logDebug('selectedChapter: ' + JSON.stringify(selectedChapter));
             if (!selectedChapter || !selectedChapter.path) {
@@ -180,42 +335,143 @@ var createScene = async function(plugin, startPath = '') {
                 return;
             }
             
-            const sceneNum = '01'; // Можно доработать автоинкремент, если сцены будут нумероваться внутри главы
+            // --- Автоинкремент номера сцены внутри выбранной главы ---
+            let nextSceneNumber = 1;
+            try {
+                const children = (chapterFolder && chapterFolder.children) ? chapterFolder.children : [];
+                const existingNums = [];
+                children.forEach(chFile => {
+                    try {
+                        if (chFile instanceof TFile && chFile.extension === 'md') {
+                            const m = chFile.name.match(/^Сцена_(\d{2})_/);
+                            if (m && m[1]) {
+                                const n = parseInt(m[1], 10);
+                                if (!Number.isNaN(n)) existingNums.push(n);
+                            }
+                        }
+                    } catch (_) {}
+                });
+                if (existingNums.length > 0) {
+                    nextSceneNumber = Math.max(...existingNums) + 1;
+                }
+            } catch (e) {
+                plugin.logDebug('[createScene] scan existing scenes error: ' + e.message);
+            }
+
+            // Формируем имя файла и проверяем коллизии: если занято — инкрементируем дальше
             const cleanSceneName = sceneData.sceneName.trim().replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');
-            const fileName = `Сцена_${sceneNum}_${cleanSceneName}`;
-            const targetPath = `${chapterFolderPath}/${fileName}.md`;
-            plugin.logDebug('targetPath: ' + targetPath);
+            let sceneNum = String(nextSceneNumber).padStart(2, '0');
+            let fileName = `Сцена_${sceneNum}_${cleanSceneName}`;
+            let targetPath = `${chapterFolderPath}/${fileName}.md`;
+            let guard = 0;
+            while (plugin.app.vault.getAbstractFileByPath(targetPath) && guard < 100) {
+                nextSceneNumber += 1;
+                sceneNum = String(nextSceneNumber).padStart(2, '0');
+                fileName = `Сцена_${sceneNum}_${cleanSceneName}`;
+                targetPath = `${chapterFolderPath}/${fileName}.md`;
+                guard += 1;
+            }
+            plugin.logDebug('[createScene] computed sceneNum=' + sceneNum + ', targetPath: ' + targetPath);
             
             // --- Формируем данные для шаблона ---
+            // Определяем произведение по пути главы (если есть)
+            const workMatch = chapterFolderPath.match(/\/Произведения\/([^\/]+)\/Главы/);
+            const workName = workMatch ? workMatch[1] : '';
+            plugin.logDebug('[createScene] workName resolved: ' + (workName || '(none)'));
+
+            // Наследуем default_* из фронтматтера главы
+            let inheritedCharacters = [];
+            let inheritedLocations = [];
+            try {
+                const chapterIndexFile = plugin.app.vault.getAbstractFileByPath(chapterFolderPath);
+                if (chapterIndexFile && chapterIndexFile.children) {
+                    // Ищем главный файл главы (Глава_NNN-*.md)
+                    const idx = chapterIndexFile.children.find(f => f instanceof TFile && /^Глава_\d{3}-/.test(f.name));
+                    if (idx) {
+                        const fm = plugin.app.metadataCache.getFileCache(idx)?.frontmatter || {};
+                        if (Array.isArray(fm.default_characters)) inheritedCharacters = fm.default_characters;
+                        if (Array.isArray(fm.default_locations)) inheritedLocations = fm.default_locations;
+                    }
+                }
+            } catch (e) { plugin.logDebug('[createScene] inherit defaults error: ' + e.message); }
+
+            // Сливаем без дублей
+            const mergedCharacterTags = Array.from(new Set([...(inheritedCharacters || []).map(c => `"${c}"`), ...sceneData.characters.map(c => `"${c}"`)].filter(Boolean))).join(', ');
+            const mergedLocationTags = Array.from(new Set([...(inheritedLocations || []).map(l => `"${l}"`), ...sceneData.locations.map(l => `"${l}"`)].filter(Boolean))).join(', ');
+            const mergedCharactersSection = (inheritedCharacters || []).concat(sceneData.characters || []).filter(Boolean).map(c => `[[${c}]]`).join(', ') || 'Не указаны';
+            const mergedLocationsSection = (inheritedLocations || []).concat(sceneData.locations || []).filter(Boolean).map(l => `[[${l}]]`).join(', ') || 'Не указаны';
             const data = {
                 ...sceneData,
                 sceneNum: sceneNum,
                 chapterNum: selectedChapter.num,
                 chapterName: selectedChapter.name,
+                workName: workName,
                 cleanSceneName: cleanSceneName,
                 date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10),
                 projectName: project.split('/').pop(),
                 plotLinesYaml: plotLinesYaml,
                 plotLinesSection: plotLinesSection,
-                characterTags: characterTags,
-                locationTags: locationTags,
-                charactersSection: charactersSection,
-                locationsSection: locationsSection,
+                characterTags: mergedCharacterTags,
+                locationTags: mergedLocationTags,
+                charactersSection: mergedCharactersSection,
+                locationsSection: mergedLocationsSection,
                 tags: tags
             };
             plugin.logDebug('data for template: ' + JSON.stringify(data));
 
-            // --- Генерируем контент из шаблона ---
-            plugin.logDebug('Generating content from template...');
-            const content = await generateFromTemplate('Новая_сцена', data, plugin);
+            // --- Генерируем контент из шаблона (как в других мастерах) ---
+            plugin.logDebug('Reading template via plugin.readTemplateFile...');
+            let templateContent = '';
+            try {
+                if (typeof plugin.readTemplateFile === 'function') {
+                    templateContent = await plugin.readTemplateFile('Новая_сцена');
+                }
+            } catch (e) {
+                plugin.logDebug('readTemplateFile error: ' + e.message);
+            }
+            if (!templateContent) {
+                new Notice('Шаблон "Новая_сцена.md" не найден в templates');
+                plugin.logDebug('Template Новая_сцена not found');
+                return;
+            }
+            const fillFn = (typeof window !== 'undefined' && typeof window.fillTemplate === 'function')
+                ? window.fillTemplate
+                : ((typeof globalThis !== 'undefined' && typeof globalThis.fillTemplate === 'function') ? globalThis.fillTemplate : null);
+            if (!fillFn) {
+                new Notice('Ошибка: функция заполнения шаблона недоступна');
+                plugin.logDebug('fillTemplate not available');
+                return;
+            }
+            const content = await fillFn(templateContent, data);
             plugin.logDebug('Content generated, length: ' + content.length);
             plugin.logDebug('Content preview: ' + content.substring(0, 200) + '...');
             
             // Сохраняем только в существующей папке главы
             plugin.logDebug('Creating file...');
             try {
-                const createdFile = await safeCreateFile(targetPath, content, plugin.app);
+                const safeCreate = (typeof window !== 'undefined' && typeof window.safeCreateFile === 'function')
+                    ? window.safeCreateFile
+                    : (typeof safeCreateFile === 'function' ? safeCreateFile : null);
+                if (!safeCreate) {
+                    new Notice('Ошибка: функция сохранения файла недоступна');
+                    plugin.logDebug('safeCreateFile not available');
+                    return;
+                }
+                const createdFile = await safeCreate(targetPath, content, plugin.app);
                 plugin.logDebug('File created successfully: ' + (createdFile ? 'YES' : 'NO'));
+                plugin.logDebug('Created file path: ' + targetPath);
+
+                // Сохраняем выбранную главу как дефолтную для проекта
+                try {
+                    plugin.settings = plugin.settings || {};
+                    plugin.settings.sceneDefaultChapterByProject = plugin.settings.sceneDefaultChapterByProject || {};
+                    plugin.settings.sceneDefaultChapterByProject[projectName] = selectedChapter.num;
+                    if (typeof plugin.saveSettings === 'function') {
+                        await plugin.saveSettings();
+                    }
+                } catch (e) {
+                    plugin.logDebug('Failed to save default chapter: ' + e.message);
+                }
                 
                 if (createdFile instanceof TFile) {
                     await plugin.app.workspace.getLeaf().openFile(createdFile);

@@ -186,7 +186,8 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
         const cleanChapterName = chapterName.trim().replace(/\s+/g, '_').replace(/[^а-яА-ЯёЁ\w\s-.]/g, '');
         plugin.logDebug('chapterName: ' + chapterName);
         plugin.logDebug('cleanChapterName: ' + cleanChapterName);
-        const chapterFolderPath = `${chaptersFolder}/Глава_${chapterNum}_${cleanChapterName}`;
+        // Папку главы называем с дефисом, чтобы совпадало с именем индексного файла
+        const chapterFolderPath = `${chaptersFolder}/Глава_${chapterNum}-${cleanChapterName}`;
         await plugin.app.vault.createFolder(chapterFolderPath).catch(()=>{});
         plugin.logDebug('chapterFolderPath: ' + chapterFolderPath);
 
@@ -215,6 +216,10 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
         }
 
         // 7. Формируем данные для шаблона
+        const plotLinesYaml = selectedPlotLines.length > 0
+            ? selectedPlotLines.map(line => `  - line: "${line.theme}"\n    degree: "${line.degree}"\n    description: ""`).join('\n')
+            : '  - line: ""\n    degree: ""\n    description: ""';
+            
         const data = {
             chapterName: chapterName,
             cleanChapterName: cleanChapterName,
@@ -222,11 +227,22 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             projectName: projectName,
             workName: chosenWork || '',
             plotLines: selectedPlotLines,
+            plotLinesYaml: plotLinesYaml,
+            characterTags: '', // Пока пусто, можно добавить позже
+            locationTags: '',  // Пока пусто, можно добавить позже
             date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10)
         };
 
         // 8. Генерируем контент из шаблона
-        const content = await generateFromTemplate('Новая_глава', data, plugin);
+        let templateContent = '';
+        try {
+            templateContent = await plugin.readTemplateFile('Новая_глава');
+        } catch (e) {
+            plugin.logDebug('Шаблон "Новая_глава.md" не найден: ' + e.message);
+            new Notice('Шаблон "Новая_глава.md" не найден в templates!', 6000);
+            return;
+        }
+        const content = await window.fillTemplate(templateContent, data);
         
         const fileName = `Глава_${chapterNum}-${cleanChapterName}`;
         const targetPath = `${chapterFolderPath}/${fileName}.md`;
@@ -236,6 +252,15 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             if (file instanceof TFile) {
                 await plugin.app.workspace.getLeaf().openFile(file);
         }
+        // Удаляем возможный дубликат с подчёркиванием в имени (если он существует)
+        try {
+            const underscoreVariant = `${chapterFolderPath}/Глава_${chapterNum}_${cleanChapterName}.md`;
+            const dup = plugin.app.vault.getAbstractFileByPath(underscoreVariant);
+            if (dup && dup instanceof TFile) {
+                await plugin.app.vault.delete(dup);
+                plugin.logDebug('Удалён дублирующий файл главы: ' + underscoreVariant);
+            }
+        } catch (e) { /* ignore */ }
         new Notice(`Создана глава: ${fileName}`);
     } catch (error) {
         new Notice('Ошибка при создании главы: ' + error.message);

@@ -16,6 +16,36 @@ class TemplateManager {
         this.handlebars = window.Handlebars;
     }
 
+    _augmentData(data) {
+        const d = { ...(data || {}) };
+        // statusLabel
+        if (typeof d.status === 'string') {
+            const map = {
+                'действует': '✅ Действует',
+                'заброшено': '🏚️ Заброшено',
+                'разрушено': '💥 Разрушено'
+            };
+            d.statusLabel = map[d.status] || d.status;
+        }
+        // provinceSection/stateSection
+        d.provinceSection = d.province ? `**Провинция:** ${d.province}` : '';
+        d.stateSection = d.state ? `**Государство:** ${d.state}` : '';
+        // featuresSection
+        if (Array.isArray(d.features) && d.features.length > 0) {
+            d.featuresSection = d.features.map(f => `- ${f}`).join('\n');
+        } else if (typeof d.features === 'string' && d.features.trim()) {
+            d.featuresSection = d.features
+                .split(/\r?\n/)
+                .map(s => s.trim())
+                .filter(Boolean)
+                .map(s => `- ${s}`)
+                .join('\n');
+        } else {
+            d.featuresSection = '';
+        }
+        return d;
+    }
+
     /**
      * Генерирует контент из шаблона
      */
@@ -26,13 +56,18 @@ class TemplateManager {
                 throw new Error(`Шаблон ${templateName} не найден`);
             }
 
+            // 1) Препроцессинг include-директив до компиляции
+            const withIncludes = await this._processIncludes(templateContent, plugin);
+            // 2) Подготовка вычисляемых секций
+            const augmented = this._augmentData(data);
+
             if (this.handlebars && typeof this.handlebars.compile === 'function') {
-                const template = this.handlebars.compile(templateContent);
-                return template(data);
+                const template = this.handlebars.compile(withIncludes);
+                return template(augmented);
             }
             // Фолбэк: простой рендер без Handlebars
-            let content = this._processConditionals(templateContent, data);
-            content = this._replacePlaceholders(content, data);
+            let content = this._processConditionals(withIncludes, augmented);
+            content = this._replacePlaceholders(content, augmented);
             return content;
         } catch (error) {
             console.error(`Ошибка генерации шаблона ${templateName}:`, error);
@@ -45,15 +80,32 @@ class TemplateManager {
      */
     async readTemplateFile(templateName, plugin) {
         try {
-            const templatePath = `templates/${templateName}.md`;
-            const templateFile = plugin.app.vault.getAbstractFileByPath(templatePath);
-            
-            if (!templateFile) {
-                console.warn(`Шаблон ${templatePath} не найден`);
-                return null;
+            const adapter = plugin.app.vault.adapter;
+            const pluginTemplatePath = `.obsidian/plugins/literary-templates/templates/${templateName}.md`;
+            const exists = await adapter.exists(pluginTemplatePath);
+            if (exists) {
+                return await adapter.read(pluginTemplatePath);
             }
-
-            return await plugin.app.vault.read(templateFile);
+            console.warn(`Шаблон не найден: ${pluginTemplatePath}`);
+            try {
+                const vaultName = typeof plugin?.app?.vault?.getName === 'function' ? plugin.app.vault.getName() : 'unknown-vault';
+                const folderPath = `.obsidian/plugins/literary-templates/templates`;
+                const folderInfo = await adapter.list(folderPath).catch(() => null);
+                const filesInFolder = folderInfo && Array.isArray(folderInfo.files)
+                    ? folderInfo.files.map(p => p.split('/').pop()).join(', ')
+                    : '(папка не найдена или пуста)';
+                console.info('[TemplateManager] Диагностика промаха шаблона:', {
+                    vaultName,
+                    requestedTemplateName: templateName,
+                    searchedPath: pluginTemplatePath,
+                    folderPath,
+                    folderExists: Boolean(folderInfo),
+                    filesInFolder
+                });
+            } catch (diagErr) {
+                console.info('[TemplateManager] Не удалось выполнить диагностику отсутствующего шаблона:', diagErr);
+            }
+            return null;
         } catch (error) {
             console.error(`Ошибка чтения шаблона ${templateName}:`, error);
             return null;
@@ -65,13 +117,14 @@ class TemplateManager {
      */
     async fillTemplate(template, data) {
         try {
+            const augmented = this._augmentData(data);
             if (this.handlebars && typeof this.handlebars.compile === 'function') {
                 const templateFunc = this.handlebars.compile(template);
-                return templateFunc(data);
+                return templateFunc(augmented);
             }
             // Фолбэк без Handlebars
-            let content = this._processConditionals(template, data);
-            content = this._replacePlaceholders(content, data);
+            let content = this._processConditionals(template, augmented);
+            content = this._replacePlaceholders(content, augmented);
             return content;
         } catch (error) {
             console.error('Ошибка заполнения шаблона:', error);
@@ -80,13 +133,70 @@ class TemplateManager {
     }
 
     _processConditionals(content, data) {
-        const conditionalRegex = /{{#if\s+([^}]+)}}([\s\S]*?){{\/if}}/g;
-        return content.replace(conditionalRegex, (_m, condition, block) => {
-            const key = String(condition).trim();
+        const regex = /{{#if\s+([^}]+)}}([\s\S]*?){{\/if}}/g;
+        return content.replace(regex, (_m, rawCond, block) => {
+            const condition = String(rawCond).trim();
+            // Поддержка формата: key == value
+            const eqMatch = condition.match(/^(\S+)\s*==\s*(\S+)$/);
+            if (eqMatch) {
+                const leftKey = eqMatch[1];
+                let rightVal = eqMatch[2];
+                rightVal = rightVal.replace(/^"|"$/g, '').replace(/^'|'$/g, '');
+                const leftVal = Object.prototype.hasOwnProperty.call(data, leftKey) ? String(data[leftKey]) : '';
+                return leftVal === rightVal ? block : '';
+            }
+            // Базовый формат: {{#if key}}
+            const key = condition;
             const value = Object.prototype.hasOwnProperty.call(data, key) ? data[key] : undefined;
             const truthy = value !== undefined && value !== null && value !== '';
             return truthy ? block : '';
         });
+    }
+
+    async _processIncludes(content, plugin) {
+        try {
+            const includeRegex = /{{include:([^}]+)}}/g;
+            const adapter = plugin.app.vault.adapter;
+            const tasks = [];
+            const placeholders = [];
+            let match;
+            while ((match = includeRegex.exec(content)) !== null) {
+                const rawPath = match[1].trim();
+                placeholders.push(match[0]);
+                tasks.push((async () => {
+                    try {
+                        let path = rawPath;
+                        // Поддержка укороченного пути sections/...
+                        if (!path.toLowerCase().endsWith('.md')) path += '.md';
+                        if (path.startsWith('sections/')) {
+                            path = `.obsidian/plugins/literary-templates/templates/${path}`;
+                        } else if (!path.startsWith('.obsidian/')) {
+                            // относительный к папке templates
+                            path = `.obsidian/plugins/literary-templates/templates/${path}`;
+                        }
+                        const exists = await adapter.exists(path);
+                        if (!exists) {
+                            console.warn(`[TemplateManager] include не найден: ${path}`);
+                            return `<!-- include not found: ${rawPath} -->`;
+                        }
+                        return await adapter.read(path);
+                    } catch (e) {
+                        console.error('[TemplateManager] Ошибка include', rawPath, e);
+                        return `<!-- include error: ${rawPath} -->`;
+                    }
+                })());
+            }
+            if (tasks.length === 0) return content;
+            const parts = await Promise.all(tasks);
+            let result = content;
+            for (let i = 0; i < placeholders.length; i++) {
+                result = result.replace(placeholders[i], parts[i]);
+            }
+            return result;
+        } catch (e) {
+            console.error('[TemplateManager] _processIncludes error:', e);
+            return content;
+        }
     }
 
     _replacePlaceholders(content, data) {
@@ -118,14 +228,15 @@ class TemplateManager {
      */
     async getAvailableTemplates(plugin) {
         try {
-            const templatesFolder = plugin.app.vault.getAbstractFileByPath('templates');
-            if (!templatesFolder || !templatesFolder.children) {
+            const adapter = plugin.app.vault.adapter;
+            const folderPath = '.obsidian/plugins/literary-templates/templates';
+            const list = await adapter.list(folderPath);
+            if (!list || !Array.isArray(list.files)) {
                 return [];
             }
-
-            return templatesFolder.children
-                .filter(file => file.extension === 'md')
-                .map(file => file.basename);
+            return list.files
+                .filter(p => p.toLowerCase().endsWith('.md'))
+                .map(p => p.split('/').pop().replace(/\.md$/i, ''));
         } catch (error) {
             console.error('Ошибка получения списка шаблонов:', error);
             return [];
@@ -137,9 +248,9 @@ class TemplateManager {
      */
     async templateExists(templateName, plugin) {
         try {
-            const templatePath = `templates/${templateName}.md`;
-            const templateFile = plugin.app.vault.getAbstractFileByPath(templatePath);
-            return templateFile !== null;
+            const adapter = plugin.app.vault.adapter;
+            const templatePath = `.obsidian/plugins/literary-templates/templates/${templateName}.md`;
+            return await adapter.exists(templatePath);
         } catch (error) {
             console.error(`Ошибка проверки существования шаблона ${templateName}:`, error);
             return false;
@@ -222,8 +333,10 @@ class TemplateManager {
             'Новая_провинция': ['name'],
             'Новый_замок': ['name'],
             'Новый_порт': ['name'],
+            'Новый_порт_scifi': ['name'],
             'Новая_ферма': ['name'],
             'Новая_шахта': ['name'],
+            'Новая_шахта_scifi': ['name'],
             'Новый_завод': ['name'],
             'Новый_персонаж': ['name'],
             'Новый_монстр': ['name'],
@@ -245,6 +358,7 @@ class TemplateManager {
             'Новый_торговый_путь': ['name'],
             'Новое_произведение': ['name'],
             'Новая_локация': ['name'],
+            'Новая_локация_scifi': ['name'],
             'Новая_мертвая_зона': ['name'],
             'Новый_социальный_объект': ['name']
         };
@@ -363,4 +477,16 @@ module.exports = { TemplateManager };
 // Глобализируем для использования в main.js
 if (typeof window !== 'undefined') {
     window.TemplateManager = TemplateManager;
+    // Упрощённый глобальный хелпер для генерации из шаблона
+    if (typeof window.generateFromTemplate !== 'function') {
+        window.generateFromTemplate = async function(templateName, data, plugin) {
+            try {
+                const manager = new TemplateManager(plugin);
+                return await manager.generateFromTemplate(templateName, data, plugin);
+            } catch (e) {
+                console.error('window.generateFromTemplate error:', e);
+                throw e;
+            }
+        };
+    }
 }

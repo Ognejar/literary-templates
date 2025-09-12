@@ -246,6 +246,65 @@ class LiteraryTemplatesPlugin extends Plugin {
     }
 
     // --- ВСТАВКИ В РЕДАКТОР ---
+    
+    /**
+     * Собирает сюжетные линии из файла
+     * @param {string} filePath - путь к файлу сюжетных линий
+     * @param {string} scope - область действия ('глобальные' или 'локальные')
+     * @returns {Promise<Array>} массив сюжетных линий
+     */
+    async collectPlotlines(filePath, scope) {
+        try {
+            const plotFile = this.app.vault.getAbstractFileByPath(filePath);
+            if (!(plotFile instanceof TFile)) {
+                this.logDebug(`[collectPlotlines] Файл не найден: ${filePath}`);
+                return [];
+            }
+            
+            const content = await this.app.vault.read(plotFile);
+            const lines = content.split(/\r?\n/);
+            /** @type {{id:string,title:string,description:string,scope:string}[]} */
+            const plotlines = [];
+            let current = null;
+            let collectingDesc = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const raw = lines[i];
+                const line = raw.trim();
+                const themeMatch = line.match(/^#{0,3}\s*Тема(\d+)\s*-\s*(.+)$/);
+                if (themeMatch) {
+                    if (current) {
+                        plotlines.push({...current, scope});
+                    }
+                    current = { id: themeMatch[1], title: themeMatch[2].trim(), description: '' };
+                    collectingDesc = false;
+                    continue;
+                }
+                if (current) {
+                    if (!collectingDesc) {
+                        if (/^Описание\s*:/.test(line)) {
+                            const after = raw.substring(raw.indexOf('Описание') + 'Описание'.length).replace(/^[\s:]+/, '');
+                            current.description = after;
+                            collectingDesc = true;
+                        }
+                    } else {
+                        // копим описание до следующей темы
+                        current.description += (current.description ? '\n' : '') + raw;
+                    }
+                }
+            }
+            if (current) {
+                plotlines.push({...current, scope});
+            }
+            
+            this.logDebug(`[collectPlotlines] Найдено ${plotlines.length} ${scope} сюжетных линий в ${filePath}`);
+            return plotlines;
+        } catch (e) {
+            this.logDebug(`[collectPlotlines] Ошибка чтения ${filePath}: ${e.message}`);
+            return [];
+        }
+    }
+
     getActiveEditor() {
         const ws = this.app.workspace;
         // Пытаемся получить через MarkdownView, если доступен
@@ -401,7 +460,28 @@ class LiteraryTemplatesPlugin extends Plugin {
     }
 
     async insertPlotlineIntoScene() {
-        const editor = this.getActiveEditor();
+        this.logDebug(`[insertPlotlineIntoScene] === НАЧАЛО ФУНКЦИИ ===`);
+        let editor = this.getActiveEditor();
+        this.logDebug(`[insertPlotlineIntoScene] editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+        
+        // Fallback для режима просмотра: переключаемся в режим редактирования (как у персонажей)
+        if (!editor) {
+            try {
+                const leaf = this.app.workspace.getActiveLeaf();
+                if (leaf && leaf.setMode) {
+                    this.logDebug(`[insertPlotlineIntoScene] Переключаемся в режим редактирования`);
+                    leaf.setMode('source');
+                    // Ждём немного, чтобы редактор инициализировался (как у персонажей)
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Получаем редактор заново после переключения
+                    editor = this.getActiveEditor();
+                    this.logDebug(`[insertPlotlineIntoScene] После переключения editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+                }
+            } catch (e) {
+                this.logDebug(`[insertPlotlineIntoScene] Не удалось переключиться в режим редактирования: ${e.message}`);
+            }
+        }
+        
         if (!editor) {
             this.logDebug(`[ERROR] Нет активного редактора Markdown`);
             return;
@@ -414,14 +494,15 @@ class LiteraryTemplatesPlugin extends Plugin {
         }
         const cache = this.app.metadataCache.getFileCache(activeFile) || {};
         const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
-        if (fmType !== 'Сцена') {
+        if (fmType !== 'сцена') {
             const choice = await this.suggester(['yes', 'no'], ['Вставить', 'Отмена'], 'Текущий файл не является сценой. Вставить всё равно?');
             if (choice !== 'yes') return;
         }
 
-        // Определяем projectRoot
+        // Определяем projectRoot и workName
         const parentPath = activeFile.parent ? activeFile.parent.path : '';
         let projectRoot = findProjectRoot(this.app, parentPath) || parentPath || this.activeProjectRoot || '';
+        this.logDebug(`[insertPlotlineIntoScene] projectRoot: ${projectRoot}`);
         if (!projectRoot) {
             const roots = await getAllProjectRoots(this.app);
             if (!roots || roots.length === 0) {
@@ -429,59 +510,69 @@ class LiteraryTemplatesPlugin extends Plugin {
                 return;
             }
             projectRoot = roots[0];
+            this.logDebug(`[insertPlotlineIntoScene] projectRoot из roots: ${projectRoot}`);
         }
 
-        const plotLinesPath = `${projectRoot}/Сюжетные_линии.md`;
-        const plotFile = this.app.vault.getAbstractFileByPath(plotLinesPath);
-        if (!(plotFile instanceof TFile)) {
-            this.logDebug(`[ERROR] Файл сюжетных линий не найден: ${plotLinesPath}`);
-            return;
-        }
-        const content = await this.app.vault.read(plotFile);
-
-        const lines = content.split(/\r?\n/);
-        /** @type {{id:string,title:string,description:string}[]} */
-        const plotlines = [];
-        let current = null;
-        let collectingDesc = false;
-        for (let i = 0; i < lines.length; i++) {
-            const raw = lines[i];
-            const line = raw.trim();
-            const themeMatch = line.match(/^#{0,3}\s*Тема(\d+)\s*-\s*(.+)$/);
-            if (themeMatch) {
-                if (current) {
-                    plotlines.push(current);
-                }
-                current = { id: themeMatch[1], title: themeMatch[2].trim(), description: '' };
-                collectingDesc = false;
-                continue;
+        // Определяем произведение из пути файла или frontmatter
+        let workName = '';
+        try {
+            // Из frontmatter сцены
+            if (cache.frontmatter && cache.frontmatter.work) {
+                workName = String(cache.frontmatter.work).trim();
             }
-            if (current) {
-                if (!collectingDesc) {
-                    if (/^Описание\s*:/.test(line)) {
-                        const after = raw.substring(raw.indexOf('Описание') + 'Описание'.length).replace(/^[\s:]+/, '');
-                        current.description = after;
-                        collectingDesc = true;
-                    }
-                } else {
-                    // копим описание до следующей темы
-                    current.description += (current.description ? '\n' : '') + raw;
+            // Из пути файла
+            if (!workName) {
+                const pathMatch = activeFile.path.match(/(^|\/)1_Рукопись\/Произведения\/([^\/]+)\//);
+                if (pathMatch && pathMatch[2]) {
+                    workName = pathMatch[2];
                 }
             }
+        } catch (e) {
+            this.logDebug(`[insertPlotlineIntoScene] Ошибка определения произведения: ${e.message}`);
         }
-        if (current) plotlines.push(current);
+        this.logDebug(`[insertPlotlineIntoScene] workName: ${workName || '(не определено)'}`);
 
-        if (plotlines.length === 0) {
-            this.logDebug(`[ERROR] Темы не найдены в Сюжетные_линии.md`);
+        // Собираем глобальные сюжетные линии
+        this.logDebug(`[insertPlotlineIntoScene] Загружаем глобальные сюжетные линии из: ${projectRoot}/Сюжетные_линии.md`);
+        const globalPlotlines = await this.collectPlotlines(`${projectRoot}/Сюжетные_линии.md`, 'глобальные');
+        this.logDebug(`[insertPlotlineIntoScene] Найдено глобальных сюжетных линий: ${globalPlotlines.length}`);
+        
+        // Собираем локальные сюжетные линии, если произведение определено
+        let localPlotlines = [];
+        if (workName) {
+            const localPlotlinesPath = `${projectRoot}/1_Рукопись/Произведения/${workName}/Сюжетные_линии.md`;
+            this.logDebug(`[insertPlotlineIntoScene] Загружаем локальные сюжетные линии из: ${localPlotlinesPath}`);
+            localPlotlines = await this.collectPlotlines(localPlotlinesPath, 'локальные');
+            this.logDebug(`[insertPlotlineIntoScene] Найдено локальных сюжетных линий: ${localPlotlines.length}`);
+        }
+
+        // Объединяем все сюжетные линии
+        const allPlotlines = [...globalPlotlines, ...localPlotlines];
+        this.logDebug(`[insertPlotlineIntoScene] Всего сюжетных линий: ${allPlotlines.length}`);
+
+        if (allPlotlines.length === 0) {
+            this.logDebug(`[ERROR] Сюжетные линии не найдены`);
             return;
         }
 
-        const items = plotlines.map((p) => `Тема${p.id}`);
-        const display = plotlines.map((p) => `Тема${p.id} — ${p.title}`);
+        // Создаем списки для выбора с визуальным разделением
+        const items = allPlotlines.map((p) => `${p.scope}_Тема${p.id}`);
+        const display = allPlotlines.map((p) => {
+            const prefix = p.scope === 'локальные' ? '📖 ' : '🌍 ';
+            const scopeText = p.scope === 'локальные' ? 'локальная' : 'глобальная';
+            return `${prefix}Тема${p.id} (${scopeText}) — ${p.title}`;
+        });
+        
+        this.logDebug(`[insertPlotlineIntoScene] Показываем список из ${items.length} сюжетных линий`);
         const chosenId = await this.suggester(items, display, 'Выберите сюжетную линию');
+        this.logDebug(`[insertPlotlineIntoScene] Выбрана сюжетная линия: ${chosenId || '(отменено)'}`);
         if (!chosenId) return;
-        const chosen = plotlines.find((p) => `Тема${p.id}` === chosenId);
-        if (!chosen) return;
+        const chosen = allPlotlines.find((p) => `${p.scope}_Тема${p.id}` === chosenId);
+        if (!chosen) {
+            this.logDebug(`[ERROR] Выбранная сюжетная линия не найдена: ${chosenId}`);
+            return;
+        }
+        this.logDebug(`[insertPlotlineIntoScene] Найдена сюжетная линия: ${chosen.title}`);
 
         const degItems = ['прямая', 'связанная', 'фоновая'];
         const degDisplay = ['Прямая — глава напрямую развивает линию', 'Связанная — косвенная связь', 'Фоновая — создаёт фон'];
@@ -489,10 +580,27 @@ class LiteraryTemplatesPlugin extends Plugin {
         if (!importance) return;
 
         const role = await this.prompt(`Опишите роль главы в «${chosen.title}» (${importance})`);
-        const link = `[[${plotLinesPath}#Тема${chosen.id} - ${chosen.title}|${chosen.title}]]`;
+        
+        // Определяем правильный путь к файлу сюжетных линий
+        const plotLinesPath = chosen.scope === 'локальные' 
+            ? `${projectRoot}/1_Рукопись/Произведения/${workName}/Сюжетные_линии.md`
+            : `${projectRoot}/Сюжетные_линии.md`;
+            
+        const scopeText = chosen.scope === 'локальные' ? 'локальная' : 'глобальная';
+        const link = `[[${plotLinesPath}#Тема${chosen.id} - ${chosen.title}|Тема${chosen.id} (${scopeText}) - ${chosen.title}]]`;
         let text = `- **${link}** (${importance})`;
         if (role && role.trim()) text += `: ${role.trim()}`;
+        this.logDebug(`[insertPlotlineIntoScene] Вставляем текст: "${text}"`);
+        
+        
+        // Простая вставка (как у персонажей)
         editor.replaceSelection(text + '\n');
+        this.logDebug(`[insertPlotlineIntoScene] replaceSelection выполнен`);
+        
+        // Добавляем уведомление для проверки
+        new Notice(`Сюжетная линия вставлена: ${chosen.title}`);
+        
+        this.logDebug(`[insertPlotlineIntoScene] === КОНЕЦ ФУНКЦИИ ===`);
         this.logDebug(`Сюжетная линия добавлена: ${chosen.title}`);
     }
     // Вспомогательные методы для модальных окон
@@ -3271,16 +3379,15 @@ async loadButtonIconsScript() {
             // folderList уже содержит только папки проектов и "Мои Проекты"
             
             const folderPaths = folderList.map(f => f.path);
+            // Добавляем опцию создания новой папки
+            const CREATE_NEW_LABEL = '[Создать новую папку…]';
+            folderPaths.unshift(CREATE_NEW_LABEL);
             this.logDebug(`Итоговый список папок для выбора (только папки проектов): ${folderPaths.length}: ${folderPaths.join(', ')}`);
             
             // 6. Показываем список пользователю
             let selectedPath = null;
             if (typeof window !== 'undefined' && window.app && window.app.plugins) {
-                selectedPath = await this.suggester(
-                    folderPaths,
-                    folderPaths,
-                    'Выберите папку для нового мира/проекта:'
-                );
+                selectedPath = await this.suggester(folderPaths, folderPaths, 'Выберите папку для нового мира/проекта:');
             } else if (typeof window !== 'undefined' && window.suggester) {
                 selectedPath = await window.suggester(folderPaths, folderPaths, 'Выберите папку для нового мира/проекта:');
             } else {
@@ -3291,6 +3398,25 @@ async loadButtonIconsScript() {
             if (selectedPath === undefined || selectedPath === null) {
                 this.logDebug('Выбор папки отменён пользователем');
                 return null;
+            }
+
+            // Обработка создания новой папки
+            if (selectedPath === CREATE_NEW_LABEL) {
+                try {
+                    const name = await this.prompt?.('Введите имя новой папки проектов');
+                    if (!name) { this.logDebug('Создание новой папки отменено'); return null; }
+                    const newPath = name.trim();
+                    await this.app.vault.createFolder(newPath);
+                    // Создаём маркер Проекты.md
+                    const markerPath = `${newPath}/Проекты.md`;
+                    const markerContent = `# Папка проектов\nЭта папка предназначена для хранения всех ваших литературных проектов и миров.\n---\n*Создано плагином Literary Templates*`;
+                    await safeCreateFile(markerPath, markerContent, this.app);
+                    this.logDebug(`Создана новая папка проектов: ${newPath}`);
+                    return newPath;
+                } catch (e) {
+                    this.logDebug('Ошибка создания новой папки проектов: ' + e.message);
+                    return null;
+                }
             }
             
             this.logDebug(`Выбрана папка: ${selectedPath}`);
