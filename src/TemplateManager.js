@@ -16,8 +16,22 @@ class TemplateManager {
         this.handlebars = window.Handlebars;
     }
 
+    _debug(message, payload) {
+        try {
+            const text = '[TM] ' + message + (payload !== undefined ? ' ' + (()=>{ try{ return JSON.stringify(payload); } catch { return String(payload); } })() : '');
+            if (this.plugin && typeof this.plugin.logDebug === 'function') {
+                try { this.plugin.logDebug(text); } catch (_) { /* ignore */ }
+            }
+            if (typeof console !== 'undefined' && console.debug) console.debug(text);
+        } catch (_) {}
+    }
+
     _augmentData(data) {
         const d = { ...(data || {}) };
+        if (!d.name) {
+            const nameKey = Object.keys(d).find(k => /name$/i.test(k) && typeof d[k] === 'string' && d[k].trim());
+            if (nameKey) d.name = d[nameKey];
+        }
         // statusLabel
         if (typeof d.status === 'string') {
             const map = {
@@ -51,6 +65,7 @@ class TemplateManager {
      */
     async generateFromTemplate(templateName, data, plugin) {
         try {
+            console.debug('[TM] generateFromTemplate:start', { templateName });
             const templateContent = await this.readTemplateFile(templateName, plugin);
             if (!templateContent) {
                 throw new Error(`Шаблон ${templateName} не найден`);
@@ -58,16 +73,21 @@ class TemplateManager {
 
             // 1) Препроцессинг include-директив до компиляции
             const withIncludes = await this._processIncludes(templateContent, plugin);
+            console.debug('[TM] after includes length', withIncludes.length);
             // 2) Подготовка вычисляемых секций
             const augmented = this._augmentData(data);
+            console.debug('[TM] augmented keys', Object.keys(augmented));
 
             if (this.handlebars && typeof this.handlebars.compile === 'function') {
                 const template = this.handlebars.compile(withIncludes);
-                return template(augmented);
+                const out = template(augmented);
+                console.debug('[TM] handlebars output length', out?.length);
+                return out;
             }
             // Фолбэк: простой рендер без Handlebars
             let content = this._processConditionals(withIncludes, augmented);
             content = this._replacePlaceholders(content, augmented);
+            console.debug('[TM] fallback output length', content?.length);
             return content;
         } catch (error) {
             console.error(`Ошибка генерации шаблона ${templateName}:`, error);
@@ -117,14 +137,22 @@ class TemplateManager {
      */
     async fillTemplate(template, data) {
         try {
+            console.debug('[TM] fillTemplate:start');
+            // Обработаем include и вычислим данные
+            const withIncludes = await this._processIncludes(template, this.plugin);
+            console.debug('[TM] fillTemplate after includes length', withIncludes.length);
             const augmented = this._augmentData(data);
+            console.debug('[TM] fillTemplate augmented keys', Object.keys(augmented));
             if (this.handlebars && typeof this.handlebars.compile === 'function') {
-                const templateFunc = this.handlebars.compile(template);
-                return templateFunc(augmented);
+                const templateFunc = this.handlebars.compile(withIncludes);
+                const out = templateFunc(augmented);
+                console.debug('[TM] fillTemplate handlebars output length', out?.length);
+                return out;
             }
             // Фолбэк без Handlebars
-            let content = this._processConditionals(template, augmented);
+            let content = this._processConditionals(withIncludes, augmented);
             content = this._replacePlaceholders(content, augmented);
+            console.debug('[TM] fillTemplate fallback output length', content?.length);
             return content;
         } catch (error) {
             console.error('Ошибка заполнения шаблона:', error);
@@ -162,6 +190,7 @@ class TemplateManager {
             let match;
             while ((match = includeRegex.exec(content)) !== null) {
                 const rawPath = match[1].trim();
+                console.debug('[TM] include found', rawPath);
                 placeholders.push(match[0]);
                 tasks.push((async () => {
                     try {
@@ -174,12 +203,15 @@ class TemplateManager {
                             // относительный к папке templates
                             path = `.obsidian/plugins/literary-templates/templates/${path}`;
                         }
+                        console.debug('[TM] include resolved', { rawPath, path });
                         const exists = await adapter.exists(path);
                         if (!exists) {
                             console.warn(`[TemplateManager] include не найден: ${path}`);
                             return `<!-- include not found: ${rawPath} -->`;
                         }
-                        return await adapter.read(path);
+                        const txt = await adapter.read(path);
+                        console.debug('[TM] include read ok', { rawPath, len: txt?.length });
+                        return txt;
                     } catch (e) {
                         console.error('[TemplateManager] Ошибка include', rawPath, e);
                         return `<!-- include error: ${rawPath} -->`;
@@ -192,6 +224,7 @@ class TemplateManager {
             for (let i = 0; i < placeholders.length; i++) {
                 result = result.replace(placeholders[i], parts[i]);
             }
+            console.debug('[TM] includes applied', placeholders.length);
             return result;
         } catch (e) {
             console.error('[TemplateManager] _processIncludes error:', e);

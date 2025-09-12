@@ -271,8 +271,8 @@ $main .= "window.createScene = createScene;\n";
 // Глобализация базовых утилит, используемых во всех creators
 $main .= "window.findProjectRoot = typeof findProjectRoot !== 'undefined' ? findProjectRoot : window.findProjectRoot;\n";
 $main .= "window.getAllProjectRoots = typeof getAllProjectRoots !== 'undefined' ? getAllProjectRoots : window.getAllProjectRoots;\n";
-$main .= "window.fillTemplate = typeof fillTemplate !== 'undefined' ? fillTemplate : window.fillTemplate;\n";
-$main .= "window.generateFromTemplate = typeof generateFromTemplate !== 'undefined' ? generateFromTemplate : window.generateFromTemplate;\n";
+$main .= "window.fillTemplate = typeof window.fillTemplate !== 'undefined' ? window.fillTemplate : (typeof fillTemplate !== 'undefined' ? fillTemplate : window.fillTemplate);\n";
+$main .= "window.generateFromTemplate = typeof window.generateFromTemplate !== 'undefined' ? window.generateFromTemplate : (typeof generateFromTemplate !== 'undefined' ? generateFromTemplate : window.generateFromTemplate);\n";
 $main .= "window.ensureEntityInfrastructure = typeof ensureEntityInfrastructure !== 'undefined' ? ensureEntityInfrastructure : window.ensureEntityInfrastructure;\n";
 $main .= "window.safeCreateFile = typeof safeCreateFile !== 'undefined' ? safeCreateFile : window.safeCreateFile;\n";
 

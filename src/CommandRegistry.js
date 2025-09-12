@@ -284,19 +284,58 @@ class CommandRegistry {
         const projectRoot = this.getCurrentProjectRoot();
         if (!projectRoot) { await this.plugin.logDebug('[add-character] Проект не найден'); return; }
 
-        // Загружаем список персонажей
+        // Определяем workName (произведение) из frontmatter или пути
+        const cacheForWork = this.plugin.app.metadataCache.getFileCache(activeFile) || {};
+        let workName = '';
+        try {
+            if (cacheForWork.frontmatter && cacheForWork.frontmatter.work) {
+                workName = String(cacheForWork.frontmatter.work).trim();
+            }
+            if (!workName && activeFile.path) {
+                const m = activeFile.path.match(/(^|\/)1_Рукопись\/Произведения\/([^\/]+)\//);
+                if (m && m[2]) workName = m[2];
+            }
+        } catch (_) {}
+
+        // Загружаем список персонажей (глобальные + при наличии — локальные для произведения)
         let characters = [];
         try {
             const folder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/Персонажи`);
             if (folder && folder.children) {
                 characters = folder.children
-                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('.') && f.basename !== 'Index' && f.basename !== 'Персонажи')
                     .map(f => f.basename);
             }
         } catch (_) {}
-        if (characters.length === 0) { await this.plugin.logDebug('[add-character] Персонажи не найдены'); return; }
+        // Локальные персонажи произведения
+        if (workName) {
+            try {
+                const localFolder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/1_Рукопись/Произведения/${workName}/Персонажи`);
+                if (localFolder && localFolder.children) {
+                    const locals = localFolder.children
+                        .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('.') && f.basename !== 'Index' && f.basename !== 'Персонажи')
+                        .map(f => f.basename);
+                    characters = [...new Set([...characters, ...locals])];
+                }
+            } catch (_) {}
+        }
+        if (characters.length === 0) { await this.plugin.logDebug('[add-character] Персонажи не найдены'); }
 
-        const choice = await this.plugin.suggester(characters, characters, 'Выберите персонажа');
+        // Добавляем пункт для создания нового персонажа
+        const createOption = '➕ Создать персонажа';
+        let list = [createOption, ...characters];
+
+        // Предложение выбора с опцией создания
+        let choice = await this.plugin.suggester(list, list, 'Выберите персонажа');
+        if (choice === createOption) {
+            try {
+                await window.createCharacter(this.plugin, this.getCurrentStartPath());
+            } catch (e) {
+                new Notice('Ошибка создания персонажа: ' + e.message);
+            }
+            // Не переоткрываем выбор поверх мастера — завершаем команду
+            return;
+        }
         if (!choice) return;
 
         // Обновляем frontmatter (characters)
@@ -362,13 +401,27 @@ class CommandRegistry {
             const folder = this.plugin.app.vault.getAbstractFileByPath(`${projectRoot}/Локации`);
             if (folder && folder.children) {
                 locations = folder.children
-                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('.') && f.basename !== 'Index' && f.basename !== 'Локации')
                     .map(f => f.basename);
             }
         } catch (_) {}
-        if (locations.length === 0) { await this.plugin.logDebug('[add-location] Локации не найдены'); return; }
+        if (locations.length === 0) { await this.plugin.logDebug('[add-location] Локации не найдены'); }
 
-        const choice = await this.plugin.suggester(locations, locations, 'Выберите локацию');
+        // Добавляем пункт для создания новой локации
+        const createOptionLoc = '➕ Создать локацию';
+        let listLoc = [createOptionLoc, ...locations];
+
+        // Предложение выбора с опцией создания
+        let choice = await this.plugin.suggester(listLoc, listLoc, 'Выберите локацию');
+        if (choice === createOptionLoc) {
+            try {
+                await window.createLocation(this.plugin, this.getCurrentStartPath());
+            } catch (e) {
+                new Notice('Ошибка создания локации: ' + e.message);
+            }
+            // Не переоткрываем выбор поверх мастера — завершаем команду
+            return;
+        }
         if (!choice) return;
 
         // Обновляем frontmatter (locations)

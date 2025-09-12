@@ -371,12 +371,25 @@ class EntityFactory {
     prepareMineData(project, entityData, baseData) {
         const mapped = this.mapFields(entityData, {
             name: ['mineName', 'name'],
-            dominantFaction: ['dominantFaction']
+            dominantFaction: ['dominantFaction'],
+            resources: ['resources'],
+            methods: ['methods'],
+            features: ['features']
         });
+        // Секция производства: только ресурсы и методы (без стволов)
+        const productionParts = [];
+        if (Array.isArray(mapped.resources) && mapped.resources.length) {
+            productionParts.push(`### Ресурсы\n` + mapped.resources.map(r => `- ${r}`).join('\n'));
+        }
+        if (Array.isArray(mapped.methods) && mapped.methods.length) {
+            productionParts.push(`### Методы добычи\n` + mapped.methods.map(m => `- ${m}`).join('\n'));
+        }
         return {
             ...baseData,
             ...mapped,
+            type: 'Шахта',
             typeLower: (entityData.type || 'Шахта').toLowerCase(),
+            production: productionParts.join('\n\n'),
             imageBlock: this.findTagImage(project, 'Шахта')
         };
     }
@@ -442,7 +455,25 @@ class EntityFactory {
      */
     async generateContent(entityType, templateData) {
         const templateName = this.getTemplateName(entityType);
-        return await window.generateFromTemplate(templateName, templateData, this.plugin);
+        try {
+            if (this.plugin && typeof this.plugin.logDebug === 'function') {
+                await this.plugin.logDebug(`[Factory] generateContent: ${entityType} -> ${templateName}`);
+            }
+            // Используем TemplateManager напрямую, чтобы гарантировать include и секции
+            const manager = new window.TemplateManager(this.plugin);
+            const content = await manager.generateFromTemplate(templateName, templateData, this.plugin);
+            if (this.plugin && typeof this.plugin.logDebug === 'function') {
+                await this.plugin.logDebug(`[Factory] generated length: ${content ? content.length : 0}`);
+                await this.plugin.logDebug(`[Factory] templateData keys: ${Object.keys(templateData).join(',')}`);
+            }
+            return content;
+        } catch (e) {
+            if (this.plugin && typeof this.plugin.logDebug === 'function') {
+                await this.plugin.logDebug(`[Factory] generateContent error: ${e.message}`);
+            }
+            // Фолбэк на старый маршрут
+            return await window.generateFromTemplate(templateName, templateData, this.plugin);
+        }
     }
 
     /**
@@ -493,7 +524,8 @@ class EntityFactory {
         const cleanName = this.getCleanFileName(entityType, entityData);
         const targetFolder = this.getTargetFolder(entityType, project);
         
-        await window.ensureEntityInfrastructure(targetFolder, cleanName, this.plugin.app);
+        // Готовим только инфраструктуру папки (и индекс), не создаём файл с именем сущности заранее
+        await window.ensureEntityInfrastructure(targetFolder, 'Шахты.md', this.plugin.app);
         
         const fileName = await this.getUniqueFileName(targetFolder, cleanName);
         const targetPath = `${targetFolder}/${fileName}.md`;

@@ -215,11 +215,7 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             }
         }
 
-        // 7. Формируем данные для шаблона
-        const plotLinesYaml = selectedPlotLines.length > 0
-            ? selectedPlotLines.map(line => `  - line: "${line.theme}"\n    degree: "${line.degree}"\n    description: ""`).join('\n')
-            : '  - line: ""\n    degree: ""\n    description: ""';
-            
+        // 7. Формируем данные для шаблона (без устаревшего plot_lines)
         const data = {
             chapterName: chapterName,
             cleanChapterName: cleanChapterName,
@@ -227,7 +223,6 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             projectName: projectName,
             workName: chosenWork || '',
             plotLines: selectedPlotLines,
-            plotLinesYaml: plotLinesYaml,
             characterTags: '', // Пока пусто, можно добавить позже
             locationTags: '',  // Пока пусто, можно добавить позже
             date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10)

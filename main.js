@@ -563,16 +563,58 @@ class LiteraryTemplatesPlugin extends Plugin {
             return `${prefix}Тема${p.id} (${scopeText}) — ${p.title}`;
         });
         
-        this.logDebug(`[insertPlotlineIntoScene] Показываем список из ${items.length} сюжетных линий`);
-        const chosenId = await this.suggester(items, display, 'Выберите сюжетную линию');
-        this.logDebug(`[insertPlotlineIntoScene] Выбрана сюжетная линия: ${chosenId || '(отменено)'}`);
+        // Пункты для создания новой линии
+        const createGlobalOpt = '➕ Создать глобальную линию';
+        const createLocalOpt = workName ? '➕ Создать локальную линию' : null;
+        const itemsWithCreate = [createGlobalOpt, ...(createLocalOpt ? [createLocalOpt] : []), ...items];
+        const displayWithCreate = [createGlobalOpt, ...(createLocalOpt ? [createLocalOpt] : []), ...display];
+
+        this.logDebug(`[insertPlotlineIntoScene] Показываем список из ${itemsWithCreate.length} элементов (с опцией создания)`);
+        let chosenId = await this.suggester(itemsWithCreate, displayWithCreate, 'Выберите сюжетную линию');
+        this.logDebug(`[insertPlotlineIntoScene] Выбрана опция/линия: ${chosenId || '(отменено)'}`);
         if (!chosenId) return;
-        const chosen = allPlotlines.find((p) => `${p.scope}_Тема${p.id}` === chosenId);
-        if (!chosen) {
-            this.logDebug(`[ERROR] Выбранная сюжетная линия не найдена: ${chosenId}`);
-            return;
+
+        /** @type {{id:string,title:string,description:string,scope:string}|null} */
+        let chosen = null;
+
+        // Обработка создания новой линии
+        if (chosenId === createGlobalOpt || chosenId === createLocalOpt) {
+            const isLocal = (chosenId === createLocalOpt);
+            const targetPath = isLocal && workName
+                ? `${projectRoot}/1_Рукопись/Произведения/${workName}/Сюжетные_линии.md`
+                : `${projectRoot}/Сюжетные_линии.md`;
+            const scope = isLocal ? 'локальные' : 'глобальные';
+            const title = await this.prompt('Название новой сюжетной линии:');
+            if (!title) return;
+            const desc = await this.prompt('Краткое описание новой линии (опционально):');
+
+            // Определяем следующий ID
+            const existing = await this.collectPlotlines(targetPath, scope);
+            const nextId = String(1 + existing.reduce((m, p) => Math.max(m, parseInt(p.id, 10) || 0), 0));
+            const block = `\n\n## Тема${nextId} - ${title}\nОписание: ${desc || ''}\n`;
+            try {
+                const plotFile = this.app.vault.getAbstractFileByPath(targetPath);
+                if (plotFile instanceof TFile) {
+                    await this.app.vault.append(plotFile, block);
+                    this.logDebug(`[insertPlotlineIntoScene] Создана ${scope} линия Тема${nextId} - ${title}`);
+                } else {
+                    this.logDebug(`[insertPlotlineIntoScene] Не найден файл для добавления: ${targetPath}`);
+                    return;
+                }
+            } catch (e) {
+                this.logDebug(`[insertPlotlineIntoScene] Ошибка добавления линии: ${e.message}`);
+                return;
+            }
+            chosen = { id: nextId, title: title, description: desc || '', scope };
+        } else {
+            // Обычный выбор существующей линии
+            chosen = allPlotlines.find((p) => `${p.scope}_Тема${p.id}` === chosenId) || null;
+            if (!chosen) {
+                this.logDebug(`[ERROR] Выбранная сюжетная линия не найдена: ${chosenId}`);
+                return;
+            }
         }
-        this.logDebug(`[insertPlotlineIntoScene] Найдена сюжетная линия: ${chosen.title}`);
+        this.logDebug(`[insertPlotlineIntoScene] Найдена/создана сюжетная линия: ${chosen.title}`);
 
         const degItems = ['прямая', 'связанная', 'фоновая'];
         const degDisplay = ['Прямая — глава напрямую развивает линию', 'Связанная — косвенная связь', 'Фоновая — создаёт фон'];
@@ -593,7 +635,22 @@ class LiteraryTemplatesPlugin extends Plugin {
         this.logDebug(`[insertPlotlineIntoScene] Вставляем текст: "${text}"`);
         
         
-        // Простая вставка (как у персонажей)
+        // Обновим frontmatter сцены: три массива
+        try {
+            await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+                if (!Array.isArray(fm.plot_lines_lines)) fm.plot_lines_lines = [];
+                if (!Array.isArray(fm.plot_lines_degree)) fm.plot_lines_degree = [];
+                if (!Array.isArray(fm.plot_lines_description)) fm.plot_lines_description = [];
+                if (!fm.plot_lines_lines.includes(chosen.title)) fm.plot_lines_lines.push(chosen.title);
+                fm.plot_lines_degree.push(importance);
+                fm.plot_lines_description.push(role || '');
+            });
+            this.logDebug(`[insertPlotlineIntoScene] frontmatter updated (tri-arrays)`);
+        } catch (e) {
+            this.logDebug(`[insertPlotlineIntoScene] frontmatter update error: ${e.message}`);
+        }
+
+        // Вставим читабельную строку в текст
         editor.replaceSelection(text + '\n');
         this.logDebug(`[insertPlotlineIntoScene] replaceSelection выполнен`);
         

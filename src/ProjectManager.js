@@ -34,7 +34,7 @@ class ProjectManager {
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Замки`, 'Index.md', plugin.app);
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Порты`, 'Index.md', plugin.app);
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Фермы`, 'Index.md', plugin.app);
-            await this.ensureEntityInfrastructure(`${worldPath}/Локации/Шахты`, 'Index.md', plugin.app);
+            await this.ensureEntityInfrastructure(`${worldPath}/Локации/Шахты`, 'Шахты.md', plugin.app);
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Заводы`, 'Index.md', plugin.app);
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Мёртвые_зоны`, 'Index.md', plugin.app);
             await this.ensureEntityInfrastructure(`${worldPath}/Локации/Прочие_локации`, 'Index.md', plugin.app);
@@ -124,12 +124,17 @@ class ProjectManager {
                 await app.vault.createFolder(folder);
             }
 
-            // Создаем файл если не существует
+            // Создаём индексный файл только для whitelisted имён, чтобы не конфликтовать с рабочими файлами
+            const whitelist = [/^Index\.md$/i, /^Локации\.md$/i, /^Персонажи\.md$/i, /^Сюжетные_линии\.md$/i, /^Шахты\.md$/i];
             const filePath = `${folder}/${fileName}`;
-            const fileObj = app.vault.getAbstractFileByPath(filePath);
-            if (!fileObj) {
-                const content = `# ${fileName.replace('.md', '')}\n\n*Файл создан автоматически*`;
-                await app.vault.create(filePath, content);
+            const shouldCreateIndex = whitelist.some((r) => r.test(fileName));
+            if (shouldCreateIndex) {
+                const fileObj = app.vault.getAbstractFileByPath(filePath);
+                if (!fileObj) {
+                    const title = fileName.replace('.md', '');
+                    const content = `---\nname: "${title}"\n---\n\n# ${title}\n\n> [!info] Сводный индекс\n> Здесь будут собираться ссылки и Dataview по папке.`;
+                    await app.vault.create(filePath, content);
+                }
             }
         } catch (error) {
             console.error(`Ошибка создания инфраструктуры ${folder}/${fileName}:`, error);

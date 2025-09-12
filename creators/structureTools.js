@@ -145,7 +145,6 @@ async function generateSkeleton(plugin, startPath = '') {
                     workName: workName || '',
                     chapterNum: num,
                     chapterName: `Глава ${num}`,
-                    plotLinesYaml: '- line: ""\n  degree: ""\n  description: ""',
                     characterTags: '',
                     locationTags: '',
                     date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0,10)
@@ -167,7 +166,6 @@ async function generateSkeleton(plugin, startPath = '') {
                         chapterNum: num,
                         sceneNum: sNum,
                         sceneName: `Сцена ${sNum}`,
-                        plotLinesYaml: '- line: ""\n  degree: ""\n  description: ""',
                         characterTags: '',
                         locationTags: '',
                         tags: '' ,

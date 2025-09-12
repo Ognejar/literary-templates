@@ -3,9 +3,9 @@
 ### Цель
 Добавить нативные табличные представления (Bases) для удобного просмотра и массового редактирования сущностей без замены существующих Dataview-блоков.
 
-### Требования к данным
+### Требования к данным 
 - Единообразный frontmatter:
-  - сцена: `type: сцена`, `work`, `chapter_num`, `scene_num`, `characters: []`, `locations: []`, `plot_lines: []`, `tags: []`, `status` (опц.)
+  - сцена: `type: сцена`, `work`, `chapter_num`, `scene_num`, `characters: []`, `locations: []`, `plot_lines_lines: []`, `plot_lines_degree: []`, `plot_lines_description: []`, `tags: []`, `status` (опц.)
   - глава: `type: глава`, `work`, `chapter_num`, `default_characters: []`, `default_locations: []`
   - персонаж: `type: персонаж`, `project`, `scope` (опц.), `status` (опц.)
   - локальные сюжетные линии — в файлах произведения; глобальные — в корне проекта
@@ -13,7 +13,7 @@
 ### Рекомендуемые представления
 1) Scenes (по проекту или всему хранилищу)
    - Фильтр: `type = "сцена"`
-   - Колонки: `work`, `chapter_num`, `scene_num`, `characters`, `locations`, `plot_lines`, `tags`, `status`, `file`
+   - Колонки: `work`, `chapter_num`, `scene_num`, `characters`, `locations`, `plot_lines_lines`, `plot_lines_degree`, `plot_lines_description`, `tags`, `status`, `file`
    - Сортировка: `work`, `chapter_num`, `scene_num`
 
 2) Chapters
@@ -27,7 +27,7 @@
 4) Plotlines (глобальные/локальные)
    - Глобальные: файл `Сюжетные_линии.md` проекта — просматривать секции `## ТемаX - ...` (временно: по списку ссылок из сцен)
    - Локальные: `1_Рукопись/Произведения/<Work>/Сюжетные_линии.md`
-   - Примечание: до появления встроенного парсинга секций удобнее ориентироваться через колонку `plot_lines` у сцен
+   - Примечание: ранее использовался массив `plot_lines`; теперь данные разнесены по трём массивам `plot_lines_*`.
 
 ### Роудмап интеграции
 - Этап 1: добавить представления вручную через UI Bases, убедиться в корректности колонок

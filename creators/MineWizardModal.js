@@ -91,6 +91,8 @@ var MineWizardModal = class extends EntityWizardBase {
                     }
                 }
             }
+            // Добавим «Космос» в список климатов, если его нет
+            if (!this.config.climates.includes('Космос')) this.config.climates.push('Космос');
 
             // Загружаем провинции
             this.config.provinces = this.loadFilesFromFolder(`${this.projectRoot}/Локации/Провинции`, 'Провинции');

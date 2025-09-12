@@ -50,33 +50,98 @@ var createScene = async function(plugin, startPath = '') {
         plugin.logDebug('[createScene] projectRoot: ' + (projectRoot || '(empty)'));
         plugin.logDebug('[createScene] startPath: ' + (startPath || '(empty)'));
         // --- Автозаполнение ---
-        // 1. Сюжетные линии
+        // 1. Сюжетные линии (глобальные и локальные по произведениям)
         let plotLinesList = [];
         try {
-            const plotLinesFile = `${project}/Сюжетные_линии.md`;
-            const file = plugin.app.vault.getAbstractFileByPath(plotLinesFile);
-            if (file) {
-                const content = await plugin.app.vault.read(file);
+            const parsePlotLines = (content) => {
                 const lines = content.split('\n');
+                const result = [];
                 let currentTheme = null;
-                plotLinesList = [];
+                const headerRe = /^#+\s*Тема\s*(\d+)\s*[-–—]\s*(.+)$/i;
                 for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (line.startsWith('## Тема')) {
-                        const match = line.match(/## Тема(\d+) - (.+)/);
-                        if (match) {
-                            currentTheme = {
-                                id: match[1],
-                                name: match[2],
-                                description: ''
-                            };
+                    const raw = lines[i];
+                    const line = raw.trim();
+                    const h = line.match(headerRe);
+                    if (h) {
+                        if (currentTheme) {
+                            result.push(currentTheme);
                         }
-                    } else if (line.startsWith('Описание:') && currentTheme) {
-                        currentTheme.description = line.replace('Описание:', '').trim();
-                        plotLinesList.push(currentTheme);
-                        currentTheme = null;
+                        currentTheme = { id: h[1], name: h[2], description: '' };
+                        continue;
+                    }
+                    if (currentTheme) {
+                        if (line.startsWith('Описание:')) {
+                            currentTheme.description = line.replace('Описание:', '').trim();
+                            continue;
+                        }
+                        // возьмем первое непустое как краткое описание, если явного нет
+                        if (!currentTheme.description && line.length > 0 && !line.startsWith('>')) {
+                            currentTheme.description = line;
+                        }
                     }
                 }
+                if (currentTheme) result.push(currentTheme);
+                return result;
+            };
+
+            plotLinesList = [];
+            // Глобальные
+            try {
+                const globalPath = `${project}/Сюжетные_линии.md`;
+                const gf = plugin.app.vault.getAbstractFileByPath(globalPath);
+                if (gf) {
+                    const content = await plugin.app.vault.read(gf);
+                    const items = parsePlotLines(content);
+                    plugin.logDebug && plugin.logDebug(`[createScene] global plotlines from ${globalPath}: ${items.length}`);
+                    plotLinesList.push(...items.map(p => ({ ...p, scope: 'global' })));
+                }
+            } catch (_) {}
+
+            // Локальные по всем произведениям
+            try {
+                const worksRoot = `${project}/1_Рукопись/Произведения`;
+                const worksFolder = plugin.app.vault.getAbstractFileByPath(worksRoot);
+                if (worksFolder && worksFolder.children) {
+                    for (const workDir of worksFolder.children) {
+                        const isFolder = !!(workDir && workDir.children);
+                        if (!isFolder) continue;
+                        const localPath = `${workDir.path}/Сюжетные_линии.md`;
+                        const lf = plugin.app.vault.getAbstractFileByPath(localPath);
+                        if (lf) {
+                            let content = await plugin.app.vault.read(lf);
+                            let items = parsePlotLines(content);
+                            // Если тем нет — автоматически создадим стартовые три
+                            if (!items || items.length === 0) {
+                                const starter = `\n## Тема1 - Основной конфликт\nОписание: Главный конфликт произведения, вокруг которого строится сюжет.\n\n## Тема2 - Романтическая линия\nОписание: Развитие отношений между главными персонажами.\n\n## Тема3 - Семейные отношения\nОписание: Взаимоотношения в семье главного героя.\n`;
+                                try {
+                                    await plugin.app.vault.modify(lf, content + starter);
+                                    content = await plugin.app.vault.read(lf);
+                                    items = parsePlotLines(content);
+                                    plugin.logDebug && plugin.logDebug(`[createScene] starter plotlines added to ${localPath}`);
+                                } catch (e) {
+                                    plugin.logDebug && plugin.logDebug(`[createScene] failed to add starter plotlines: ${e.message}`);
+                                }
+                            }
+                            plugin.logDebug && plugin.logDebug(`[createScene] local plotlines from ${localPath}: ${items.length}`);
+                            plotLinesList.push(...items.map(p => ({ ...p, scope: 'local', work: workDir.name })));
+                        }
+                    }
+                }
+            } catch (_) {}
+
+            // Удалим дубликаты по комбинации id+name+scope
+            const seen = new Set();
+            plotLinesList = plotLinesList.filter(p => {
+                const key = `${p.scope || 'global'}:${p.id}:${p.name}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
+            plugin.logDebug && plugin.logDebug('[createScene] plotLinesList total: ' + plotLinesList.length);
+            if (plotLinesList.length > 0) {
+                const sample = plotLinesList.slice(0, 3).map(p => `${p.scope}:${p.id}:${p.name}`).join(' | ');
+                plugin.logDebug && plugin.logDebug('[createScene] sample plotlines: ' + sample);
             }
         } catch (e) { plotLinesList = []; }
         // 2. Персонажи
@@ -300,9 +365,9 @@ var createScene = async function(plugin, startPath = '') {
             { plotLinesList, charactersList, locationsList, chapterChoices, defaultChapterNum },
             async (sceneData) => {
             // После завершения мастера — создать файл сцены по шаблону
-            const plotLinesYaml = sceneData.plotLines.length > 0
-                ? sceneData.plotLines.map(line => `- line: "${line.line}"\n  degree: "${line.degree}"\n  description: "${line.description}"`).join('\n')
-                : '- line: ""\n  degree: ""\n  description: ""';
+            const plotLinesLines = sceneData.plotLines.map(line => `"${line.line}"`).join(', ');
+            const plotLinesDegree = sceneData.plotLines.map(line => `"${line.degree}"`).join(', ');
+            const plotLinesDescription = sceneData.plotLines.map(line => `"${line.description}"`).join(', ');
             const plotLinesFileRel = `${project.split('/').pop()}/Сюжетные_линии.md`;
             const plotLinesSection = sceneData.plotLines.length > 0
                 ? sceneData.plotLines.map(plotLine => `- **[[${plotLinesFileRel}#Тема${plotLine.id} - ${plotLine.line}|${plotLine.line}]]** (${plotLine.degree}): ${plotLine.description}`).join('\n')
@@ -409,7 +474,9 @@ var createScene = async function(plugin, startPath = '') {
                 cleanSceneName: cleanSceneName,
                 date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10),
                 projectName: project.split('/').pop(),
-                plotLinesYaml: plotLinesYaml,
+                plotLinesLines: plotLinesLines,
+                plotLinesDegree: plotLinesDegree,
+                plotLinesDescription: plotLinesDescription,
                 plotLinesSection: plotLinesSection,
                 characterTags: mergedCharacterTags,
                 locationTags: mergedLocationTags,
