@@ -64,7 +64,11 @@ class EntityFactory {
         if (startPath) {
             const projectRoot = window.findProjectRoot(this.plugin.app, startPath);
             if (projectRoot) {
-                return projectRoot;
+                // Проверяем валидность проекта через ensureValidProjectRoot
+                const validProjectRoot = await this.ensureValidProjectRoot(projectRoot);
+                if (validProjectRoot) {
+                    return validProjectRoot;
+                }
             }
         }
         
@@ -75,12 +79,10 @@ class EntityFactory {
                 const currentProject = ctx.projectRoot || '';
                 
                 if (currentProject) {
-                    // Проверяем, является ли текущий проект папкой мира
-                    const settingsFile = `${currentProject}/Настройки_мира.md`;
-                    const file = this.plugin.app.vault.getAbstractFileByPath(settingsFile);
-                    
-                    if (file && file instanceof TFile) {
-                        return currentProject;
+                    // Проверяем валидность текущего проекта через ensureValidProjectRoot
+                    const validProjectRoot = await this.ensureValidProjectRoot(currentProject);
+                    if (validProjectRoot) {
+                        return validProjectRoot;
                     }
                 }
             }
@@ -108,6 +110,17 @@ class EntityFactory {
             });
             modal.open();
         });
+    }
+
+    /**
+     * Обеспечивает валидность проекта через EntityWizardBase
+     * @param {string} projectRoot - путь к проекту для проверки
+     * @returns {Promise<string>} - валидный путь к проекту или ''
+     */
+    async ensureValidProjectRoot(projectRoot) {
+        // Создаем временный экземпляр EntityWizardBase для использования метода
+        const tempWizard = new window.EntityWizardBase(this.plugin.app, Modal, Setting, Notice);
+        return await tempWizard.ensureValidProjectRoot(projectRoot);
     }
 
     /**

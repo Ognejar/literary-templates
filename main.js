@@ -660,6 +660,324 @@ class LiteraryTemplatesPlugin extends Plugin {
         this.logDebug(`[insertPlotlineIntoScene] === КОНЕЦ ФУНКЦИИ ===`);
         this.logDebug(`Сюжетная линия добавлена: ${chosen.title}`);
     }
+
+    async insertCharacterIntoScene() {
+        this.logDebug(`[insertCharacterIntoScene] === НАЧАЛО ФУНКЦИИ ===`);
+        let editor = this.getActiveEditor();
+        this.logDebug(`[insertCharacterIntoScene] editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+        
+        // Fallback для режима просмотра: переключаемся в режим редактирования
+        if (!editor) {
+            try {
+                const leaf = this.app.workspace.getActiveLeaf();
+                if (leaf && leaf.setMode) {
+                    this.logDebug(`[insertCharacterIntoScene] Переключаемся в режим редактирования`);
+                    leaf.setMode('source');
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    editor = this.getActiveEditor();
+                    this.logDebug(`[insertCharacterIntoScene] После переключения editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+                }
+            } catch (e) {
+                this.logDebug(`[insertCharacterIntoScene] Не удалось переключиться в режим редактирования: ${e.message}`);
+            }
+        }
+        
+        if (!editor) {
+            this.logDebug(`[ERROR] Нет активного редактора Markdown`);
+            return;
+        }
+
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!(activeFile instanceof TFile)) {
+            this.logDebug(`[ERROR] Нет активного файла`);
+            return;
+        }
+        const cache = this.app.metadataCache.getFileCache(activeFile) || {};
+        const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+        if (fmType !== 'сцена') {
+            const choice = await this.suggester(['yes', 'no'], ['Вставить', 'Отмена'], 'Текущий файл не является сценой. Вставить всё равно?');
+            if (choice !== 'yes') return;
+        }
+
+        // Определяем projectRoot
+        const parentPath = activeFile.parent ? activeFile.parent.path : '';
+        let projectRoot = findProjectRoot(this.app, parentPath) || parentPath || this.activeProjectRoot || '';
+        this.logDebug(`[insertCharacterIntoScene] projectRoot: ${projectRoot}`);
+        if (!projectRoot) {
+            const roots = await getAllProjectRoots(this.app);
+            if (!roots || roots.length === 0) {
+                this.logDebug(`[ERROR] Проект не найден: отсутствует файл "Настройки_мира.md"`);
+                return;
+            }
+            projectRoot = roots[0];
+            this.logDebug(`[insertCharacterIntoScene] projectRoot из roots: ${projectRoot}`);
+        }
+
+        // Собираем существующих персонажей
+        let charactersList = [];
+        try {
+            const charsFolder = `${projectRoot}/Персонажи`;
+            this.logDebug(`[insertCharacterIntoScene] Загружаем персонажей из: ${charsFolder}`);
+            const folder = this.app.vault.getAbstractFileByPath(charsFolder);
+            if (folder && folder.children) {
+                charactersList = folder.children
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .map(f => f.basename);
+                this.logDebug(`[insertCharacterIntoScene] Найдено персонажей: ${charactersList.length}`);
+            }
+        } catch (e) {
+            this.logDebug(`[insertCharacterIntoScene] Ошибка загрузки персонажей: ${e.message}`);
+        }
+
+        // Создаем списки для выбора
+        const items = charactersList;
+        const display = charactersList.map(name => `👤 ${name}`);
+        
+        // Пункт для создания нового персонажа
+        const createCharacterOpt = '➕ Создать персонажа';
+        const itemsWithCreate = [createCharacterOpt, ...items];
+        const displayWithCreate = [createCharacterOpt, ...display];
+
+        this.logDebug(`[insertCharacterIntoScene] Показываем список из ${itemsWithCreate.length} элементов (с опцией создания)`);
+        let chosenId = await this.suggester(itemsWithCreate, displayWithCreate, 'Выберите персонажа');
+        this.logDebug(`[insertCharacterIntoScene] Выбрана опция/персонаж: ${chosenId || '(отменено)'}`);
+        if (!chosenId) return;
+
+        let chosenCharacter = null;
+
+        // Обработка создания нового персонажа
+        if (chosenId === createCharacterOpt) {
+            // Запускаем мастер создания персонажа
+            const startPath = activeFile.parent ? activeFile.parent.path : projectRoot;
+            try {
+                await window.createCharacter(this, startPath);
+                this.logDebug(`[insertCharacterIntoScene] Мастер создания персонажа завершён`);
+                
+                // Перезагружаем список персонажей
+                const charsFolder = `${projectRoot}/Персонажи`;
+                const folder = this.app.vault.getAbstractFileByPath(charsFolder);
+                if (folder && folder.children) {
+                    const newCharactersList = folder.children
+                        .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                        .map(f => f.basename);
+                    
+                    // Предлагаем выбрать из обновлённого списка
+                    if (newCharactersList.length > 0) {
+                        const newItems = newCharactersList;
+                        const newDisplay = newCharactersList.map(name => `👤 ${name}`);
+                        const newChosenId = await this.suggester(newItems, newDisplay, 'Выберите созданного персонажа');
+                        if (newChosenId) {
+                            chosenCharacter = newChosenId;
+                        }
+                    }
+                }
+            } catch (e) {
+                this.logDebug(`[insertCharacterIntoScene] Ошибка создания персонажа: ${e.message}`);
+                return;
+            }
+        } else {
+            // Обычный выбор существующего персонажа
+            chosenCharacter = chosenId;
+        }
+
+        if (!chosenCharacter) {
+            this.logDebug(`[ERROR] Персонаж не выбран`);
+            return;
+        }
+
+        this.logDebug(`[insertCharacterIntoScene] Выбран персонаж: ${chosenCharacter}`);
+
+        // Запрашиваем роль персонажа в сцене
+        const role = await this.prompt(`Опишите роль персонажа «${chosenCharacter}» в этой сцене (опционально)`);
+        
+        // Формируем текст для вставки
+        const link = `[[${chosenCharacter}]]`;
+        let text = `- **${link}**`;
+        if (role && role.trim()) text += `: ${role.trim()}`;
+        this.logDebug(`[insertCharacterIntoScene] Вставляем текст: "${text}"`);
+        
+        // Обновляем frontmatter сцены
+        try {
+            await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+                if (!Array.isArray(fm.characters)) fm.characters = [];
+                if (!fm.characters.includes(chosenCharacter)) {
+                    fm.characters.push(chosenCharacter);
+                }
+            });
+            this.logDebug(`[insertCharacterIntoScene] frontmatter updated`);
+        } catch (e) {
+            this.logDebug(`[insertCharacterIntoScene] frontmatter update error: ${e.message}`);
+        }
+
+        // Вставляем читабельную строку в текст
+        editor.replaceSelection(text + '\n');
+        this.logDebug(`[insertCharacterIntoScene] replaceSelection выполнен`);
+        
+        // Добавляем уведомление
+        new Notice(`Персонаж вставлен: ${chosenCharacter}`);
+        
+        this.logDebug(`[insertCharacterIntoScene] === КОНЕЦ ФУНКЦИИ ===`);
+        this.logDebug(`Персонаж добавлен: ${chosenCharacter}`);
+    }
+
+    async insertLocationIntoScene() {
+        this.logDebug(`[insertLocationIntoScene] === НАЧАЛО ФУНКЦИИ ===`);
+        let editor = this.getActiveEditor();
+        this.logDebug(`[insertLocationIntoScene] editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+        
+        // Fallback для режима просмотра: переключаемся в режим редактирования
+        if (!editor) {
+            try {
+                const leaf = this.app.workspace.getActiveLeaf();
+                if (leaf && leaf.setMode) {
+                    this.logDebug(`[insertLocationIntoScene] Переключаемся в режим редактирования`);
+                    leaf.setMode('source');
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    editor = this.getActiveEditor();
+                    this.logDebug(`[insertLocationIntoScene] После переключения editor: ${editor ? 'найден' : 'НЕ НАЙДЕН'}`);
+                }
+            } catch (e) {
+                this.logDebug(`[insertLocationIntoScene] Не удалось переключиться в режим редактирования: ${e.message}`);
+            }
+        }
+        
+        if (!editor) {
+            this.logDebug(`[ERROR] Нет активного редактора Markdown`);
+            return;
+        }
+
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!(activeFile instanceof TFile)) {
+            this.logDebug(`[ERROR] Нет активного файла`);
+            return;
+        }
+        const cache = this.app.metadataCache.getFileCache(activeFile) || {};
+        const fmType = cache.frontmatter && cache.frontmatter.type ? String(cache.frontmatter.type) : '';
+        if (fmType !== 'сцена') {
+            const choice = await this.suggester(['yes', 'no'], ['Вставить', 'Отмена'], 'Текущий файл не является сценой. Вставить всё равно?');
+            if (choice !== 'yes') return;
+        }
+
+        // Определяем projectRoot
+        const parentPath = activeFile.parent ? activeFile.parent.path : '';
+        let projectRoot = findProjectRoot(this.app, parentPath) || parentPath || this.activeProjectRoot || '';
+        this.logDebug(`[insertLocationIntoScene] projectRoot: ${projectRoot}`);
+        if (!projectRoot) {
+            const roots = await getAllProjectRoots(this.app);
+            if (!roots || roots.length === 0) {
+                this.logDebug(`[ERROR] Проект не найден: отсутствует файл "Настройки_мира.md"`);
+                return;
+            }
+            projectRoot = roots[0];
+            this.logDebug(`[insertLocationIntoScene] projectRoot из roots: ${projectRoot}`);
+        }
+
+        // Собираем существующие локации
+        let locationsList = [];
+        try {
+            const locsFolder = `${projectRoot}/Локации`;
+            this.logDebug(`[insertLocationIntoScene] Загружаем локации из: ${locsFolder}`);
+            const folder = this.app.vault.getAbstractFileByPath(locsFolder);
+            if (folder && folder.children) {
+                locationsList = folder.children
+                    .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                    .map(f => f.basename);
+                this.logDebug(`[insertLocationIntoScene] Найдено локаций: ${locationsList.length}`);
+            }
+        } catch (e) {
+            this.logDebug(`[insertLocationIntoScene] Ошибка загрузки локаций: ${e.message}`);
+        }
+
+        // Создаем списки для выбора
+        const items = locationsList;
+        const display = locationsList.map(name => `📍 ${name}`);
+        
+        // Пункт для создания новой локации
+        const createLocationOpt = '➕ Создать локацию';
+        const itemsWithCreate = [createLocationOpt, ...items];
+        const displayWithCreate = [createLocationOpt, ...display];
+
+        this.logDebug(`[insertLocationIntoScene] Показываем список из ${itemsWithCreate.length} элементов (с опцией создания)`);
+        let chosenId = await this.suggester(itemsWithCreate, displayWithCreate, 'Выберите локацию');
+        this.logDebug(`[insertLocationIntoScene] Выбрана опция/локация: ${chosenId || '(отменено)'}`);
+        if (!chosenId) return;
+
+        let chosenLocation = null;
+
+        // Обработка создания новой локации
+        if (chosenId === createLocationOpt) {
+            // Запускаем мастер создания локации
+            const startPath = activeFile.parent ? activeFile.parent.path : projectRoot;
+            try {
+                await window.createLocation(this, startPath);
+                this.logDebug(`[insertLocationIntoScene] Мастер создания локации завершён`);
+                
+                // Перезагружаем список локаций
+                const locsFolder = `${projectRoot}/Локации`;
+                const folder = this.app.vault.getAbstractFileByPath(locsFolder);
+                if (folder && folder.children) {
+                    const newLocationsList = folder.children
+                        .filter(f => f instanceof TFile && f.extension === 'md' && !f.basename.startsWith('Index') && !f.basename.startsWith('.'))
+                        .map(f => f.basename);
+                    
+                    // Предлагаем выбрать из обновлённого списка
+                    if (newLocationsList.length > 0) {
+                        const newItems = newLocationsList;
+                        const newDisplay = newLocationsList.map(name => `📍 ${name}`);
+                        const newChosenId = await this.suggester(newItems, newDisplay, 'Выберите созданную локацию');
+                        if (newChosenId) {
+                            chosenLocation = newChosenId;
+                        }
+                    }
+                }
+            } catch (e) {
+                this.logDebug(`[insertLocationIntoScene] Ошибка создания локации: ${e.message}`);
+                return;
+            }
+        } else {
+            // Обычный выбор существующей локации
+            chosenLocation = chosenId;
+        }
+
+        if (!chosenLocation) {
+            this.logDebug(`[ERROR] Локация не выбрана`);
+            return;
+        }
+
+        this.logDebug(`[insertLocationIntoScene] Выбрана локация: ${chosenLocation}`);
+
+        // Запрашиваем роль локации в сцене
+        const role = await this.prompt(`Опишите роль локации «${chosenLocation}» в этой сцене (опционально)`);
+        
+        // Формируем текст для вставки
+        const link = `[[${chosenLocation}]]`;
+        let text = `- **${link}**`;
+        if (role && role.trim()) text += `: ${role.trim()}`;
+        this.logDebug(`[insertLocationIntoScene] Вставляем текст: "${text}"`);
+        
+        // Обновляем frontmatter сцены
+        try {
+            await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+                if (!Array.isArray(fm.locations)) fm.locations = [];
+                if (!fm.locations.includes(chosenLocation)) {
+                    fm.locations.push(chosenLocation);
+                }
+            });
+            this.logDebug(`[insertLocationIntoScene] frontmatter updated`);
+        } catch (e) {
+            this.logDebug(`[insertLocationIntoScene] frontmatter update error: ${e.message}`);
+        }
+
+        // Вставляем читабельную строку в текст
+        editor.replaceSelection(text + '\n');
+        this.logDebug(`[insertLocationIntoScene] replaceSelection выполнен`);
+        
+        // Добавляем уведомление
+        new Notice(`Локация вставлена: ${chosenLocation}`);
+        
+        this.logDebug(`[insertLocationIntoScene] === КОНЕЦ ФУНКЦИИ ===`);
+        this.logDebug(`Локация добавлена: ${chosenLocation}`);
+    }
     // Вспомогательные методы для модальных окон
     async prompt(header, initialValue) {
         // console.log(`[DEBUG] prompt вызван с header: "${header}", initialValue: "${initialValue}"`);
@@ -1436,6 +1754,21 @@ await this.loadButtonIconsScript();
             callback: () => this.insertPlotlineIntoScene(),
         });
         this.addCommand({
+            id: 'insert-character-into-scene',
+            name: 'Вставить персонажа в сцену',
+            callback: () => this.insertCharacterIntoScene(),
+        });
+        this.addCommand({
+            id: 'insert-location-into-scene',
+            name: 'Вставить локацию в сцену',
+            callback: () => this.insertLocationIntoScene(),
+        });
+        this.addCommand({
+            id: 'insert-plotline',
+            name: 'Вставить сюжетную линию',
+            callback: () => this.insertPlotlineIntoScene(),
+        });
+        this.addCommand({
             id: 'open-writer-handbook',
             name: 'Справочник писателя (создать/открыть)',
             callback: async () => {
@@ -1756,7 +2089,7 @@ await this.loadButtonIconsScript();
                 await this.app.vault.createFolder(sectionsFolder);
             }
         } catch (e) {
-            console.warn('Не удалось создать папку для секций шаблонов:', e.message);
+            // console.warn('Не удалось создать папку для секций шаблонов:', e.message);
         }
         
         // console.log('Literary Templates plugin loaded successfully');

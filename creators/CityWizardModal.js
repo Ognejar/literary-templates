@@ -42,6 +42,7 @@ var CityWizardModal = class extends EntityWizardBase {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.onFinish = onFinish;
         this.step = 0;
+        this.originalProjectRoot = projectRoot;
         this.data = {
             cityName: '',
             name: '', // Добавляем name для шаблона
