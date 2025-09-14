@@ -102,16 +102,30 @@ class WorldWizardModal extends HtmlWizardModal {
         ];
 
         const genres = [
-            'Эпическое фэнтези',
-            'Городское фэнтези',
-            'Тёмное фэнтези',
-            'Космическая опера',
-            'Альтернативная история',
-            'Детектив',
-            'Романтика',
-            'Приключения',
-            'Триллер',
-            'Другое'
+            // Sci-Fi жанры
+            { value: 'space-opera', label: 'Космическая опера' },
+            { value: 'hard-scifi', label: 'Жёсткая научная фантастика' },
+            { value: 'cyberpunk', label: 'Киберпанк' },
+            { value: 'post-apocalyptic', label: 'Постапокалипсис' },
+            { value: 'military-scifi', label: 'Военная фантастика' },
+            { value: 'steampunk', label: 'Стимпанк' },
+            
+            // Fantasy жанры
+            { value: 'epic-fantasy', label: 'Эпическое фэнтези' },
+            { value: 'urban-fantasy', label: 'Городское фэнтези' },
+            { value: 'dark-fantasy', label: 'Тёмное фэнтези' },
+            { value: 'high-fantasy', label: 'Высокое фэнтези' },
+            { value: 'low-fantasy', label: 'Низкое фэнтези' },
+            
+            // Другие жанры
+            { value: 'historical', label: 'Исторический' },
+            { value: 'alternate-history', label: 'Альтернативная история' },
+            { value: 'detective', label: 'Детектив' },
+            { value: 'romance', label: 'Романтика' },
+            { value: 'adventure', label: 'Приключения' },
+            { value: 'thriller', label: 'Триллер' },
+            { value: 'horror', label: 'Ужасы' },
+            { value: 'other', label: 'Другое' }
         ];
 
         return `
@@ -125,15 +139,20 @@ class WorldWizardModal extends HtmlWizardModal {
                         </option>`
                     ).join('')}
                 </select>
+                <small class="form-hint">Тип мира определяет общую структуру и технологии (sci-fi — космические станции, fantasy — магия и замки)</small>
             </div>
             
             <div class="form-group">
                 <label for="genre">Жанр произведения:</label>
-                <input type="text" id="genre" value="${this.state.genre}" 
-                       placeholder="Введите жанр" list="genre-list">
-                <datalist id="genre-list">
-                    ${genres.map(genre => `<option value="${genre}">`).join('')}
-                </datalist>
+                <select id="genre" required>
+                    <option value="">Выберите жанр</option>
+                    ${genres.map(genre => 
+                        `<option value="${genre.value}" ${this.state.genre === genre.value ? 'selected' : ''}>
+                            ${genre.label}
+                        </option>`
+                    ).join('')}
+                </select>
+                <small class="form-hint">Жанр определяет стиль шаблонов (космическая опера, жёсткая НФ, киберпанк и т.д.)</small>
             </div>
         `;
     }
@@ -235,13 +254,17 @@ class WorldWizardModal extends HtmlWizardModal {
         const isLastStep = step === this.steps.length - 1;
         
         return `
-            <div class="nav-buttons">
-                ${step > 0 ? '<button class="nav-btn prev-btn">← Назад</button>' : ''}
-                ${isLastStep 
-                    ? '<button class="nav-btn create-btn">Создать мир</button>' 
-                    : '<button class="nav-btn next-btn">Далее →</button>'
-                }
-                <button class="nav-btn cancel-btn">Отмена</button>
+            <div class="modal-nav" style="display: flex; justify-content: space-between; margin-top: 32px; gap: 16px;">
+                <div>
+                    ${step > 0 ? '<button class="mod-cta prev-btn">← Назад</button>' : ''}
+                </div>
+                <div>
+                    ${isLastStep 
+                        ? '<button class="mod-cta create-btn">✓ Создать мир</button>' 
+                        : '<button class="mod-cta next-btn">Далее →</button>'
+                    }
+                    <button class="mod-cta cancel-btn" style="margin-left: 8px;">Отмена</button>
+                </div>
             </div>
         `;
     }
@@ -304,6 +327,10 @@ class WorldWizardModal extends HtmlWizardModal {
                 const genre = this.contentEl.querySelector('#genre').value.trim();
                 if (!worldType) {
                     console.error('Тип мира обязателен');
+                    return false;
+                }
+                if (!genre) {
+                    console.error('Жанр обязателен');
                     return false;
                 }
                 this.state.worldType = worldType;

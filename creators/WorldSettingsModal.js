@@ -95,7 +95,7 @@ class WorldSettingsModal extends Modal {
     btnRow.style.cssText = 'display:flex; gap:10px; margin-top: 16px;';
 
     const saveBtn = btnRow.createEl('button', { text: 'Сохранить' });
-    saveBtn.style.cssText = 'padding:8px 14px; font-size:14px;';
+    saveBtn.classList.add('lt-btn', 'lt-btn-primary');
     saveBtn.addEventListener('click', () => {
       if (!this.data.projectName || this.data.projectName.trim() === '') {
         new this.Notice('Введите название проекта');
@@ -108,7 +108,7 @@ class WorldSettingsModal extends Modal {
     });
 
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена' });
-    cancelBtn.style.cssText = 'padding:8px 14px; font-size:14px;';
+    cancelBtn.classList.add('lt-btn', 'lt-btn-outline');
     cancelBtn.addEventListener('click', () => this.close());
   }
 }

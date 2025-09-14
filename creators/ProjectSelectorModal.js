@@ -150,20 +150,7 @@ class ProjectSelectorModal extends Modal {
         
         // Кнопка отмены
         const cancelBtn = contentEl.createEl('button', { text: 'Отмена' });
-        cancelBtn.style.cssText = `
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin-top: 20px;
-            background: var(--background-secondary);
-            color: var(--text-muted);
-            border: 1px solid var(--background-modifier-border);
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        `;
+        cancelBtn.classList.add('lt-btn', 'lt-btn-outline');
         
         cancelBtn.addEventListener('mouseenter', () => {
             cancelBtn.style.background = 'var(--background-modifier-hover)';

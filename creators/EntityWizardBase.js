@@ -373,17 +373,7 @@ async filterProvincesByState(stateName, projectRoot, allProvinces) {
         const button = container.createEl('button', { text: '📊 Анализ лора' });
         
         // Стилизация кнопки
-        button.style.cssText = `
-            padding: 8px 16px;
-            background: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-size: 14px;
-            transition: background-color 0.2s ease;
-        `;
+        button.classList.add('lt-btn', 'lt-btn-outline');
         
         // Эффект при наведении
         button.addEventListener('mouseenter', () => {

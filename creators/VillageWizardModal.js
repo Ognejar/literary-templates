@@ -888,17 +888,6 @@ class VillageWizardModal extends EntityWizardBase {
         
         if (showBack && this.state.step > 0) {
             const prevBtn = leftButtons.createEl('button', { text: '← Назад' });
-            prevBtn.style.cssText = `
-                padding: 8px 16px;
-                background: var(--background-secondary);
-                color: var(--text-muted);
-                border: 1px solid var(--background-modifier-border);
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
             prevBtn.addEventListener('mouseenter', () => {
                 prevBtn.style.background = 'var(--background-modifier-hover)';
             });
@@ -909,21 +898,11 @@ class VillageWizardModal extends EntityWizardBase {
                 this.state.step--;
                 await this.render();
             };
+            prevBtn.classList.add('lt-btn', 'lt-btn-outline');
         }
         
         if (onNext && !showOnlyBack) {
             const nextBtn = rightButtons.createEl('button', { text: 'Далее →' });
-            nextBtn.style.cssText = `
-                padding: 8px 16px;
-                background: var(--interactive-accent);
-                color: var(--text-on-accent);
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
             nextBtn.addEventListener('mouseenter', () => {
                 nextBtn.style.background = 'var(--interactive-accent-hover)';
             });
@@ -931,19 +910,9 @@ class VillageWizardModal extends EntityWizardBase {
                 nextBtn.style.background = 'var(--interactive-accent)';
             });
             nextBtn.onclick = onNext;
+            nextBtn.classList.add('lt-btn', 'lt-btn-primary');
         } else if (showOnlyBack) {
             const finishBtn = rightButtons.createEl('button', { text: '✓ Создать деревню' });
-            finishBtn.style.cssText = `
-                padding: 10px 20px;
-                background: var(--interactive-accent);
-                color: var(--text-on-accent);
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
             finishBtn.addEventListener('mouseenter', () => {
                 finishBtn.style.background = 'var(--interactive-accent-hover)';
             });
@@ -953,6 +922,7 @@ class VillageWizardModal extends EntityWizardBase {
             finishBtn.onclick = () => {
                 this.finish();
             };
+            finishBtn.classList.add('lt-btn', 'lt-btn-success');
         }
     }
     

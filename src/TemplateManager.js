@@ -63,10 +63,10 @@ class TemplateManager {
     /**
      * Генерирует контент из шаблона
      */
-    async generateFromTemplate(templateName, data, plugin) {
+    async generateFromTemplate(templateName, data, plugin, worldType = '', genre = '') {
         try {
-            console.debug('[TM] generateFromTemplate:start', { templateName });
-            const templateContent = await this.readTemplateFile(templateName, plugin);
+            console.debug('[TM] generateFromTemplate:start', { templateName, worldType, genre });
+            const templateContent = await this.readTemplateFile(templateName, plugin, worldType, genre);
             if (!templateContent) {
                 throw new Error(`Шаблон ${templateName} не найден`);
             }
@@ -96,17 +96,39 @@ class TemplateManager {
     }
 
     /**
-     * Читает файл шаблона
+     * Читает файл шаблона с поддержкой жанров
      */
-    async readTemplateFile(templateName, plugin) {
+    async readTemplateFile(templateName, plugin, worldType = '', genre = '') {
         try {
             const adapter = plugin.app.vault.adapter;
+            
+            // 1. Пробуем найти по жанру: templates/{worldType}/{genre}/{templateName}.md
+            if (worldType && genre) {
+                const genrePath = `.obsidian/plugins/literary-templates/templates/${worldType}/${genre}/${templateName}.md`;
+                if (await adapter.exists(genrePath)) {
+                    console.debug(`[TemplateManager] Найден шаблон по жанру: ${genrePath}`);
+                    return await adapter.read(genrePath);
+                }
+            }
+            
+            // 2. Пробуем найти по типу: templates/{worldType}/{templateName}.md
+            if (worldType) {
+                const typePath = `.obsidian/plugins/literary-templates/templates/${worldType}/${templateName}.md`;
+                if (await adapter.exists(typePath)) {
+                    console.debug(`[TemplateManager] Найден шаблон по типу: ${typePath}`);
+                    return await adapter.read(typePath);
+                }
+            }
+            
+            // 3. Пробуем найти базовый шаблон: templates/{templateName}.md
             const pluginTemplatePath = `.obsidian/plugins/literary-templates/templates/${templateName}.md`;
             const exists = await adapter.exists(pluginTemplatePath);
             if (exists) {
+                console.debug(`[TemplateManager] Найден базовый шаблон: ${pluginTemplatePath}`);
                 return await adapter.read(pluginTemplatePath);
             }
-            console.warn(`Шаблон не найден: ${pluginTemplatePath}`);
+            
+            console.warn(`Шаблон не найден: ${templateName} (worldType: ${worldType}, genre: ${genre})`);
             try {
                 const vaultName = typeof plugin?.app?.vault?.getName === 'function' ? plugin.app.vault.getName() : 'unknown-vault';
                 const folderPath = `.obsidian/plugins/literary-templates/templates`;
@@ -117,6 +139,8 @@ class TemplateManager {
                 console.info('[TemplateManager] Диагностика промаха шаблона:', {
                     vaultName,
                     requestedTemplateName: templateName,
+                    worldType,
+                    genre,
                     searchedPath: pluginTemplatePath,
                     folderPath,
                     folderExists: Boolean(folderInfo),

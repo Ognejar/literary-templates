@@ -1260,6 +1260,9 @@ class LiteraryTemplatesPlugin extends Plugin {
         // Не загружаем CSS до полной инициализации плагина
         return Promise.resolve();
     }
+    // addFolderClickHandlers() - ОТКЛЮЧЕНО
+    // (создаёт множественные обработчики и бесконечные циклы)
+
     async onload() {
         // console.log('Literary Templates plugin onload started');
         // console.log('Текущее время:', new Date().toISOString());
@@ -1504,6 +1507,9 @@ class LiteraryTemplatesPlugin extends Plugin {
                 }
             })
         );
+        
+        // Автоматическое открытие файла с именем папки при клике на папку - ОТКЛЮЧЕНО
+        // (создаёт множественные обработчики и бесконечные циклы)
         // Автозапуск мастеров при создании пустых файлов в целевых папках Магии (мягкий режим)
         this.registerEvent(
             this.app.vault.on('create', async (abstractFile) => {
@@ -1598,7 +1604,7 @@ class LiteraryTemplatesPlugin extends Plugin {
                     // Пропускаем папки, которые создаются системно при создании сущностей
                     const systemFolders = [
                                 // Рукопись и её подкатегории
-        '1_Рукопись', 'Главы', 'Сцены', 'События', 'Конфликты', 'Квесты',
+        '1_Рукопись',  'Сцены', 'События', 'Конфликты', 'Квесты',
                         
                         // Локации и их подкатегории
                         'Локации', 'Государства', 'Провинции', 'Фракции', 'Торговые_пути',
@@ -1613,8 +1619,20 @@ class LiteraryTemplatesPlugin extends Plugin {
                         // Справочники и задачи
                         'Справочник', 'Руководства', 'Задачи'
                     ];
+                    
+                    // Пропускаем папки произведений (они создают свои файлы через createWork)
+                    if (folderPath.includes('/1_Рукопись/Произведения/')) {
+                        console.log(`[AUTO-INDEX] Пропускаем создание индексного файла для папки произведения: ${folderName} (путь: ${folderPath})`);
+                        this.logDebug(`Пропускаем создание индексного файла для папки произведения: ${folderName}`);
+                        return;
+                    }
                     if (systemFolders.includes(folderName)) {
                         return; // Пропускаем системные папки
+                    }
+
+                    if (/^Глава/i.test(folderName)) {
+                        this.logDebug(`Пропускаем создание индексного файла для папки: ${folderName}`);
+                        return;
                     }
                     
                     // Проверяем, есть ли уже файл управления
@@ -1631,35 +1649,17 @@ class LiteraryTemplatesPlugin extends Plugin {
                                 '',
                                 '## Содержимое',
                                 '',
-                                '```folder-overview',
-                                `folderPath: "${folderPath}"`,
-                                `title: "${folderName}"`,
-                                'showTitle: false',
-                                'depth: 1',
-                                'includeTypes:',
-                                '  - folder',
-                                '  - markdown',
-                                'style: list',
-                                'disableFileTag: false',
-                                'sortBy: name',
-                                'sortByAsc: true',
-                                'showEmptyFolders: false',
-                                'onlyIncludeSubfolders: false',
-                                'storeFolderCondition: true',
-                                'showFolderNotes: true',
-                                'disableCollapseIcon: true',
-                                'alwaysCollapse: false',
-                                'autoSync: true',
-                                'allowDragAndDrop: true',
-                                'hideLinkList: true',
-                                'hideFolderOverview: false',
-                                'useActualLinks: false',
-                                'fmtpIntegration: false',
+                                '```dataview',
+                                'LIST',
+                                `FROM "${folderPath}"`,
+                                'WHERE file.name != this.file.name',
+                                'SORT file.name ASC',
                                 '```',
                                 ''
                             ].join('\n');
                             
                             await this.app.vault.create(managementFilePath, content);
+                            console.log(`[AUTO-INDEX] Создан файл управления для папки "${folderName}" по пути: ${managementFilePath}`);
                             this.logDebug(`Создан файл управления для папки "${folderName}"`);
                         } catch (e) {
                             this.logDebug('Ошибка создания файла управления: ' + (e && e.message ? e.message : String(e)));
@@ -2273,7 +2273,7 @@ await this.loadButtonIconsScript();
                             const file = await this.app.vault.create(path, md);
                             await this.app.workspace.getLeaf(true).openFile(file);
                         }
-                        new Notice(`Создан объект: ${sub} — ${data.name}`);
+                        new Notice(`Создан ${sub}: ${data.name}`);
                     });
                     modal.open();
                 } catch (e) {

@@ -458,6 +458,9 @@ var FactoryWizardModal = class extends EntityWizardBase {
                 }
             };
         }
+        prevBtn.classList.add('lt-btn', 'lt-btn-outline');
+        nextBtn.classList.add('lt-btn', 'lt-btn-primary');
+        finishBtn.classList.add('lt-btn', 'lt-btn-success');
     }
 
     validateCurrentStep() {

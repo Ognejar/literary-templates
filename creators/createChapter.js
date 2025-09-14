@@ -15,7 +15,10 @@
  */
 var createChapter = async function(plugin, startPath = '', options = {}) {
     try {
-        plugin.logDebug('=== createChapter вызвана ===');
+        plugin.logDebug('=== createChapter вызвана === ' + new Date().toISOString());
+        if (window._chapterCreateCallCount === undefined) window._chapterCreateCallCount = 0;
+        window._chapterCreateCallCount++;
+        plugin.logDebug('createChapter вызван раз: ' + window._chapterCreateCallCount);
         // 1. Резолвим контекст (мир/произведение) из настроек/активного файла/стартового пути
         let projectRoot = '';
         let currentWork = '';
@@ -27,13 +30,38 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             }
         } catch (e) {}
         // Fallback, если сервис недоступен
-        if (!projectRoot) {
+        if (!projectRoot || !currentWork) {
             try {
                 if (startPath) projectRoot = findProjectRoot(plugin.app, startPath) || '';
                 if (!projectRoot) {
                     const activeFile = plugin.app.workspace.getActiveFile();
                     const parent = activeFile && activeFile.parent ? activeFile.parent.path : '';
                     if (parent) projectRoot = findProjectRoot(plugin.app, parent) || '';
+                }
+                
+                // Определяем произведение из активного файла или стартового пути
+                if (!currentWork) {
+                    plugin.logDebug('currentWork не определён, пробуем fallback логику');
+                    const activeFile = plugin.app.workspace.getActiveFile();
+                    const path = activeFile ? activeFile.path : startPath;
+                    plugin.logDebug('activeFile: ' + (activeFile ? activeFile.path : 'null'));
+                    plugin.logDebug('startPath: ' + startPath);
+                    plugin.logDebug('path для анализа: ' + path);
+                    if (path) {
+                        // Проверяем, находится ли путь внутри папки произведения
+                        const m = path.match(/(^|\/)1_Рукопись\/Произведения\/([^\/]+)\//);
+                        plugin.logDebug('regex match: ' + (m ? JSON.stringify(m) : 'null'));
+                        if (m && m[2]) {
+                            currentWork = m[2];
+                            plugin.logDebug('Определено произведение из пути: ' + currentWork);
+                        } else {
+                            plugin.logDebug('Произведение не найдено в пути');
+                        }
+                    } else {
+                        plugin.logDebug('path пуст, произведение не определено');
+                    }
+                } else {
+                    plugin.logDebug('currentWork уже определён: ' + currentWork);
                 }
             } catch (e) {}
         }
@@ -56,179 +84,78 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
 
         }
         plugin.logDebug('project: ' + project);
+        plugin.logDebug('currentWork: ' + currentWork);
+        plugin.logDebug('startPath: ' + startPath);
         const projectName = project.split('/').pop();
         let chaptersFolder = '';
-
-        // Папка глав определяется после выбора области сюжетных линий
-
-        // Запрос названия главы перенесён ниже, после вычисления chapterNum
-
-        // 4. Выбор области сюжетных линий (глобальные/по произведению/оба) и чтение файлов
-        const scopeOptions = ['Глобальные сюжетные линии', 'Сюжетные линии выбранного произведения', 'Объединить глобальные и выбранного произведения'];
-        const scope = await plugin.suggester(scopeOptions, scopeOptions, 'Источник сюжетных линий');
         let chosenWork = currentWork || '';
-        let plotLines = [];
-
-        const parsePlotLines = (content) => {
-            const parsed = [];
-            const ls = String(content || '').split('\n');
-            let currentTheme = null;
-            for (let i = 0; i < ls.length; i++) {
-                const line = ls[i].trim();
-                if (line.startsWith('## Тема')) {
-                    const match = line.match(/## Тема(\d+) - (.+)/);
-                    if (match) {
-                        currentTheme = { id: match[1], name: match[2], description: '' };
-                    }
-                } else if (line.startsWith('Описание:') && currentTheme) {
-                    currentTheme.description = line.replace('Описание:', '').trim();
-                    parsed.push(currentTheme);
-                    currentTheme = null;
-                }
-            }
-            return parsed;
-        };
-
-        const readText = async (path) => {
-            try { return await plugin.app.vault.adapter.read(path); } catch (e) { return ''; }
-        };
-
-        const globalPlotPath = `${project}/Сюжетные_линии.md`;
+        // --- Новый блок: определяем папку главы ДО выбора scope ---
+        // Получаем список произведений
         const worksRoot = `${project}/1_Рукопись/Произведения`;
-
-        let globalLines = [];
-        let workLines = [];
-
-        if (scope === scopeOptions[0] || scope === scopeOptions[2]) {
-            const content = await readText(globalPlotPath);
-            globalLines = parsePlotLines(content).map(x => ({ ...x, __scope: 'Глобальные' }));
-        }
-
-        if (scope === scopeOptions[1] || scope === scopeOptions[2]) {
-            // Выбор произведения
-            let workChoices = [];
-            try {
-                const folder = plugin.app.vault.getAbstractFileByPath(worksRoot);
-                if (folder && folder.children) {
-                    workChoices = folder.children.filter(ch => ch && ch.children).map(ch => ch.name);
-                }
-            } catch (e) {}
-            if (workChoices.length === 0) {
-                new Notice('Произведения не найдены в проекте');
-            } else {
-                chosenWork = await plugin.suggester(workChoices, workChoices, 'Выберите произведение');
-                if (chosenWork) {
-                    const workPlotPath = `${worksRoot}/${chosenWork}/Сюжетные_линии.md`;
-                    const content = await readText(workPlotPath);
-                    workLines = parsePlotLines(content).map(x => ({ ...x, __scope: `Произведение: ${chosenWork}` }));
-
-                    // Предложить миграцию глобальных линий в выбранное произведение
-                    if ((scope === scopeOptions[1] || scope === scopeOptions[2]) && globalLines.length > 0) {
-                        const migrate = await plugin.confirm?.(`Перенести ${globalLines.length} глобальных линий в «${chosenWork}» и очистить глобальный файл?`);
-                        if (migrate) {
-                            // Бэкап глобального файла
-                            try {
-                                const backupPath = `${project}/Сюжетные_линии_backup.md`;
-                                const gContent = await readText(globalPlotPath);
-                                await plugin.app.vault.adapter.write(backupPath, gContent);
-                            } catch (e) {}
-                            // Запись в файл произведения (добавление секций)
-                            try {
-                                const workPlotPath2 = `${worksRoot}/${chosenWork}/Сюжетные_линии.md`;
-                                let existing = await readText(workPlotPath2);
-                                if (!existing.includes('# Сюжетные линии')) {
-                                    existing = '# Сюжетные линии\n\n';
-                                }
-                                const toAppend = globalLines.map((pl, idx) => `## Тема${pl.id || idx + 1} - ${pl.name}\nОписание: ${pl.description}\n`).join('\n');
-                                await plugin.app.vault.adapter.write(workPlotPath2, existing + (existing.endsWith('\n') ? '' : '\n') + toAppend + '\n');
-                            } catch (e) {}
-                            // Очистка глобального
-                            try { await plugin.app.vault.adapter.write(globalPlotPath, '# Сюжетные линии\n\n'); } catch (e) {}
-                            // Обновляем локальные массивы после миграции
-                            workLines = workLines.concat(globalLines.map(x => ({ ...x, __scope: `Произведение: ${chosenWork}` })));
-                            globalLines = [];
-                        }
-                    }
-                }
+        let workChoices = [];
+        try {
+            const folder = plugin.app.vault.getAbstractFileByPath(worksRoot);
+            if (folder && folder.children) {
+                workChoices = folder.children.filter(ch => ch && ch.children).map(ch => ch.name);
+            }
+        } catch (e) {}
+        // Если произведение не определено или не найдено в списке — спрашиваем у пользователя
+        if (!chosenWork || (workChoices.length > 0 && !workChoices.includes(chosenWork))) {
+            if (workChoices.length > 0) {
+                plugin.logDebug('Произведение не определено, запрашиваем у пользователя');
+                chosenWork = await plugin.suggester(workChoices, workChoices, 'Выберите произведение для новой главы (или Esc для создания в корне)');
             }
         }
-
-        plotLines = [...globalLines, ...workLines];
-
-        // 4.1 Определяем папку глав в зависимости от области (работает и без выбора произведения)
-        if (scope === scopeOptions[1] || scope === scopeOptions[2]) {
-            if (chosenWork) {
-                chaptersFolder = `${project}/1_Рукопись/Произведения/${chosenWork}/Главы`;
-            } else {
-                chaptersFolder = `${project}/1_Рукопись/Главы`;
-            }
+        if (chosenWork) {
+            chaptersFolder = `${project}/1_Рукопись/Произведения/${chosenWork}/Главы`;
+            plugin.logDebug('Глава будет создана в папке произведения: ' + chaptersFolder);
         } else {
             chaptersFolder = `${project}/1_Рукопись/Главы`;
+            plugin.logDebug('Глава будет создана в корневой папке: ' + chaptersFolder);
         }
         await plugin.app.vault.createFolder(chaptersFolder).catch(()=>{});
 
-        // 4.2 Генерация номера главы внутри выбранной папки
-        const allMd = plugin.app.vault.getMarkdownFiles();
+        // Генерация номера главы внутри выбранной папки
+        const allFiles = plugin.app.vault.getFiles();
         let nextNum = 1;
         while (true) {
             const test = nextNum.toString().padStart(3, '0');
-            const prefix = `${chaptersFolder}/Глава_${test}_`;
-            const exists = allMd.some(f => f.path.startsWith(prefix));
-            if (!exists) break;
+            const hasFilesWithNumber = allFiles.some(f => {
+                const path = f.path;
+                return path.startsWith(chaptersFolder) && 
+                       (path.includes(`Глава_${test}_`) || path.includes(`Глава_${test}-`));
+            });
+            if (!hasFilesWithNumber) break;
             nextNum++;
         }
         const chapterNum = nextNum.toString().padStart(3, '0');
         plugin.logDebug('chapterNum: ' + chapterNum);
+        plugin.logDebug('chaptersFolder: ' + chaptersFolder);
 
-        // 5. Запрос названия главы (после вычисления номера и папки)
+        // Запрос названия главы
         const chapterName = await plugin.prompt('Название главы:');
         if (!chapterName) return;
         const cleanChapterName = chapterName.trim().replace(/\s+/g, '_').replace(/[^а-яА-ЯёЁ\w\s-.]/g, '');
         plugin.logDebug('chapterName: ' + chapterName);
         plugin.logDebug('cleanChapterName: ' + cleanChapterName);
-        // Папку главы называем с дефисом, чтобы совпадало с именем индексного файла
         const chapterFolderPath = `${chaptersFolder}/Глава_${chapterNum}-${cleanChapterName}`;
         await plugin.app.vault.createFolder(chapterFolderPath).catch(()=>{});
         plugin.logDebug('chapterFolderPath: ' + chapterFolderPath);
 
-        // 6. Выбор сюжетных линий
-        const degrees = [
-            { name: 'Прямая', value: 'прямая' },
-            { name: 'Связанная', value: 'связанная' },
-            { name: 'Фоновая', value: 'фоновая' }
-        ];
-        const selectedPlotLines = [];
-        const plotLineChoices = plotLines.map(line => `${line.name} - ${line.description}`);
-        let addMore = true;
-        while (addMore && plotLines.length > 0) {
-            const choice = await plugin.suggester(plotLineChoices, plotLineChoices, 'Выберите сюжетную линию (или Esc для завершения)');
-            if (choice === null) {
-                addMore = false;
-            } else {
-                const idx = plotLineChoices.indexOf(choice);
-                if (idx < 0) { addMore = false; break; }
-                const selectedLine = plotLines[idx];
-                const degree = await plugin.suggester(degrees.map(d => d.name), degrees.map(d => d.value), 'Выберите степень участия:');
-                if (degree && selectedLine && selectedLine.name) {
-                    selectedPlotLines.push({ theme: selectedLine.name, degree });
-                }
-            }
-        }
-
-        // 7. Формируем данные для шаблона (без устаревшего plot_lines)
+        // Формируем данные для шаблона
         const data = {
             chapterName: chapterName,
             cleanChapterName: cleanChapterName,
             chapterNum: chapterNum,
             projectName: projectName,
             workName: chosenWork || '',
-            plotLines: selectedPlotLines,
-            characterTags: '', // Пока пусто, можно добавить позже
-            locationTags: '',  // Пока пусто, можно добавить позже
+            plotLines: [], // Больше не подставляем автоматически
+            characterTags: '',
+            locationTags: '',
             date: window.moment ? window.moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10)
         };
 
-        // 8. Генерируем контент из шаблона
+        // Генерируем контент из шаблона
         let templateContent = '';
         try {
             templateContent = await plugin.readTemplateFile('Новая_глава');
@@ -238,25 +165,40 @@ var createChapter = async function(plugin, startPath = '', options = {}) {
             return;
         }
         const content = await window.fillTemplate(templateContent, data);
-        
+
         const fileName = `Глава_${chapterNum}-${cleanChapterName}`;
         const targetPath = `${chapterFolderPath}/${fileName}.md`;
-        await safeCreateFile(targetPath, content, plugin.app);
-
-            const file = plugin.app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await plugin.app.workspace.getLeaf().openFile(file);
-        }
-        // Удаляем возможный дубликат с подчёркиванием в имени (если он существует)
-        try {
-            const underscoreVariant = `${chapterFolderPath}/Глава_${chapterNum}_${cleanChapterName}.md`;
-            const dup = plugin.app.vault.getAbstractFileByPath(underscoreVariant);
-            if (dup && dup instanceof TFile) {
-                await plugin.app.vault.delete(dup);
-                plugin.logDebug('Удалён дублирующий файл главы: ' + underscoreVariant);
+        plugin.logDebug('Попытка создать файл: ' + targetPath);
+        // Перебор файлов в папке главы и логирование
+        const folder = plugin.app.vault.getAbstractFileByPath(chapterFolderPath);
+        let foundFile = null;
+        if (folder && folder.children) {
+            for (const child of folder.children) {
+                plugin.logDebug(`В папке главы найден файл: ${child.name} (${child.path})`);
+                if (child.name === fileName + '.md') {
+                    foundFile = child;
+                    break;
+                }
             }
-        } catch (e) { /* ignore */ }
-        new Notice(`Создана глава: ${fileName}`);
+        }
+        if (foundFile) {
+            plugin.logDebug(`Файл найден: ${foundFile.path}, перезаписываем содержимое.`);
+            await plugin.app.vault.modify(foundFile, content);
+            await plugin.app.workspace.getLeaf().openFile(foundFile);
+            new Notice(`Глава обновлена: ${fileName}`);
+            return;
+        } else {
+            plugin.logDebug(`Файл не найден, создаём новый: ${targetPath}`);
+            const createdFile = await safeCreateFile(targetPath, content, plugin.app);
+            plugin.logDebug('Результат safeCreateFile: ' + (createdFile ? 'успех' : 'уже существует'));
+            if (createdFile) {
+                await plugin.app.workspace.getLeaf().openFile(createdFile);
+                new Notice(`Глава создана: ${fileName}`);
+            } else {
+                plugin.logError(`Ошибка создания главы: ${fileName}`);
+            }
+            return;
+        }
     } catch (error) {
         new Notice('Ошибка при создании главы: ' + error.message);
         plugin.logDebug('Ошибка: ' + error.message);

@@ -13,11 +13,12 @@
 // Modal, Setting, Notice передаются через конструктор
 
 class SceneWizardModal extends Modal {
-    constructor(app, ModalClass, SettingClass, NoticeClass, autocompleteData, onFinish) {
+    constructor(app, ModalClass, SettingClass, NoticeClass, autocompleteData, onFinish, plugin) {
         super(app);
         this.Modal = ModalClass;
         this.Setting = SettingClass;
         this.Notice = NoticeClass;
+        this.plugin = plugin; // Добавляем плагин
         this.autocompleteData = autocompleteData; // { plotLinesList, charactersList, locationsList, chapterChoices, defaultChapterNum }
         this.onFinish = onFinish;
         this.state = {
@@ -188,42 +189,12 @@ class SceneWizardModal extends Modal {
         } else {
             // Создаем кнопки для каждой главы
             chapters.forEach(chapter => {
-                const chapterBtn = container.createEl('button', { 
-                    text: `${chapter.num} - ${chapter.name}` 
+                const chapterBtn = container.createEl('button', {
+                    text: `${chapter.num} - ${chapter.name}`
                 });
-                
                 const isSelected = this.state.chapterNum === chapter.num;
-                
-                chapterBtn.style.cssText = `
-                    display: block;
-                    width: 100%;
-                    padding: 12px 16px;
-                    margin: 8px 0;
-                    background: ${isSelected ? 'var(--interactive-accent)' : 'var(--background-secondary)'};
-                    color: ${isSelected ? 'var(--text-on-accent)' : 'var(--text-normal)'};
-                    border: 2px solid ${isSelected ? 'var(--interactive-accent)' : 'var(--background-modifier-border)'};
-                    border-radius: 8px;
-                    font-size: 14px;
-                    font-weight: ${isSelected ? '600' : '500'};
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    text-align: left;
-                `;
-                
-                chapterBtn.addEventListener('mouseenter', () => {
-                    if (!isSelected) {
-                        chapterBtn.style.background = 'var(--background-modifier-hover)';
-                        chapterBtn.style.borderColor = 'var(--interactive-accent)';
-                    }
-                });
-                
-                chapterBtn.addEventListener('mouseleave', () => {
-                    if (!isSelected) {
-                        chapterBtn.style.background = 'var(--background-secondary)';
-                        chapterBtn.style.borderColor = 'var(--background-modifier-border)';
-                    }
-                });
-                
+                chapterBtn.classList.add('lt-btn', 'lt-btn-wide');
+                if (isSelected) chapterBtn.classList.add('lt-btn-selected');
                 chapterBtn.onclick = () => {
                     this.state.chapterNum = chapter.num;
                     this.render();
@@ -265,18 +236,8 @@ class SceneWizardModal extends Modal {
         
         // Красивая кнопка добавления
         const addBtn = container.createEl('button', { text: '➕ Добавить сюжетную линию' });
-        addBtn.style.cssText = `
-            padding: 8px 16px;
-            background: var(--interactive-accent);
-            color: var(--text-on-accent);
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-            margin-bottom: 15px;
-        `;
+        addBtn.addClass('lt-btn', 'lt-btn-primary');
+        
         addBtn.addEventListener('mouseenter', () => {
             addBtn.style.background = 'var(--interactive-accent-hover)';
         });
@@ -401,31 +362,40 @@ class SceneWizardModal extends Modal {
         const container = el.createDiv();
         el.appendChild(container);
         
-        // Красивая кнопка добавления
-        const addBtn = container.createEl('button', { text: '👤 Добавить персонажа' });
-        addBtn.style.cssText = `
-            padding: 8px 16px;
-            background: var(--interactive-accent);
-            color: var(--text-on-accent);
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+        // Контейнер для кнопок
+        const buttonContainer = container.createDiv();
+        buttonContainer.style.cssText = `
+            display: flex;
+            gap: 10px;
             margin-bottom: 15px;
         `;
-        addBtn.addEventListener('mouseenter', () => {
-            addBtn.style.background = 'var(--interactive-accent-hover)';
-        });
-        addBtn.addEventListener('mouseleave', () => {
-            addBtn.style.background = 'var(--interactive-accent)';
-        });
+        
+        // Кнопка добавления существующего персонажа
+        const addBtn = buttonContainer.createEl('button', { text: '👤 Добавить персонажа' });
+        addBtn.addClass('lt-btn', 'lt-btn-primary');
+        
+        // Кнопка создания нового персонажа
+        const createBtn = buttonContainer.createEl('button', { text: '➕ Создать персонажа' });
+        createBtn.addClass('lt-btn', 'lt-btn-success');
+        
+        // Обработчик создания персонажа
+        createBtn.onclick = () => {
+            this.close();
+            if (typeof window.createCharacter === 'function') {
+                window.createCharacter(this.plugin);
+            } else {
+                console.error('[SceneWizardModal] createCharacter: typeof =', typeof window.createCharacter, 'значение:', window.createCharacter);
+                console.error('[SceneWizardModal] Функция создания персонажа недоступна. Возможно, не экспортирована в window или не загружена.');
+            }
+        };
         
         addBtn.onclick = () => {
             try { console.log('[SceneWizardModal] add character clicked'); } catch (_) {}
             const choices = list.filter(c => !selected.includes(c));
-            if (choices.length === 0) return;
+            if (choices.length === 0) {
+                new this.Notice('Нет доступных персонажей для добавления');
+                return;
+            }
             new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите персонажа').openAndGetValue().then(choice => {
                 if (!choice) return;
                 selected.push(choice);
@@ -506,31 +476,38 @@ class SceneWizardModal extends Modal {
         const container = el.createDiv();
         el.appendChild(container);
         
-        // Красивая кнопка добавления
-        const addBtn = container.createEl('button', { text: '📍 Добавить локацию' });
-        addBtn.style.cssText = `
-            padding: 8px 16px;
-            background: var(--interactive-accent);
-            color: var(--text-on-accent);
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+        // Контейнер для кнопок (локации)
+        const buttonContainerLoc = container.createDiv();
+        buttonContainerLoc.style.cssText = `
+            display: flex;
+            gap: 10px;
             margin-bottom: 15px;
         `;
-        addBtn.addEventListener('mouseenter', () => {
-            addBtn.style.background = 'var(--interactive-accent-hover)';
-        });
-        addBtn.addEventListener('mouseleave', () => {
-            addBtn.style.background = 'var(--interactive-accent)';
-        });
+        // Кнопка добавления существующей локации
+        const addBtnLoc = buttonContainerLoc.createEl('button', { text: '📍 Добавить локацию' });
+        addBtnLoc.addClass('lt-btn', 'lt-btn-primary');
+        // Кнопка создания новой локации
+        const createBtnLoc = buttonContainerLoc.createEl('button', { text: '➕ Создать локацию' });
+        createBtnLoc.addClass('lt-btn', 'lt-btn-success');
         
-        addBtn.onclick = () => {
+        // Обработчик создания локации
+        createBtnLoc.onclick = () => {
+            this.close();
+            if (typeof window.createLocation === 'function') {
+                window.createLocation(this.plugin);
+            } else {
+                console.error('[SceneWizardModal] createLocation: typeof =', typeof window.createLocation, 'значение:', window.createLocation);
+                console.error('[SceneWizardModal] Функция создания локации недоступна. Возможно, не экспортирована в window или не загружена.');
+            }
+        };
+        
+        addBtnLoc.onclick = () => {
             try { console.log('[SceneWizardModal] add location clicked'); } catch (_) {}
             const choices = list.filter(l => !selected.includes(l));
-            if (choices.length === 0) return;
+            if (choices.length === 0) {
+                new this.Notice('Нет доступных локаций для добавления');
+                return;
+            }
             new window.SuggesterModal(this.app, this.Modal, this.Setting, this.Notice, choices, choices, 'Выберите локацию').openAndGetValue().then(choice => {
                 if (!choice) return;
                 selected.push(choice);
@@ -714,17 +691,7 @@ class SceneWizardModal extends Modal {
         // Кнопка "Назад"
         if (this.state.step > 0) {
             const prevBtn = leftButtons.createEl('button', { text: '← Назад' });
-            prevBtn.style.cssText = `
-                padding: 8px 16px;
-                background: var(--background-secondary);
-                color: var(--text-muted);
-                border: 1px solid var(--background-modifier-border);
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
+            prevBtn.classList.add('lt-btn', 'lt-btn-outline');
             prevBtn.addEventListener('mouseenter', () => {
                 prevBtn.style.background = 'var(--background-modifier-hover)';
             });
@@ -740,17 +707,7 @@ class SceneWizardModal extends Modal {
         // Кнопка "Далее" или "Создать сцену"
         if (this.state.step < this.steps.length - 1) {
             const nextBtn = rightButtons.createEl('button', { text: 'Далее →' });
-            nextBtn.style.cssText = `
-                padding: 8px 16px;
-                background: var(--interactive-accent);
-                color: var(--text-on-accent);
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
+            nextBtn.classList.add('lt-btn', 'lt-btn-primary');
             nextBtn.addEventListener('mouseenter', () => {
                 nextBtn.style.background = 'var(--interactive-accent-hover)';
             });
@@ -765,17 +722,7 @@ class SceneWizardModal extends Modal {
             };
         } else {
             const finishBtn = rightButtons.createEl('button', { text: '✓ Создать сцену' });
-            finishBtn.style.cssText = `
-                padding: 10px 20px;
-                background: var(--interactive-accent);
-                color: var(--text-on-accent);
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: background-color 0.2s ease;
-            `;
+            finishBtn.classList.add('lt-btn', 'lt-btn-success');
             finishBtn.addEventListener('mouseenter', () => {
                 finishBtn.style.background = 'var(--interactive-accent-hover)';
             });

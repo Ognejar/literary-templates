@@ -137,12 +137,11 @@ async function createWorkStructure(plugin, projectRoot, workData) {
         }
         await createLocalPlotlinesFile(plugin, workFolder, workData);
         
-        // Имя файла: Тип_Название.md
+        // Имя файла: совпадает с ID папки (без дублирования)
         if (typeof Notice !== 'undefined') {
             new Notice('Создание файла произведения...', 2000);
         }
-        const fileBase = buildWorkFileName(workData.title, workData.workType);
-        const workFilePath = `${workFolder}/${fileBase}.md`;
+        const workFilePath = `${workFolder}/${workData.id}.md`;
 
         // Чтение шаблона с диска
         let templateContent = '';
@@ -161,6 +160,7 @@ async function createWorkStructure(plugin, projectRoot, workData) {
         const now = new Date();
         const data = {
             ...workData,
+            projectRoot: projectRoot,
             created: now.toISOString().split('T')[0],
             status: 'в_работе',
         };

@@ -394,13 +394,22 @@ var PeopleWizardModal = class extends HtmlWizardModal {
             const targetFolder = `${this.projectPath}/Народы`;
             await ensureEntityInfrastructure(targetFolder, cleanName, app);
             const targetPath = `${targetFolder}/${cleanName}.md`;
-            await safeCreateFile(targetPath, content, app);
+            const createdFile = await safeCreateFile(targetPath, content, app);
 
-            const file = app.vault.getAbstractFileByPath(targetPath);
-            if (file instanceof TFile) {
-                await app.workspace.getLeaf().openFile(file);
+            if (createdFile) {
+                // Файл был создан успешно
+                await app.workspace.getLeaf().openFile(createdFile);
+                new this.Notice(`Создан народ: ${name}`);
+            } else {
+                // Файл уже существует, открываем существующий
+                const existingFile = app.vault.getAbstractFileByPath(targetPath);
+                if (existingFile instanceof TFile) {
+                    await app.workspace.getLeaf().openFile(existingFile);
+                    new this.Notice(`Народ уже существует: ${name}`);
+                } else {
+                    new this.Notice(`Ошибка: не удалось найти файл ${name}`);
+                }
             }
-            new this.Notice(`Создан народ: ${name}`);
             this.close();
             if (this.onFinish) this.onFinish();
         } catch (e) {

@@ -472,12 +472,18 @@ class EntityFactory {
             if (this.plugin && typeof this.plugin.logDebug === 'function') {
                 await this.plugin.logDebug(`[Factory] generateContent: ${entityType} -> ${templateName}`);
             }
+            
+            // Получаем жанр и тип мира для выбора правильного шаблона
+            const worldInfo = await this.getWorldTypeAndGenre(templateData.project);
+            const finalTemplateName = await this.findBestTemplate(templateName, worldInfo.worldType, worldInfo.genre);
+            
             // Используем TemplateManager напрямую, чтобы гарантировать include и секции
             const manager = new window.TemplateManager(this.plugin);
-            const content = await manager.generateFromTemplate(templateName, templateData, this.plugin);
+            const content = await manager.generateFromTemplate(finalTemplateName, templateData, this.plugin, worldInfo.worldType, worldInfo.genre);
             if (this.plugin && typeof this.plugin.logDebug === 'function') {
                 await this.plugin.logDebug(`[Factory] generated length: ${content ? content.length : 0}`);
                 await this.plugin.logDebug(`[Factory] templateData keys: ${Object.keys(templateData).join(',')}`);
+                await this.plugin.logDebug(`[Factory] used template: ${finalTemplateName}`);
             }
             return content;
         } catch (e) {
@@ -487,6 +493,61 @@ class EntityFactory {
             // Фолбэк на старый маршрут
             return await window.generateFromTemplate(templateName, templateData, this.plugin);
         }
+    }
+
+    /**
+     * Получает тип мира и жанр из настроек проекта
+     */
+    async getWorldTypeAndGenre(projectPath) {
+        try {
+            const settingsPath = `${projectPath}/Настройки_мира.md`;
+            const settingsFile = this.plugin.app.vault.getAbstractFileByPath(settingsPath);
+            if (!settingsFile) {
+                return { worldType: '', genre: '' };
+            }
+            
+            const content = await this.plugin.app.vault.read(settingsFile);
+            
+            // Парсим YAML frontmatter или ищем в тексте
+            const worldTypeMatch = content.match(/- \*\*Тип:\*\* (.+)/);
+            const genreMatch = content.match(/- \*\*Жанр:\*\* (.+)/);
+            
+            return {
+                worldType: worldTypeMatch ? worldTypeMatch[1].trim() : '',
+                genre: genreMatch ? genreMatch[1].trim() : ''
+            };
+        } catch (e) {
+            if (this.plugin && typeof this.plugin.logDebug === 'function') {
+                await this.plugin.logDebug(`[Factory] getWorldTypeAndGenre error: ${e.message}`);
+            }
+            return { worldType: '', genre: '' };
+        }
+    }
+
+    /**
+     * Находит лучший доступный шаблон по приоритету: жанр -> тип -> базовый
+     */
+    async findBestTemplate(templateName, worldType, genre) {
+        const adapter = this.plugin.app.vault.adapter;
+        
+        // 1. Пробуем найти по жанру: templates/{worldType}/{genre}/{templateName}.md
+        if (worldType && genre) {
+            const genrePath = `.obsidian/plugins/literary-templates/templates/${worldType}/${genre}/${templateName}.md`;
+            if (await adapter.exists(genrePath)) {
+                return templateName; // TemplateManager сам добавит путь
+            }
+        }
+        
+        // 2. Пробуем найти по типу: templates/{worldType}/{templateName}.md
+        if (worldType) {
+            const typePath = `.obsidian/plugins/literary-templates/templates/${worldType}/${templateName}.md`;
+            if (await adapter.exists(typePath)) {
+                return templateName; // TemplateManager сам добавит путь
+            }
+        }
+        
+        // 3. Возвращаем базовое имя - TemplateManager найдёт в templates/
+        return templateName;
     }
 
     /**

@@ -505,3 +505,13 @@ $dstTagImages = $dst. '/Теговые_картинки';
 if (copyDir($srcTagImages, $dstTagImages)) {
     echoGreen( "Теговые картинки скопированы в $dstTagImages\n");
 }
+
+
+// Копируем стили
+//$srcTagImages = __DIR__ . '/style.css';
+//$dstTagImages = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates'. '/style.css';
+$srcTagImages = 'h:\1_Plugun_work\styles.css';
+$dstTagImages = 'C:/Obsidian_data_C/.obsidian/plugins/literary-templates/style.css';
+if (copy($srcTagImages, $dstTagImages)) {
+    echoGreen( "Стили скопированы в $dstTagImages\n");
+}
