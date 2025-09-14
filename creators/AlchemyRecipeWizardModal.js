@@ -550,7 +550,7 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
         }
         
         // Кнопка "Далее" или "Готово"
-        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
+        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать рецепт' : 'Далее →');
         nextBtn.onclick = () => {
             if (this.validateCurrentStep()) {
                 if (this.step === this.steps.length - 1) {
@@ -654,7 +654,7 @@ class AlchemyRecipeWizardModal extends HtmlWizardModal {
             const limitationsContent = limitationsList.join('\n');
 
             // Теги и tagImage
-            const tags = ['alchemy', 'алхимия', 'recipe'].concat(categoryLower ? [categoryLower] : []);
+            const tags = ['alchemy', 'алхимия', 'recipe'].concat(categoryLower ? [categoryLower.replace(/\s+/g, '_')] : []);
             let tagImage = '';
             try {
                 if (window.litSettingsService) {

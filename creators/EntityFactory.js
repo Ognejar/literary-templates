@@ -252,7 +252,7 @@ class EntityFactory {
             name: entityData.cityName, // Единое поле name для всех локаций
             state: entityData.state || '', // Прямо используем state из entityData
             province: entityData.province || '', // Добавляем поле province
-            typeLower: (entityData.type || 'Город').toLowerCase(), // Добавляем typeLower
+            typeLower: (entityData.type || 'Город').toLowerCase().replace(/\s+/g, '_'), // Добавляем typeLower, заменяем пробелы на подчеркивания
             dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
             mainIndustriesSection: mainIndustriesContent || 'Не указаны',
             districtsSection: districtsContent || 'Не указаны',
@@ -272,7 +272,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Государство').toLowerCase(),
+            typeLower: (entityData.type || 'Государство').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Государство')
         };
     }
@@ -288,7 +288,7 @@ class EntityFactory {
         return {
             ...baseData,
             name: entityData.provinceName || entityData.name || '', // Единое поле name
-            typeLower: (entityData.type || 'Провинция').toLowerCase(), // Добавляем typeLower
+            typeLower: (entityData.type || 'Провинция').toLowerCase().replace(/\s+/g, '_'), // Добавляем typeLower, заменяем пробелы на подчеркивания
             dominantFaction: entityData.dominantFaction || '', // Единое поле для всех локаций
             minorFactionsSection: minorFactionsContent || 'Не указаны',
             citiesSection: citiesContent || 'Не указаны',
@@ -308,7 +308,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Деревня').toLowerCase(),
+            typeLower: (entityData.type || 'Деревня').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Деревня')
         };
     }
@@ -341,7 +341,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Замок').toLowerCase(),
+            typeLower: (entityData.type || 'Замок').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Замок')
         };
     }
@@ -357,7 +357,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Порт').toLowerCase(),
+            typeLower: (entityData.type || 'Порт').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Порт')
         };
     }
@@ -373,7 +373,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Ферма').toLowerCase(),
+            typeLower: (entityData.type || 'Ферма').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Ферма')
         };
     }
@@ -401,7 +401,7 @@ class EntityFactory {
             ...baseData,
             ...mapped,
             type: 'Шахта',
-            typeLower: (entityData.type || 'Шахта').toLowerCase(),
+            typeLower: (entityData.type || 'Шахта').toLowerCase().replace(/\s+/g, '_'),
             production: productionParts.join('\n\n'),
             imageBlock: this.findTagImage(project, 'Шахта')
         };
@@ -418,7 +418,7 @@ class EntityFactory {
         return {
             ...baseData,
             ...mapped,
-            typeLower: (entityData.type || 'Завод').toLowerCase(),
+            typeLower: (entityData.type || 'Завод').toLowerCase().replace(/\s+/g, '_'),
             imageBlock: this.findTagImage(project, 'Завод')
         };
     }
@@ -432,7 +432,7 @@ class EntityFactory {
             name: entityData.locationName || entityData.name || '', // Единое поле name
             type: entityData.type || '', // Тип локации
             climate: entityData.climate || '', // Климат
-            typeLower: (entityData.type || 'локация').toLowerCase(), // Добавляем typeLower
+            typeLower: (entityData.type || 'локация').toLowerCase().replace(/\s+/g, '_'), // Добавляем typeLower, заменяем пробелы на подчеркивания
             province: entityData.province || '', // Провинция
             state: entityData.state || '', // Государство
             status: entityData.status || 'действует', // Статус

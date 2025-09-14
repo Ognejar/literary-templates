@@ -74,7 +74,7 @@ var PeopleWizardModal = class extends HtmlWizardModal {
             back.onclick = () => { this.step--; this.render(); };
             nav.appendChild(back);
         }
-        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
+        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать народ' : 'Далее →');
         next.onclick = () => {
             if (this.validateCurrentStep()) {
                 if (this.step === this.steps.length - 1) {

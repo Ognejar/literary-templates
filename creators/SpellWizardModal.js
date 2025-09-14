@@ -125,7 +125,7 @@ class SpellWizardModal extends HtmlWizardModal {
             back.onclick = () => { this.step--; this.render(); };
             nav.appendChild(back);
         }
-        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
+        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать заклинание' : 'Далее →');
         next.onclick = () => {
             if (this.step === this.steps.length - 1) {
                 if (!String(this.data.spellName || '').trim()) {

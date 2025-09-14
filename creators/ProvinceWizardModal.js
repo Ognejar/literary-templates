@@ -269,7 +269,7 @@ tags: [place, государство]
                 break;
         }
 
-        this.renderNav(contentEl, navButtons);
+        this.renderNavFlex(contentEl);
     }
 
     async loadStatesFromFolder() {
@@ -563,34 +563,45 @@ tags: [place, государство]
         }
     }
 
-    renderNav(contentEl, buttonsHtml) {
+    renderNavFlex(contentEl) {
         const navEl = contentEl.createEl('div', { cls: 'modal-nav' });
-        navEl.innerHTML = buttonsHtml;
+        navEl.style.display = 'flex';
+        navEl.style.justifyContent = 'space-between';
+        navEl.style.marginTop = '32px';
+        navEl.style.gap = '16px';
 
-        navEl.querySelector('#prev')?.addEventListener('click', async () => {
-            this.step--;
-            await this.render();
-        });
+        // Левая часть (Назад)
+        const left = navEl.createDiv();
+        if (this.step > 0) {
+            const backBtn = left.createEl('button', { text: '← Назад' });
+            backBtn.className = 'mod-cta';
+            backBtn.onclick = () => {
+                this.step--;
+                this.render();
+            };
+        }
 
-        navEl.querySelector('#next')?.addEventListener('click', async () => {
-            if (this.validateCurrentStep()) {
-                this.step++;
-                await this.render();
-            }
-        });
-
-        navEl.querySelector('.mod-cta:not(#next)')?.addEventListener('click', async () => {
-            if (this.validateCurrentStep()) {
-                // Сохраняем конфигурацию, если были добавлены новые государства
-                await this.saveConfig();
-                try {
-                    await this.finish();
-                } catch (e) {
-                    console.error('Ошибка при создании провинции:', e);
-                    new this.Notice('Ошибка при создании провинции: ' + (e && e.message ? e.message : e));
+        // Правая часть (Далее/Создать)
+        const right = navEl.createDiv();
+        if (this.step < 8) {
+            const nextBtn = right.createEl('button', { text: 'Далее →' });
+            nextBtn.className = 'mod-cta';
+            nextBtn.onclick = () => {
+                if (this.validateCurrentStep()) {
+                    this.step++;
+                    this.render();
                 }
-            }
-        });
+            };
+        } else {
+            const finishBtn = right.createEl('button', { text: '✓ Создать провинцию' });
+            finishBtn.className = 'mod-cta';
+            finishBtn.onclick = () => {
+                if (this.validateCurrentStep()) {
+                    this.onFinish(this.data);
+                    this.close();
+                }
+            };
+        }
     }
 
     validateCurrentStep() {

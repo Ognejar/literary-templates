@@ -11,8 +11,9 @@
  */
 
 const { HtmlWizardModal } = require('./HtmlWizardModal.js');
+const { EntityWizardBase } = require('./EntityWizardBase.js');
 
-var ArtifactWizardModal = class extends HtmlWizardModal {
+var ArtifactWizardModal = class extends EntityWizardBase {
     constructor(app, ModalClass, SettingClass, NoticeClass, plugin, projectPath, onFinish, options = {}) {
         super(app, ModalClass, SettingClass, NoticeClass);
         this.Modal = ModalClass;
@@ -378,7 +379,7 @@ var ArtifactWizardModal = class extends HtmlWizardModal {
         }
         
         // Кнопка "Далее" или "Создать"
-        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Готово' : 'Далее →');
+        const nextBtn = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать артефакт' : 'Далее →');
         nextBtn.onclick = () => {
             if (this.validateCurrentStep()) {
                 if (this.step === this.steps.length - 1) {
@@ -439,7 +440,7 @@ var ArtifactWizardModal = class extends HtmlWizardModal {
         try {
             // Подготовка данных
             const date = window.moment().format('YYYY-MM-DD');
-            const typeLower = this.data.type ? this.data.type.toLowerCase() : '';
+            const typeLower = this.data.type ? this.data.type.toLowerCase().replace(/\s+/g, '_') : '';
             // tagImage по типу артефакта, иначе по ключу "Артефакт"
             let tagImage = '';
             try {

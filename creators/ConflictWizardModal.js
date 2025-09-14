@@ -131,7 +131,7 @@ var ConflictWizardModal = class extends HtmlWizardModal {
             back.onclick = () => { this.step--; this.render(); };
             nav.appendChild(back);
         }
-        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать' : 'Далее →');
+        const next = this.createButton('primary', this.step === this.steps.length - 1 ? '✓ Создать конфликт' : 'Далее →');
         next.onclick = () => {
             if (!this.validateStep()) return;
             if (this.step === this.steps.length - 1) {
@@ -159,7 +159,7 @@ var ConflictWizardModal = class extends HtmlWizardModal {
         // Списки
         const normalizeList = (s) => (String(s || '')
             .split(',')
-            .map(x => x.trim())
+            .map(x => x.trim().replace(/\s+/g, '_'))
             .filter(Boolean));
         const data = {
             name,

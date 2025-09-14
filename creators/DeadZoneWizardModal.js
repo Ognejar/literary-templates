@@ -169,7 +169,7 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
                 break;
         }
 
-        this.renderNav(contentEl, navButtons);
+        this.renderNavFlex(contentEl);
     }
 
     renderZoneName(contentEl) {
@@ -369,28 +369,45 @@ var DeadZoneWizardModal = class extends EntityWizardBase {
         previewEl.createEl('p', { text: `**Находки:** ${findings.join(', ')}` });
     }
 
-    renderNav(contentEl, buttonsHtml) {
+    renderNavFlex(contentEl) {
         const navEl = contentEl.createEl('div', { cls: 'modal-nav' });
-        navEl.innerHTML = buttonsHtml;
+        navEl.style.display = 'flex';
+        navEl.style.justifyContent = 'space-between';
+        navEl.style.marginTop = '32px';
+        navEl.style.gap = '16px';
 
-        navEl.querySelector('#prev')?.addEventListener('click', () => {
-            this.step--;
-            this.render();
-        });
-
-        navEl.querySelector('#next')?.addEventListener('click', () => {
-            if (this.validateCurrentStep()) {
-                this.step++;
+        // Левая часть (Назад)
+        const left = navEl.createDiv();
+        if (this.step > 0) {
+            const backBtn = left.createEl('button', { text: '← Назад' });
+            backBtn.className = 'mod-cta';
+            backBtn.onclick = () => {
+                this.step--;
                 this.render();
-            }
-        });
+            };
+        }
 
-        navEl.querySelector('.mod-cta:not(#next)')?.addEventListener('click', () => {
-            if (this.validateCurrentStep()) {
-                this.onFinish(this.data);
-                this.close();
-            }
-        });
+        // Правая часть (Далее/Создать)
+        const right = navEl.createDiv();
+        if (this.step < 8) {
+            const nextBtn = right.createEl('button', { text: 'Далее →' });
+            nextBtn.className = 'mod-cta';
+            nextBtn.onclick = () => {
+                if (this.validateCurrentStep()) {
+                    this.step++;
+                    this.render();
+                }
+            };
+        } else {
+            const finishBtn = right.createEl('button', { text: '✓ Создать мёртвую зону' });
+            finishBtn.className = 'mod-cta';
+            finishBtn.onclick = () => {
+                if (this.validateCurrentStep()) {
+                    this.onFinish(this.data);
+                    this.close();
+                }
+            };
+        }
     }
 
     validateCurrentStep() {

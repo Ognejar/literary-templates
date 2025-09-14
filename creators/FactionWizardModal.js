@@ -168,7 +168,7 @@ class FactionWizardModal extends EntityWizardBase {
 
     async finish() {
         const clean = s => String(s || '').trim();
-        const list = s => clean(s).split(',').map(x => x.trim()).filter(Boolean);
+        const list = s => clean(s).split(',').map(x => x.trim().replace(/\s+/g, '_')).filter(Boolean);
         
         const name = clean(this.data.name);
         const cleanName = name.replace(/[^а-яА-ЯёЁ\w\s-.]/g, '').replace(/\s+/g, '_');

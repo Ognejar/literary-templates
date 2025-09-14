@@ -10,6 +10,8 @@
  * @docs       /docs/project.md
  */
 
+const { Modal } = require('obsidian');
+
 class HtmlWizardModal extends Modal {
     constructor(app, ModalClass, NoticeClass) {
         super(app);
@@ -71,7 +73,7 @@ class HtmlWizardModal extends Modal {
             };
             nav.appendChild(nextBtn);
         } else {
-            const finishBtn = this.createButton('primary', 'Завершить');
+            const finishBtn = this.createButton('primary', '✓ Готово');
             finishBtn.onclick = () => {
                 this.finish();
             };

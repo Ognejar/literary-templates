@@ -257,6 +257,16 @@
 - **Зависимости**: Нет
 
 ## Задача: Оптимизация вызова prepareXData в EntityFactory.js
+## Задача: Исправление системы магии - наследование ArtifactWizardModal
+- **Статус**: Завершена
+- **Описание**: Исправить ошибку `this.createLoreAnalysisButton is not a function` при создании артефактов путем изменения наследования ArtifactWizardModal от EntityWizardBase.
+- **Шаги выполнения**:
+  - [x] Изменить наследование ArtifactWizardModal с HtmlWizardModal на EntityWizardBase
+  - [x] Добавить импорт EntityWizardBase в ArtifactWizardModal.js
+  - [x] Исправить импорт Modal в HtmlWizardModal.js
+  - [x] Обновить changelog.md
+- **Зависимости**: EntityWizardBase содержит метод createLoreAnalysisButton
+
 ## Задача: Починить регистрацию команды «Вставить сюжетную линию»
 - **Статус**: Завершена
 - **Описание**: Добавить алиас-команду `insert-plotline` на тот же колбэк, что и `insert-plotline-into-scene`, чтобы работали обе формулировки кнопок.

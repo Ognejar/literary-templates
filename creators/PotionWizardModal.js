@@ -659,7 +659,7 @@ class PotionWizardModal extends Modal {
             });
             nextBtn.onclick = () => { this.step++; this.render(); };
         } else {
-            const finishBtn = rightButtons.createEl('button', { text: '✓ Готово' });
+            const finishBtn = rightButtons.createEl('button', { text: '✓ Создать зелье' });
             finishBtn.style.cssText = `
                 padding: 10px 20px;
                 background: var(--interactive-accent);
